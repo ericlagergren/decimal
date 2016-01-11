@@ -1,6 +1,6 @@
 # decimal [![Build Status](https://travis-ci.org/EricLagergren/decimal.png?branch=master)](https://travis-ci.org/EricLagergren/decimal)
 
-Package decimal implements an efficient, arbitrary precision, fixed-point decimal type.
+Decima is a high-performance, arbitrary precision, fixed-point decimal library.
 
 ## Features
 
@@ -95,4 +95,4 @@ It is much easier to be careful with Decimal than with big.Rat.
 
 ## License
 
-The [MIT License (MIT)](https://github.com/EricLagergren/decimal/blob/master/LICENSE)
+The [BSD "New" License](https://github.com/EricLagergren/decimal/blob/master/LICENSE)
