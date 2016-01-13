@@ -74,18 +74,18 @@ func pow10(e int64) float64 {
 }
 
 // isOdd returns true if d is odd.
-func (d *Decimal) isOdd() bool {
-	dec, frac := Modf(d)
+func (z *Decimal) isOdd() bool {
+	dec, frac := Modf(z)
 	return frac.ez() && dec.and(dec, 1).Equals(one)
 }
 
-// integralRoot sets d to the integral root of x and returns d.
-func (d *Decimal) integralRoot(x *Decimal, index int64) *Decimal {
+// integralRoot sets d to the integral root of x and returns z.
+func (z *Decimal) integralRoot(x *Decimal, index int64) *Decimal {
 	if x.ltz() {
 		panic("decimal.integralRoot: x < 0")
 	}
 
-	sp := d.Prec() + 1
+	sp := z.Prec() + 1
 	i := New(index, 0)
 	im1 := New(index-1, 0)
 	tol := New(5, sp)
@@ -106,62 +106,62 @@ func (d *Decimal) integralRoot(x *Decimal, index int64) *Decimal {
 			break
 		}
 	}
-	*d = *x0
-	return d
+	*z = *x0
+	return z
 }
 
-// pow sets d to x ** y and returns d.
-func (d *Decimal) pow(x, y *Decimal) *Decimal {
+// pow sets d to x ** y and returns z.
+func (z *Decimal) pow(x, y *Decimal) *Decimal {
 	switch {
 	case y.ltz(), (x.ez() || y.ez()):
-		return d.SetInt64(1)
+		return z.SetInt64(1)
 	case y.Equals(one):
-		return d.Set(x)
+		return z.Set(x)
 	case x.ez():
 		if x.isOdd() {
-			return d.Set(x)
+			return z.Set(x)
 		}
-		return d.SetInt64(0)
+		return z.SetInt64(0)
 	}
 
-	x0 := new(Decimal).Set(x).SetPrec(d.Prec())
+	x0 := new(Decimal).Set(x).SetPrec(z.Prec())
 	y0 := new(Decimal).Set(y)
 	ret := New(1, 0)
 	for y0.gtz() {
 		if y0.isOdd() {
-			ret.Mul(ret, x0).SetPrec(d.Prec())
+			ret.Mul(ret, x0).SetPrec(z.Prec())
 		}
 		x0.Mul(x0, x0)
-		y0.Rsh(y0, 1)
+		y0.rsh(y0, 1)
 	}
-	*d = *ret
+	*z = *ret
 	return ret
 }
 
-// pow sets d to x ** y and returns d.
-func (d *Decimal) powInt(x *Decimal, y int64) *Decimal {
+// pow sets d to x ** y and returns z.
+func (z *Decimal) powInt(x *Decimal, y int64) *Decimal {
 	switch {
 	case y < 0, (x.ez() || y == 0):
-		return d.SetInt64(1)
+		return z.SetInt64(1)
 	case y == 1:
-		return d.Set(x)
+		return z.Set(x)
 	case x.ez():
 		if x.isOdd() {
-			return d.Set(x)
+			return z.Set(x)
 		}
-		return d.SetInt64(0)
+		return z.SetInt64(0)
 	}
 
-	x0 := new(Decimal).Set(x).SetPrec(d.Prec())
+	x0 := new(Decimal).Set(x).SetPrec(z.Prec())
 	ret := New(1, 0)
 	for y > 0 {
 		if y&1 == 1 {
-			ret.Mul(ret, x0).SetPrec(d.Prec())
+			ret.Mul(ret, x0).SetPrec(z.Prec())
 		}
 		x0.Mul(x0, x0)
 		y >>= 1
 	}
-	*d = *ret
+	*z = *ret
 	return ret
 }
 

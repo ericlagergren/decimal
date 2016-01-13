@@ -314,24 +314,25 @@ func TestDecimal_Exp(t *testing.T) {
 		sm string
 		b  bool
 	}{
-		{New(69, 0), New(5, 1), nil, "8.3066238629180748", "", true},
-		{New(24000, 4), New(3, 0), nil, "13.824", "", true},
-		{New(4, 0), New(4, 0), nil, "256", "", true},
-		{New(4, 0), New(4, 0), New(3, 0), "256", "1", true},
-		{New(500000, 0), New(4, 0), nil, "62500000000000000000000", "", true},
-		{New(-123, 2), New(201, 2), nil, "-1.5160351613631016", "", true},
-		{New(123, 2), New(201, 2), nil, "1.5160351613631016", "", true},
+		{New(69, 0), New(5, 1), nil, "8.3066238629180748", "<nil>", false},
+		{New(24000, 4), New(3, 0), nil, "13.824", "<nil>", false},
+		{New(4, 0), New(4, 0), nil, "256", "", false},
+		{New(4, 0), New(4, 0), New(3, 0), "256", "1", false},
+		{New(500000, 0), New(4, 0), nil, "62500000000000000000000", "<nil>", false},
+		{New(-123, 2), New(201, 2), nil, "-1.5160351613631016", "<nil>", false},
+		{New(123, 2), New(201, 2), nil, "1.5160351613631016", "<nil>", false},
 
 		// Should (1<<63)-2 * 4 should cause an overflow of our
 		// scale while means we'll get nil for d and false.
-		{New(0, math.MaxInt64-1), New(4, 0), nil, "<nil>", "", false},
+		{New(0, math.MaxInt64-1), New(4, 0), nil, "NaN", "<nil>", true},
 	}
 
 	for i, v := range tests {
-		got, ok := v.x.Exp(v.x, v.y, v.m)
-		if gs := got.String(); gs != v.s || ok != v.b {
+		got := v.x.Exp(v.x, v.y, v.m)
+		isNaN := IsNan(got)
+		if gs := got.String(); gs != v.s || isNaN != v.b {
 			t.Errorf("#%d:\nexpected %q and %q and %t\n     got %q and %q and %t",
-				i, v.s, v.sm, v.b, got, v.m, ok)
+				i, v.s, v.sm, v.b, got, v.m, isNaN)
 		}
 	}
 }
@@ -859,10 +860,10 @@ func TestDecimal_Hypot(t *testing.T) {
 		{New(1234, 3), New(987654123, 5), 2, "9876.54"},
 		{New(3, 0), New(4, 0), 0, "5"},
 	}
+	var a Decimal
 	for i, v := range tests {
-		v.p.SetContext(Context{Prec: v.c})
-		v.q.SetContext(Context{Prec: v.c})
-		if got := Hypot(v.p, v.q).String(); got != v.a {
+		a.SetContext(Context{Prec: v.c})
+		if got := a.Hypot(v.p, v.q).String(); got != v.a {
 			t.Errorf("#%d: wanted %q, got %q", i, v.a, got)
 		}
 	}
@@ -971,10 +972,13 @@ func TestDecimal_Quo(t *testing.T) {
 		{
 			"11510768301994997771168",
 			"1328165573307167369775",
-			"8",
+			"9",
 			"885443715537658812968",
 		},
 	}
+
+	var a Decimal
+	a.SetPrec(0)
 	for i, test := range quoTests {
 		x, _ := NewFromString(test.x)
 		y, _ := NewFromString(test.y)
@@ -983,7 +987,7 @@ func TestDecimal_Quo(t *testing.T) {
 
 		// r := new(Decimal)
 		// q, r := new(Decimal).QuoRem(x, y, r)
-		q := new(Decimal).IntDiv(x, y)
+		q := a.Div(x, y)
 
 		if !q.Equals(expectedQ) { //|| r.Cmp(expectedR) != 0 {
 			t.Errorf("#%d got (%s) want (%s)", // %s %s
