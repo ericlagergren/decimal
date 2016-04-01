@@ -3,13 +3,10 @@ package checked
 import (
 	"math/big"
 
+	"github.com/EricLagergren/decimal/internal/arith"
+	"github.com/EricLagergren/decimal/internal/arith/pow"
 	"github.com/EricLagergren/decimal/internal/c"
 )
-
-func abs(x int64) int64 {
-	mask := -int64(uint64(x) >> 63)
-	return (x + mask) ^ mask
-}
 
 // Add returns x + y and a bool indicating whether the
 // addition was successful.
@@ -23,7 +20,7 @@ func Add(x, y int64) (sum int64, ok bool) {
 // was successful.
 func Mul(x, y int64) (prod int64, ok bool) {
 	prod = x * y
-	return prod, ((abs(x)|abs(y))>>31 == 0 || prod/y == x)
+	return prod, ((arith.Abs(x)|arith.Abs(y))>>31 == 0 || prod/y == x)
 }
 
 // Sub returns x - y and a bool indicating whether the addition
@@ -44,16 +41,16 @@ func SumSub(x, y, z int64) (res int64, ok bool) {
 
 // MulPow10 computes 10 * x ** n and a bool indicating whether
 // the multiplcation was successful.
-func MulPow10(x int64, n int32) (pow int64, ok bool) {
+func MulPow10(x int64, n int32) (p int64, ok bool) {
 	if x == 0 || n <= 0 || x == c.Inflated {
 		return x, true
 	}
-	if n < pow10tab64Len && n < thresholdLen {
+	if n < pow.Tab64Len && n < pow.ThreshLen {
 		if x == 1 {
-			return pow10int64(int64(n))
+			return pow.Ten64(int64(n))
 		}
-		if abs(int64(n)) < thresh(n) {
-			p, ok := pow10int64(int64(n))
+		if arith.Abs(int64(n)) < pow.Thresh(n) {
+			p, ok := pow.Ten64(int64(n))
 			if !ok {
 				return 0, false
 			}
@@ -69,6 +66,6 @@ func MulBigPow10(x *big.Int, n int32) *big.Int {
 	if x.Sign() == 0 || n <= 0 {
 		return x
 	}
-	b := bigPow10(n)
+	b := pow.BigTen(int64(n))
 	return x.Mul(x, &b)
 }
