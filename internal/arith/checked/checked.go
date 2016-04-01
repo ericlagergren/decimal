@@ -12,7 +12,15 @@ import (
 // addition was successful.
 func Add(x, y int64) (sum int64, ok bool) {
 	sum = x + y
-	// Algorith from "Hacker's Delight" 2-12
+	// Algorithm from "Hacker's Delight" 2-12
+	return sum, (sum^x)&(sum^y) >= 0
+}
+
+// Add32 returns x + y and a bool indicating whether the
+// addition was successful.
+func Add32(x, y int32) (sum int32, ok bool) {
+	sum = x + y
+	// Algorithm from "Hacker's Delight" 2-12
 	return sum, (sum^x)&(sum^y) >= 0
 }
 

@@ -98,7 +98,7 @@ func TestBig_Mul(t *testing.T) {
 	}
 	for i, v := range tests {
 		r := v.a.Mul(v.a, v.b)
-		if s := r.String(); r != v.c {
+		if s := r.String(); s != v.c {
 			t.Fatalf("#%d: wanted %q got %q", i, v.c, s)
 		}
 	}
