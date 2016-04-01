@@ -39,13 +39,41 @@ func TestBig_Add(t *testing.T) {
 	}
 }
 
+func TestBig_BitLen(t *testing.T) {
+	var x Big
+	const maxCompact = (1<<63 - 1) - 1
+	tests := [...]struct {
+		a *Big
+		b int
+	}{
+		0:  {a: New(0, 0), b: 0},
+		1:  {a: New(12, 0), b: 4},
+		2:  {a: New(50, 0), b: 6},
+		3:  {a: New(12345, 0), b: 14},
+		4:  {a: New(123456789, 0), b: 27},
+		5:  {a: New(maxCompact, 0), b: 63},
+		6:  {a: x.Add(New(maxCompact, 0), New(maxCompact, 0)), b: 64},
+		7:  {a: New(1000, 0), b: 10},
+		8:  {a: New(10, -2), b: 10},
+		9:  {a: New(1e6, 0), b: 20},
+		10: {a: New(10, -5), b: 20},
+		11: {a: New(1e8, 0), b: 27},
+		12: {a: New(10, -7), b: 27},
+	}
+	for i, v := range tests {
+		if b := v.a.BitLen(); b != v.b {
+			t.Errorf("#%d: wanted %d, got %d", i, v.b, b)
+		}
+	}
+}
+
 func TestBig_Neg(t *testing.T) {
 	tests := [...]struct {
 		a, b *Big
 	}{
-		{a: New(1, 0), b: New(-1, 0)},
-		{a: New(999999999999, -1000), b: New(-999999999999, -1000)},
-		{a: New(-512, 2), b: New(512, 2)},
+		0: {a: New(1, 0), b: New(-1, 0)},
+		1: {a: New(999999999999, -1000), b: New(-999999999999, -1000)},
+		2: {a: New(-512, 2), b: New(512, 2)},
 	}
 	var b Big
 	for i, v := range tests {
@@ -53,9 +81,31 @@ func TestBig_Neg(t *testing.T) {
 
 		bs := v.b.String()
 		if gs := b.String(); gs != bs {
-			t.Fatalf("#%d: wanted %q, got %q", i, gs, bs)
+			t.Fatalf("#%d: wanted %q, got %q", i, bs, gs)
 		}
 	}
+}
+
+func TestBig_Mul(t *testing.T) {
+	tests := [...]struct {
+		a *Big
+		b *Big
+		c string
+	}{
+		0: {a: New(0, 0), b: New(0, 0), c: "0"},
+		1: {a: New(12345, 3), b: New(54321, 3), c: "670.592745"},
+		2: {a: New(1, -8), b: New(2, 0), c: "0.0000000200"},
+	}
+	for i, v := range tests {
+		r := v.a.Mul(v.a, v.b)
+		if s := r.String(); r != v.c {
+			t.Fatalf("#%d: wanted %q got %q", i, v.c, s)
+		}
+	}
+}
+
+func TestBig_Prec(t *testing.T) {
+	// confirmed to work inside internal/arith/intlen_test.go
 }
 
 func TestBig_String(t *testing.T) {
@@ -63,10 +113,10 @@ func TestBig_String(t *testing.T) {
 		a *Big
 		b string
 	}{
-		{a: New(10, 1), b: "1"},                  // Trim trailing zeros
-		{a: New(12345, 3), b: "12.345"},          // Normal decimal
-		{a: New(-9876, 2), b: "-98.76"},          // Negative
-		{a: New(-1e5, 0), b: strconv.Itoa(-1e5)}, // Large number
+		0: {a: New(10, 1), b: "1"},                  // Trim trailing zeros
+		1: {a: New(12345, 3), b: "12.345"},          // Normal decimal
+		2: {a: New(-9876, 2), b: "-98.76"},          // Negative
+		3: {a: New(-1e5, 0), b: strconv.Itoa(-1e5)}, // Large number
 	}
 	for i, s := range tests {
 		str := s.a.String()
@@ -77,7 +127,6 @@ func TestBig_String(t *testing.T) {
 }
 
 func TestDecimal_Sub(t *testing.T) {
-
 	inputs := [...]struct {
 		a string
 		b string

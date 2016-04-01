@@ -2,12 +2,14 @@ package decimal
 
 import (
 	"bytes"
+	"math"
 	"math/big"
 	"strconv"
 	"strings"
 
+	"github.com/EricLagergren/decimal/internal/arith"
+	"github.com/EricLagergren/decimal/internal/arith/checked"
 	"github.com/EricLagergren/decimal/internal/c"
-	"github.com/EricLagergren/decimal/internal/checked"
 )
 
 // Big represents a fixed-point, multi-precision
@@ -49,10 +51,13 @@ func (z *Big) isCompact() bool {
 
 // New creates a new Big decimal with the given value and scale.
 func New(value int64, scale int32) *Big {
-	return &Big{
-		compact: value,
-		scale:   scale,
+	b := Big{scale: scale}
+	if value == c.Inflated {
+		b.mantissa.SetInt64(value)
+	} else {
+		b.compact = value
 	}
+	return &b
 }
 
 // Add sets z to x + y and returns z.
@@ -145,6 +150,93 @@ func (z *Big) addBig(x, y *Big) *Big {
 	return z
 }
 
+// log2(10)
+const ln210 = 3.321928094887362347870319429489390175864831393024580612054
+
+// BitLen returns the absolute value of z in bits.
+func (z *Big) BitLen() int {
+	// If using an artificially inflated number determine the
+	// bitlen using the number of digits.
+	//
+	// http://www.exploringbinary.com/number-of-bits-in-a-decimal-integer/
+	if z.scale < 0 {
+		d := -int(z.scale)
+		if z.isCompact() {
+			d += arith.Length(z.compact)
+		} else {
+			d += arith.BigLength(&z.mantissa)
+		}
+		return int(math.Ceil(float64(d-1) * ln210))
+	}
+
+	if z.isCompact() {
+		return arith.BitLen(z.compact)
+	}
+	return z.mantissa.BitLen()
+}
+
+// Mul sets z to z * y and returns z.
+func (z *Big) Mul(x, y *Big) *Big {
+	if z.isCompact() {
+		if y.isCompact() {
+			return z.mulCompact(x, y)
+		}
+		return z.mulHalf(x, y)
+	}
+	if y.isCompact() {
+		return z.mulHalf(y, x)
+	}
+	return x.mulBig(x, y)
+}
+
+func (z *Big) mulCompact(x, y *Big) *Big {
+	scale, ok := checked.Add(x.scale, y.scale)
+	if !ok {
+		z.form = inf
+		return z
+	}
+
+	prod, ok := checked.Mul(x.compact, y.compact)
+	if ok {
+		z.compact = prod
+	} else {
+		z.mantissa.Mul(big.NewInt(x.compact), big.NewInt(y.compact))
+		z.compact = c.Inflated
+	}
+	z.scale = scale
+	return z
+}
+
+func (z *Big) mulHalf(comp, non *Big) *Big {
+	if comp.isInflated() {
+		panic("decimal.Mul (bug) comp.isInflated() == true")
+	}
+	if comp.scale == non.scale {
+		scale, ok := checked.Add(comp.scale, non.scale)
+	}
+}
+
+// Neg sets z to -x and returns z.
+func (z *Big) Neg(x *Big) *Big {
+	if x.isCompact() {
+		z.compact = -x.compact
+	} else {
+		z.mantissa.Neg(&x.mantissa)
+		z.compact = c.Inflated
+	}
+	z.scale = x.scale
+	return z
+}
+
+// Prec returns the precision of z.
+// That is, it returns the number of digits z requires.
+func (z *Big) Prec() int {
+	if z.isCompact() {
+		return arith.Length(z.compact)
+	}
+	return arith.BigLength(&z.mantissa)
+}
+
 // SetString sets z to the value of s, returning z and a bool
 // indicating success. s must be a decimal number of the same format
 // accepted by Parse, with base argument 0.
@@ -189,26 +281,19 @@ func (z *Big) SetString(s string) (*Big, bool) {
 	return z.Shrink(), true
 }
 
-// Neg sets z to -x and returns z.
-func (z *Big) Neg(x *Big) *Big {
-	if x.isCompact() {
-		z.compact = -x.compact
-	} else {
-		z.mantissa.Neg(&x.mantissa)
-		z.compact = c.Inflated
-	}
-	z.scale = x.scale
-	return z
-}
-
 // Shrink shrinks d from a big.Int into an int64 if possible
 // and returns z.
 func (z *Big) Shrink() *Big {
 	if z.isInflated() {
 		sign := z.mantissa.Sign()
-		if (sign > 0 && z.mantissa.Cmp(c.MaxInt64) < 0) ||
-			(sign < 0 && z.mantissa.Cmp(c.MinInt64) > 0) ||
-			sign == 0 {
+		// Shrink iff:
+		// 	Zero, or
+		// 	Positive and < MaxInt64, or
+		// 	Negative and > MinIn64
+		if sign == 0 ||
+			(sign > 0 && z.mantissa.Cmp(c.MaxInt64) < 0) ||
+			(sign < 0 && z.mantissa.Cmp(c.MinInt64) > 0) {
+
 			z.compact = z.mantissa.Int64()
 			z.mantissa.SetBits(nil)
 		}

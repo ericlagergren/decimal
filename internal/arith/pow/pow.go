@@ -1,4 +1,4 @@
-package checked
+package pow
 
 import (
 	"math"
@@ -9,22 +9,22 @@ import (
 )
 
 const (
-	pow10tab64Len = 19
-	thresholdLen  = 19
-	pow10tab32Len = 8
+	Tab64Len  = 19
+	ThreshLen = 19
+	Tab32Len  = 8
 )
 
 var (
-	pow10tab     [pow10tab64Len]int64
-	thresholdTab [thresholdLen]int64
+	pow10tab     [Tab64Len]int64
+	thresholdTab [ThreshLen]int64
 	bigPow10Tab  struct {
 		sync.RWMutex
 		x []big.Int
 	}
 )
 
-// bigPow10 computes 10 ** n.
-func bigPow10(n int32) (p big.Int) {
+// BigTen computes 10 ** n.
+func BigTen(n int64) (p big.Int) {
 	if n < 0 {
 		return p
 	}
@@ -52,7 +52,7 @@ func bigPow10(n int32) (p big.Int) {
 
 	// Expand our table to contain the value for 10 ** n.
 	bigPow10Tab.Lock()
-	tableLen := int32(len(bigPow10Tab.x))
+	tableLen := int64(len(bigPow10Tab.x))
 	newLen := tableLen << 1
 	for newLen <= n {
 		newLen *= 2
@@ -73,55 +73,59 @@ func pow10(e int32) float64 {
 	return math.Pow10(int(e))
 }
 
+func PowInt32(e int32) (int32, bool) {
+	return pow10int32(e)
+}
+
 func pow10int32(e int32) (int32, bool) {
 	if e < 0 {
 		p, ok := pow10int32(-e)
 		return 1 / p, ok
 	}
-	if e < pow10tab32Len {
-		p, ok := pow10int64(int64(e))
+	if e < Tab32Len {
+		p, ok := Ten64(int64(e))
 		return int32(p), ok
 	}
 	return c.BadScale, false
 }
 
-// pow10int64 returns 10 ** e and a boolean indicating whether
+// Ten64 returns 10 ** e and a boolean indicating whether
 // it fits into an int64.
-func pow10int64(e int64) (int64, bool) {
+func Ten64(e int64) (int64, bool) {
 	if e < 0 {
-		p, ok := pow10int64(-e)
+		p, ok := Ten64(-e)
 		return 1 / p, ok
 	}
-	if e < pow10tab64Len {
+	if e < Tab64Len {
 		return pow10tab[e], true
 	}
 	return c.Inflated, false
 }
 
-// thresh returns ...
-func thresh(t int32) int64 {
+// Thresh returns ...
+func Thresh(t int32) int64 {
 	if t < 0 {
-		return 1 / thresh(-t)
+		return 1 / Thresh(-t)
 	}
 	return thresholdTab[t]
 }
 
 func init() {
 	pow10tab[1] = 10
-	for i := 2; i < pow10tab64Len; i++ {
+	for i := 2; i < Tab64Len; i++ {
 		m := i / 2
 		pow10tab[i] = pow10tab[m] * pow10tab[i-m]
 	}
 
 	thresholdTab[0] = math.MaxInt64
-	for i := int64(1); i < thresholdLen; i++ {
-		p, _ := pow10int64(i)
+	for i := int64(1); i < ThreshLen; i++ {
+		p, _ := Ten64(i)
 		thresholdTab[i] = math.MaxInt64 / p
 	}
 
-	bigPow10Tab.x = make([]big.Int, pow10tab64Len)
-	for i := int64(1); i < pow10tab64Len; i++ {
-		p, _ := pow10int64(i)
+	bigPow10Tab.x = make([]big.Int, Tab64Len)
+	for i := int64(1); i < Tab64Len; i++ {
+		p, _ := Ten64(i)
 		bigPow10Tab.x[i] = *big.NewInt(p)
 	}
 }
