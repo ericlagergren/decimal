@@ -190,7 +190,7 @@ func (z *Big) Mul(x, y *Big) *Big {
 }
 
 func (z *Big) mulCompact(x, y *Big) *Big {
-	scale, ok := checked.Add(x.scale, y.scale)
+	scale, ok := checked.Add32(x.scale, y.scale)
 	if !ok {
 		z.form = inf
 		return z
@@ -212,7 +212,7 @@ func (z *Big) mulHalf(comp, non *Big) *Big {
 		panic("decimal.Mul (bug) comp.isInflated() == true")
 	}
 	if comp.scale == non.scale {
-		scale, ok := checked.Add(comp.scale, non.scale)
+		scale, ok := checked.Add32(comp.scale, non.scale)
 	}
 }
 
@@ -349,7 +349,7 @@ func (z *Big) toString(opts strOpts) string {
 		str = new(big.Int).Abs(&z.mantissa).String()
 		neg = z.mantissa.Sign() < 0
 	} else {
-		abs := uint64(abs(z.compact))
+		abs := uint64(arith.Abs(z.compact))
 		str = strconv.FormatUint(abs, 10)
 		neg = z.compact < 0
 	}
