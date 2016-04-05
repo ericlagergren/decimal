@@ -86,7 +86,7 @@ func pow10int32(e int32) (int32, bool) {
 		p, ok := Ten64(int64(e))
 		return int32(p), ok
 	}
-	return c.BadScale, false
+	return 0, false
 }
 
 // Ten64 returns 10 ** e and a boolean indicating whether
@@ -99,7 +99,7 @@ func Ten64(e int64) (int64, bool) {
 	if e < Tab64Len {
 		return pow10tab[e], true
 	}
-	return c.Inflated, false
+	return 0, false
 }
 
 // Thresh returns ...

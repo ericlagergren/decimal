@@ -5,6 +5,9 @@ import (
 	"testing"
 )
 
+// Verify that ErrNaN implements the error interface.
+var _ error = ErrNaN{}
+
 func TestBig_Add(t *testing.T) {
 	type inp struct {
 		a   string
@@ -86,6 +89,24 @@ func TestBig_Neg(t *testing.T) {
 	}
 }
 
+func TestBig_Modf(t *testing.T) {
+	tests := [...]struct {
+		a *Big
+		b string
+	}{
+		0: {a: New(314159265359, 11), b: "3.14159265359"},
+		1: {a: New(1234, 3), b: "1.234"},
+		2: {a: New(1234, 0), b: "1234"},
+	}
+	for i, v := range tests {
+		n, f := v.a.Modf()
+		n.Add(n, f)
+		if rs := n.String(); rs != v.b {
+			t.Fatalf("#%d: wanted %q, got %q", i, v.b, rs)
+		}
+	}
+}
+
 func TestBig_Mul(t *testing.T) {
 	tests := [...]struct {
 		a *Big
@@ -94,7 +115,10 @@ func TestBig_Mul(t *testing.T) {
 	}{
 		0: {a: New(0, 0), b: New(0, 0), c: "0"},
 		1: {a: New(12345, 3), b: New(54321, 3), c: "670.592745"},
-		2: {a: New(1, -8), b: New(2, 0), c: "0.0000000200"},
+		2: {a: New(1, 8), b: New(2, 0), c: "0.00000002"},
+		3: {a: New(1e5, 2), b: New(10, -5), c: "1000000000"},
+		4: {a: New(6, 0), b: New(6, 0), c: "36"},
+		5: {a: New(-55, 0), b: New(581994, 2), c: "-320096.7"},
 	}
 	for i, v := range tests {
 		r := v.a.Mul(v.a, v.b)
