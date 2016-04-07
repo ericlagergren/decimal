@@ -1,45 +1,64 @@
 package decimal
 
-import "math"
+import (
+	"math"
+	"math/big"
+)
 
 // Precision and scale limits.
 const (
 	MaxScale = math.MaxInt32 // smallest allowed scale.
 	MinScale = math.MinInt32 // largest allowed scale.
 
-	MinPrec = 0             // smallest allowed Context precision.
-	MaxPrec = math.MaxInt32 // largest allowed Context precision.
+	MinPrec = 0             // smallest allowed context precision.
+	MaxPrec = math.MaxInt32 // largest allowed context precision.
 )
 
-// DefaultPrec is the default precision used if the Context's
-// 'Prec' member is 0.
+// DefaultPrec is the default precision used for decimals created as literals
+// or using new.
 const DefaultPrec = 16
 
-// Context tells the arithmetic operations how to do their jobs.
-//
-// Prec is the maximum number of digits that should trail
-// the radix during a potentially lossy (e.g., division) operation.
-// The Decimal's precision will only be less than Prec if
-// the operation has a finite expansion less than Prec.
-//
-// Mode instructs lossy operations how to round.
-type Context struct {
-	Prec int32
-	Mode RoundingMode
+type context struct {
+	precision int32
+	mode      RoundingMode
 }
 
-// The following are called ContextXX instead of DecimalXX
+func (c context) prec() int32 {
+	if c.precision == 0 {
+		return DefaultPrec
+	}
+	if c.precision < 0 {
+		return 0
+	}
+	return c.precision
+}
+
+// The following are called contextXX instead of DecimalXX
 // to reserve the DecimalXX namespace for future decimal types.
 
+// ContextXX tells the lossy arithmetic operations how to do their jobs.
+//
+// The precision is the maximum number of digits that should trail
+// the radix during a potentially lossy (e.g., division) operation.
+// The decimal's precision will only be less than precision if
+// the operation has a finite expansion less than precision.
+//
+// The mode instructs lossy operations how to round.
+//
+// Three contexts based of IEEE 754R are defined. context is exported for
+// this documentation but is not expected to be used itself.
 var (
-	// Contex32 is the IEEE 754R Decimal32 format.
-	Contex32 = Context{Prec: 7, Mode: ToNearestEven}
+	// Context32 is the IEEE 754R Decimal32 format.
+	// It has a precision of 7 and mode of ToNearestEven.
+	Context32 = context{precision: 7, mode: ToNearestEven}
 
 	// Context64 is the IEEE 754R Decimal64 format.
-	Context64 = Context{Prec: 16, Mode: ToNearestEven}
+	// It has a precision of 16 and mode of ToNearestEven.
+	Context64 = context{precision: 16, mode: ToNearestEven}
 
 	// Context128 is the IEEE 754R Decimal128 format.
-	Context128 = Context{Prec: 34, Mode: ToNearestEven}
+	// It has a precision of 34 and mode of ToNearestEven.
+	Context128 = context{precision: 34, mode: ToNearestEven}
 )
 
 // RoundingMode determines how a Decimal will be rounded
@@ -63,30 +82,7 @@ const (
 
 //go:generate stringer -type RoundingMode
 
-func (r RoundingMode) needsInc(c int, pos, odd bool) bool {
-	switch r {
-	case Unneeded:
-		panic("decimal: rounding is necessary")
-	case AwayFromZero:
-		return true
-	case ToZero:
-		return false
-	case ToPositiveInf:
-		return pos
-	case ToNegativeInf:
-		return !pos
-	case ToNearestEven, ToNearestAway:
-		switch {
-		case c < 0:
-			return false
-		case c > 0:
-			return true
-		case c == 0:
-			if r == ToNearestEven {
-				return odd
-			}
-			return true
-		}
-	}
-	panic("unknown RoundingMode")
-}
+var (
+	oneInt = big.NewInt(1)
+	twoInt = big.NewInt(2)
+)

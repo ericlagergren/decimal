@@ -132,7 +132,45 @@ func TestBig_Prec(t *testing.T) {
 	// confirmed to work inside internal/arith/intlen_test.go
 }
 
+func TestBig_Quo(t *testing.T) {
+	tests := [...]struct {
+		a *Big
+		b *Big
+		r string
+	}{
+		0: {a: New(10, 0), b: New(2, 0), r: "5"},
+		1: {a: New(1234, 3), b: New(-2, 0), r: "-0.617"},
+		2: {a: New(-991242141244124, 7), b: New(235325235323, 3), r: "-0.4212222033406558"},
+	}
+	for i, v := range tests {
+		q := v.a.Quo(v.a, v.b)
+		if qs := q.String(); qs != v.r {
+			t.Fatalf("#%d: wanted %q, got %q", i, v.r, qs)
+		}
+	}
+}
+
+func TestBig_SignBit(t *testing.T) {
+	x := New(1<<63-1, 0)
+	tests := [...]struct {
+		a *Big
+		b bool
+	}{
+		0: {a: New(-1, 0), b: true},
+		1: {a: New(1, 0), b: false},
+		2: {a: x.Mul(x, x), b: false},
+		3: {a: new(Big).Neg(x), b: true},
+	}
+	for i, v := range tests {
+		sb := v.a.SignBit()
+		if sb != v.b {
+			t.Fatalf("#%d: wanted %t, got %t", i, v.b, sb)
+		}
+	}
+}
+
 func TestBig_String(t *testing.T) {
+	x := New(1<<63-1, 0)
 	tests := [...]struct {
 		a *Big
 		b string
@@ -141,6 +179,8 @@ func TestBig_String(t *testing.T) {
 		1: {a: New(12345, 3), b: "12.345"},          // Normal decimal
 		2: {a: New(-9876, 2), b: "-98.76"},          // Negative
 		3: {a: New(-1e5, 0), b: strconv.Itoa(-1e5)}, // Large number
+		4: {a: New(0, -50), b: "0"},                 // "0"
+		5: {a: x.Mul(x, x), b: "85070591730234615847396907784232501249"},
 	}
 	for i, s := range tests {
 		str := s.a.String()

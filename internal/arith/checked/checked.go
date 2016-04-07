@@ -1,6 +1,7 @@
 package checked
 
 import (
+	"math"
 	"math/big"
 
 	"github.com/EricLagergren/decimal/internal/arith"
@@ -37,14 +38,23 @@ func Sub(x, y int64) (diff int64, ok bool) {
 	return Add(x, -y)
 }
 
+// Sub32 returns x - y and a bool indicating whether the addition
+// was successful.
+func Sub32(x, y int32) (diff int32, ok bool) {
+	return Add32(x, -y)
+}
+
 // SumSub returns x + y - z and a bool indicating whether the operations
 // were successful.
-func SumSub(x, y, z int64) (res int64, ok bool) {
-	res, ok = Add(x, y)
+func SumSub(x, y, z int32) (res int32, ok bool) {
+	// Use int64s since only the result needs to fit in an int32, not all the
+	// intermediate steps.
+	v, ok := Add(int64(x), int64(y))
 	if !ok {
-		return res, false
+		return 0, false
 	}
-	return Sub(res, z)
+	v, ok = Sub(v, int64(z))
+	return int32(v), ok && v <= math.MaxInt32
 }
 
 // MulPow10 computes 10 * x ** n and a bool indicating whether
