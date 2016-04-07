@@ -2,6 +2,7 @@ package decimal
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"math/big"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/EricLagergren/decimal/internal/arith"
 	"github.com/EricLagergren/decimal/internal/arith/checked"
+	"github.com/EricLagergren/decimal/internal/arith/pow"
 	"github.com/EricLagergren/decimal/internal/c"
 )
 
@@ -28,7 +30,7 @@ type Big struct {
 	// in this field...
 	compact int64
 	scale   int32
-	ctx     Context
+	ctx     context
 	form    form // norm, inf, or nan
 
 	// ...otherwise, it's held here.
@@ -65,6 +67,12 @@ func (z *Big) isCompact() bool {
 	return z.compact != c.Inflated
 }
 
+func (z *Big) isEvenInt() bool {
+	return z.IsInt() &&
+		(z.isCompact() && z.compact&1 == 0) ||
+		(z.isInflated() && z.mantissa.And(&z.mantissa, oneInt).Sign() == 0)
+}
+
 // New creates a new Big decimal with the given value and scale.
 func New(value int64, scale int32) *Big {
 	return new(Big).SetMantScale(value, scale)
@@ -73,6 +81,7 @@ func New(value int64, scale int32) *Big {
 // Add sets z to x + y and returns z.
 func (z *Big) Add(x, y *Big) *Big {
 	if x.form == finite && y.form == finite {
+		z.form = finite
 		if x.isCompact() {
 			if x.isCompact() {
 				return z.addCompact(x, y)
@@ -132,7 +141,7 @@ func (z *Big) addCompact(x, y *Big) *Big {
 		hi, lo = lo, hi
 	}
 
-	// Power of 10 we need to multiple our lo value by in order
+	// Power of 10 we need to multiply our lo value by in order
 	// to equalize the scales.
 	inc := hi.scale - lo.scale
 	z.scale = hi.scale
@@ -211,11 +220,6 @@ func (z *Big) BitLen() int {
 	return z.mantissa.BitLen()
 }
 
-// Context returns x's Context.
-func (x *Big) Context() Context {
-	return x.ctx
-}
-
 // IsInf returns true if x is an infinity.
 func (x *Big) IsInf() bool {
 	return x.form == inf
@@ -224,14 +228,18 @@ func (x *Big) IsInf() bool {
 // IsInt reports whether x is an integer.
 // ±Inf and NaN values are not integers.
 func (x *Big) IsInt() bool {
+	// Alternatively,
+	// return (x.form != finite && x.form == 0) ||
+	// 	       x.scale <= 0 || x.Prec() < int(x.scale)
+
 	if x.form != finite {
-		return x.form == 0
+		return x.form == zero
 	}
 	// Prec doesn't count trailing zeros,
 	// so number with precision <= scale means
 	// the scale is all trailing zeros.
 	// E.g., 12.000:    scale == 3, prec == 2
-	// 		 1234.0000: scale == 4, prec == 4
+	//       1234.0000: scale == 4, prec == 4
 	return x.scale <= 0 || x.Prec() < int(x.scale)
 }
 
@@ -290,6 +298,7 @@ func (z *Big) mulCompact(x, y *Big) *Big {
 		z.compact = c.Inflated
 	}
 	z.scale = scale
+	z.form = finite
 	return z
 }
 
@@ -306,6 +315,7 @@ func (z *Big) mulHalf(comp, non *Big) *Big {
 		z.mantissa.Mul(big.NewInt(comp.compact), &non.mantissa)
 		z.compact = c.Inflated
 		z.scale = scale
+		z.form = finite
 		return z
 	}
 	return z.mulBig(&Big{
@@ -323,6 +333,7 @@ func (z *Big) mulBig(x, y *Big) *Big {
 	z.mantissa.Mul(&x.mantissa, &y.mantissa)
 	z.compact = c.Inflated
 	z.scale = scale
+	z.form = finite
 	return z
 }
 
@@ -365,8 +376,8 @@ func (z *Big) Set(x *Big) *Big {
 	return z
 }
 
-// SetContext sets z's context and returns z.
-func (z *Big) SetContext(ctx Context) *Big {
+// SetContext sets z's Context and returns z.
+func (z *Big) SetContext(ctx context) *Big {
 	z.ctx = ctx
 	return z
 }
@@ -387,10 +398,26 @@ func (z *Big) SetMantScale(value int64, scale int32) *Big {
 
 	if value == c.Inflated {
 		z.mantissa.SetInt64(value)
+		z.compact = c.Inflated
 	} else {
 		z.compact = value
 	}
 	z.form = finite
+	return z
+}
+
+// SetMode sets z's RoundingMode to mode and returns z.
+func (z *Big) SetMode(mode RoundingMode) *Big {
+	z.ctx.mode = mode
+	return z
+}
+
+// SetPrec sets z's precision to prec and returns z.
+// This method is distinct from Prec. This sets the internal context
+// which dictates rounding and digits after the radix for lossy operations.
+// The latter describes the number of digits in the decimal.
+func (z *Big) SetPrec(prec int32) *Big {
+	z.ctx.precision = prec
 	return z
 }
 
@@ -433,7 +460,10 @@ func (z *Big) SetString(s string) (*Big, bool) {
 
 // Shrink shrinks d from a big.Int into an int64 if possible
 // and returns z.
-func (z *Big) Shrink() *Big {
+// saveCap is optional and if true is passed will save the mantissa's
+// capacity. This may be useful if z is to be reused and could expand into
+// its mantissa member again.
+func (z *Big) Shrink(saveCap ...bool) *Big {
 	if z.isInflated() {
 		sign := z.mantissa.Sign()
 		// Shrink iff:
@@ -445,7 +475,13 @@ func (z *Big) Shrink() *Big {
 			(sign < 0 && z.mantissa.Cmp(c.MinInt64) > 0) {
 
 			z.compact = z.mantissa.Int64()
-			z.mantissa.SetBits(nil)
+
+			if len(saveCap) > 0 && saveCap[0] {
+				m := z.mantissa.Bits()
+				z.mantissa.SetBits(m[:0])
+			} else {
+				z.mantissa.SetBits(nil)
+			}
 		}
 	}
 	return z
@@ -477,15 +513,18 @@ func (x *Big) SignBit() bool {
 }
 
 // String returns the string representation of z.
-// For special cases, if z == nil returns "<nil>"
-// and if IsNaN(z) returns "NaN"
+// For special cases, if z == nil returns "<nil>",
+// z.IsNaN() returns "NaN", and z.IsInf() returns "Inf".
 func (z *Big) String() string {
 	if z == nil {
 		return "<nil>"
 	}
-	// If IsNaN(z) {
-	// 	return "NaN"
-	// }
+	if z.IsNaN() {
+		return "NaN"
+	}
+	if z.IsInf() {
+		return "Inf"
+	}
 	return z.toString(trimZeros | plain)
 }
 
@@ -507,7 +546,6 @@ func (z *Big) toString(opts strOpts) string {
 		return strconv.FormatInt(z.compact, 10)
 	}
 
-	// TODO: ez method
 	// We check for z.scale < 0 && z.ez above because it saves
 	// us an allocation of a bytes.Buffer
 	if z.scale < 0 && opts&trimZeros != 0 && z.ez() {
@@ -521,6 +559,7 @@ func (z *Big) toString(opts strOpts) string {
 	)
 
 	if z.isInflated() {
+		// TODO: Do we need Abs?
 		str = new(big.Int).Abs(&z.mantissa).String()
 		neg = z.mantissa.Sign() < 0
 	} else {
@@ -604,4 +643,120 @@ func (z *Big) Sub(x, y *Big) *Big {
 	// ±0 - y
 	// x - ±Inf
 	return z.Neg(y)
+}
+
+// Quo sets z to x / y and returns z.
+func (z *Big) Quo(x, y *Big) *Big {
+	if x.form == finite && y.form == finite {
+		// x / y (common case)
+		if x.isCompact() {
+			if y.isCompact() {
+				return z.quoCompact(x, y)
+			}
+			x0 := *x
+			x0.mantissa.Set(big.NewInt(x.compact))
+			return z.quoBig(&x0, y)
+		}
+		if y.isCompact() {
+			y0 := *x
+			y0.mantissa.Set(big.NewInt(y.compact))
+			return z.quoBig(x, &y0)
+		}
+		return z.quoBig(x, y)
+	}
+
+	if x.form == zero && y.form == zero || x.form == inf && y.form == inf {
+		// ±0 / ±0
+		// ±Inf / ±Inf
+		z.form = zero
+		panic(ErrNaN{"division of zero by zero or infinity by infinity"})
+	}
+
+	if x.form == zero || y.form == inf {
+		// ±0 / y
+		// x / ±Inf
+		z.form = zero
+		return z
+	}
+
+	// x / ±0
+	// ±Inf / y
+	z.form = inf
+	return z
+}
+
+func (z *Big) quoCompact(x, y *Big) *Big {
+
+	shift := int32(1)
+
+	// An even integer / even integer means no decimal expansion, therefore
+	// we do not need to inflate.
+	if !x.isEvenInt() && !y.isEvenInt() {
+		shift = z.ctx.prec()
+	}
+
+	// Shifts >= 19 are guaranteed to overflow.
+	if shift < pow.Tab64Len {
+		// Still could overflow.
+		m, ok := checked.MulPow10(x.compact, shift)
+		if ok {
+			q := m / y.compact
+			r := m % y.compact
+
+			sign := int64(1)
+			if (x.compact < 0) != (y.compact < 0) {
+				sign = -1
+			}
+			z.compact = q
+			if r != 0 && z.needsInc(y.compact, r, sign > 0, q&1 != 0) {
+				z.compact += sign
+			}
+			scale, ok := checked.SumSub(shift, x.scale, y.scale)
+			if !ok {
+				z.form = inf
+				return z
+			}
+			z.scale = scale
+			return z
+		}
+	}
+
+	x0 := *x
+	x0.mantissa.Set(big.NewInt(x.compact))
+	y0 := *y
+	y0.mantissa.Set(big.NewInt(y.compact))
+	return z.quoBig(&x0, &y0)
+}
+
+func (z *Big) quoBig(x, y *Big) *Big {
+	shift := int32(1)
+	if !x.isEvenInt() && !y.isEvenInt() {
+		shift = z.ctx.prec()
+	}
+
+	m := checked.MulBigPow10(&x.mantissa, shift)
+	q, r := m.QuoRem(m, &y.mantissa, new(big.Int))
+
+	fmt.Println(q, r)
+
+	sign := int64(1)
+	if (x.mantissa.Sign() < 0) != (y.mantissa.Sign() < 0) {
+		sign = -1
+	}
+	odd := new(big.Int).And(q, oneInt).Sign() != 0
+
+	z.mantissa = *q
+	if r.Sign() != 0 && z.needsIncBig(&y.mantissa, r, sign > 0, odd) {
+		z.mantissa.Add(&z.mantissa, big.NewInt(sign))
+	}
+
+	scale, ok := checked.SumSub(shift, x.scale, y.scale)
+	if !ok {
+		z.form = inf
+		return z
+	}
+	fmt.Println(shift, x.scale, y.scale)
+	z.scale = scale
+	z.compact = c.Inflated
+	return z.Shrink()
 }
