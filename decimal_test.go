@@ -2,6 +2,7 @@ package decimal
 
 import (
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -69,6 +70,59 @@ func TestBig_BitLen(t *testing.T) {
 		}
 	}
 }
+
+func TestBig_IsInt(t *testing.T) {
+	for i, test := range [...]string{
+		"0 int",
+		"-0 int",
+		"1 int",
+		"-1 int",
+		"0.5",
+		"1.23",
+		"1.23e1",
+		"1.23e2 int",
+		"0.000000001e+8",
+		"0.000000001e+9 int",
+		"1.2345e200 int",
+		"Inf",
+		"+Inf",
+		"-Inf",
+		"-inf",
+		"nan",
+	} {
+		s := strings.TrimSuffix(test, " int")
+		want := s != test
+		x, ok := new(Big).SetString(s)
+		if !ok {
+			t.Fatal("TestBig_IsInt !ok")
+		}
+		if got := x.IsInt(); got != want {
+			t.Errorf("#%d: %s.IsInt() == %t", i, s, got)
+		}
+	}
+}
+
+// func TestBig_Format(t *testing.T) {
+// 	tests := [...]struct {
+// 		format string
+// 		a      string
+// 		b      string
+// 	}{
+// 		0: {format: "%e", a: "1.234", b: "1.234"},
+// 		1: {format: "%s", a: "1.2134124124", b: "1.2134124124"},
+// 		2: {format: "%e", a: "1.00003e-12", b: "1.00003e-12"},
+// 		3: {format: "%E", a: "1.000003E-12", b: "1.000003E-12"},
+// 	}
+// 	for i, v := range tests {
+// 		x, ok := new(Big).SetString(v.a)
+// 		if !ok {
+// 			t.Fatal("invalid SetString")
+// 		}
+// 		if fs := fmt.Sprintf(v.format, x); fs != v.b {
+// 			t.Fatalf("#%d: wanted %q, got %q:", i, v.b, fs)
+// 		}
+// 	}
+// }
 
 func TestBig_Neg(t *testing.T) {
 	tests := [...]struct {
@@ -165,6 +219,30 @@ func TestBig_Quo(t *testing.T) {
 		q := v.a.Quo(v.a, v.b)
 		if qs := q.String(); qs != v.r {
 			t.Fatalf("#%d: wanted %q, got %q", i, v.r, qs)
+		}
+	}
+}
+
+func TestBig_Sign(t *testing.T) {
+	for i, test := range []struct {
+		x string
+		s int
+	}{
+		{"-Inf", 0},
+		{"-1", -1},
+		{"-0", 0},
+		{"+0", 0},
+		{"+1", +1},
+		{"+Inf", 0},
+	} {
+		x, ok := new(Big).SetString(test.x)
+		if !ok {
+			t.Fatal(ok)
+		}
+		s := x.Sign()
+		if s != test.s {
+			t.Errorf("#%d: %s.Sign() = %d; want %d",
+				i, test.x, s, test.s)
 		}
 	}
 }
