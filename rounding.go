@@ -20,17 +20,16 @@ func (r RoundingMode) needsInc(c int, pos, odd bool) bool {
 	case ToNegativeInf:
 		return !pos
 	case ToNearestEven, ToNearestAway:
-		switch {
-		case c < 0:
+		if c < 0 {
 			return false
-		case c > 0:
-			return true
-		case c == 0:
-			if r == ToNearestEven {
-				return odd
-			}
+		}
+		if c > 0 {
 			return true
 		}
+		if r == ToNearestEven {
+			return odd
+		}
+		return true
 	}
 	panic("unknown RoundingMode")
 }
