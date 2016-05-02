@@ -215,6 +215,18 @@ func (x *Big) BitLen() int {
 	return x.mantissa.BitLen()
 }
 
+// Format implements the fmt.Formatter interface.
+// func (z *Big) Format(s fmt.State, r rune) {
+// 	switch r {
+// 	case 'e', 'g', 's', 'f':
+// 		s.Write([]byte(z.String()))
+// 	case 'E':
+// 		s.Write([]byte(z.toString(true, upper)))
+// 	default:
+// 		fmt.Fprint(s, *z)
+// 	}
+// }
+
 // IsInf returns true if x is an infinity.
 func (x *Big) IsInf() bool {
 	return x.form == inf
@@ -246,6 +258,7 @@ func (x *Big) IsNaN() bool {
 // Mul sets z to z * y and returns z.
 func (z *Big) Mul(x, y *Big) *Big {
 	if x.form == finite && y.form == finite {
+		z.form = finite
 		if z.isCompact() {
 			if y.isCompact() {
 				return z.mulCompact(x, y)
@@ -357,6 +370,7 @@ func (x *Big) Prec() int {
 // Quo sets z to x / y and returns z.
 func (z *Big) Quo(x, y *Big) *Big {
 	if x.form == finite && y.form == finite {
+		z.form = finite
 		// x / y (common case)
 		if x.isCompact() {
 			if y.isCompact() {
@@ -650,11 +664,42 @@ func (z *Big) SetPrec(prec int32) *Big {
 }
 
 // SetString sets z to the value of s, returning z and a bool
-// indicating success. s must be a decimal number of the same format
-// accepted by Parse, with base argument 0.
+// indicating success. s must be a string in one of the following
+// formats:
+//
+// 	1.234
+// 	1234
+// 	1.234e+5
+// 	1.234E-5
+// 	0.000001234
+// 	+Inf
+// 	-Inf
+// 	Inf
+// 	NaN
+//
+//	No distinction is made between +Inf and -Inf.
 func (z *Big) SetString(s string) (*Big, bool) {
+	if len(s) == 3 {
+		if equalFold(s, "Inf") {
+			z.SetInf()
+			return z, true
+		}
+		if equalFold(s, "NaN") {
+			z.form = nan
+			return z, true
+		}
+	}
+	if len(s) == 4 {
+		if (s[0] == '+' || s[0] == '-') &&
+			equalFold(s[1:], "Inf") {
+			z.SetInf()
+			return z, true
+		}
+	}
+
 	var scale int32
 
+	// Check for a scientific string.
 	i := strings.IndexAny(s, "Ee")
 	if i > 0 {
 		eint, err := strconv.ParseInt(s[i+1:], 10, 32)
@@ -744,17 +789,22 @@ func (x *Big) SignBit() bool {
 // For special cases, if x == nil returns "<nil>",
 // x.IsNaN() returns "NaN", and x.IsInf() returns "Inf".
 func (x *Big) String() string {
-	return x.toString(true)
+	return x.toString(true, lower)
 }
 
 // PlainString returns the plain string representation of x.
 // For special cases, if x == nil returns "<nil>",
 // x.IsNaN() returns "NaN", and x.IsInf() returns "Inf".
 func (x *Big) PlainString() string {
-	return x.toString(false)
+	return x.toString(false, lower)
 }
 
-func (x *Big) toString(sci bool) string {
+const (
+	lower = 0 // opts for lowercase sci notation
+	upper = 1 // opts for uppercase sci notation
+)
+
+func (x *Big) toString(sci bool, opts byte) string {
 	if x == nil {
 		return "<nil>"
 	}
@@ -800,12 +850,17 @@ func (x *Big) toString(sci bool) string {
 		str = str[1:]
 	}
 	if sci {
-		return x.toSciString(str, &b)
+		return x.toSciString(str, &b, opts)
 	}
 	return x.toPlainString(str, &b)
 }
 
-func (x *Big) toSciString(str string, b writer) string {
+func (x *Big) toSciString(str string, b writer, opts byte) string {
+
+	if debug && (opts < 0 || opts > 1) {
+		panic("toSciString: (bug) opts != 0 || opts != 1")
+	}
+
 	// Following quotes are from:
 	// http://speleotrove.com/decimal/daconvs.html#reftostr
 
@@ -826,7 +881,9 @@ func (x *Big) toSciString(str string, b writer) string {
 		b.WriteString(str[1:])
 	}
 	if adj != 0 {
-		b.WriteByte('e')
+		b.WriteByte([2]byte{'e', 'E'}[opts])
+		// If !pos the following strconv.Itoa call will add
+		// the minus sign for us.
 		if pos {
 			b.WriteByte('+')
 		}
@@ -835,6 +892,7 @@ func (x *Big) toSciString(str string, b writer) string {
 	return b.String()
 }
 
+// toPlainString returns the plain string version of x.
 func (x *Big) toPlainString(str string, b writer) string {
 	// Just mantissa + z.scale "0"s -- no radix.
 	if x.scale < 0 {
@@ -845,6 +903,11 @@ func (x *Big) toPlainString(str string, b writer) string {
 	return x.normString(str, new(buffer))
 }
 
+// normString returns the plain string version of x.
+// It's distinct from 'toPlainString' in that toPlainString
+// calls this method once it's done its own internal checks.
+// Additionally, toSciString also calls this method if it
+// does not need to add the {e,E} suffix.
 func (x *Big) normString(str string, b writer) string {
 	switch pad := len(str) - int(x.scale); {
 

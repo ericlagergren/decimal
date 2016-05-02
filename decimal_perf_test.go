@@ -26,7 +26,7 @@ func BenchmarkMul(b *testing.B) {
 }
 
 func BenchmarkQuo(b *testing.B) {
-	y := New(5678, 3)
+	y := New(1234, 3)
 	for i := 0; i < b.N; i++ {
 		x.Quo(&x, y)
 	}
