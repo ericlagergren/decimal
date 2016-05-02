@@ -115,8 +115,8 @@ func TestBig_Mul(t *testing.T) {
 	}{
 		0: {a: New(0, 0), b: New(0, 0), c: "0"},
 		1: {a: New(12345, 3), b: New(54321, 3), c: "670.592745"},
-		2: {a: New(1, 8), b: New(2, 0), c: "0.00000002"},
-		3: {a: New(1e5, 2), b: New(10, -5), c: "1000000000"},
+		2: {a: New(1, 8), b: New(2, 0), c: "2e-8"},
+		3: {a: New(1e5, 2), b: New(10, -5), c: "1.000000e+9"},
 		4: {a: New(6, 0), b: New(6, 0), c: "36"},
 		5: {a: New(-55, 0), b: New(581994, 2), c: "-320096.7"},
 	}
@@ -133,16 +133,35 @@ func TestBig_Prec(t *testing.T) {
 }
 
 func TestBig_Quo(t *testing.T) {
+	huge1, ok := new(Big).SetString("12345678901234567890.1234")
+	if !ok {
+		t.Fatal("invalid")
+	}
+	huge2, ok := new(Big).SetString("239482394823948239843298432984.4324324234324234324")
+	if !ok {
+		t.Fatal("invalid")
+	}
+
 	tests := [...]struct {
 		a *Big
 		b *Big
+		p int32
 		r string
 	}{
 		0: {a: New(10, 0), b: New(2, 0), r: "5"},
 		1: {a: New(1234, 3), b: New(-2, 0), r: "-0.617"},
-		2: {a: New(-991242141244124, 7), b: New(235325235323, 3), r: "-0.4212222033406558"},
+		2: {a: New(10, 0), b: New(3, 0), r: "3.333333333333333"},
+		3: {a: New(100, 0), b: New(3, 0), p: 4, r: "33.33"},
+		4: {a: New(-405, 1), b: New(1257, 2), r: "-3.221957040572792"},
+		5: {a: New(-991242141244124, 7), b: New(235325235323, 3), r: "-0.4212222033406559"},
+		6: {a: huge1, b: huge2, r: "5.155150928864855e-11"},
 	}
 	for i, v := range tests {
+		if v.p != 0 {
+			v.a.SetPrec(v.p)
+		} else {
+			v.a.SetPrec(DefaultPrec)
+		}
 		q := v.a.Quo(v.a, v.b)
 		if qs := q.String(); qs != v.r {
 			t.Fatalf("#%d: wanted %q, got %q", i, v.r, qs)

@@ -38,10 +38,7 @@ func (c context) prec() int32 {
 
 // ContextXX tells the lossy arithmetic operations how to do their jobs.
 //
-// The precision is the maximum number of digits that should trail
-// the radix during a potentially lossy (e.g., division) operation.
-// The decimal's precision will only be less than precision if
-// the operation has a finite expansion less than precision.
+// The precision is the maximum number of digits to be used for the decimal.
 //
 // The mode instructs lossy operations how to round.
 //

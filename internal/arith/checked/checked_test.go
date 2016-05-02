@@ -1,6 +1,7 @@
 package checked
 
 import (
+	"math/rand"
 	"testing"
 
 	"github.com/EricLagergren/decimal/internal/c"
@@ -128,7 +129,7 @@ func Benchmark2(b *testing.B) {
 
 func Benchmark3(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		n, ok := Add(x, y)
+		n, ok := _checkedAdd3(x, y)
 		if !ok {
 			globalxx = n
 		}
@@ -138,8 +139,8 @@ func Benchmark3(b *testing.B) {
 // This could screw with escape analysis, but only returns
 // a bool and requires one branch.
 func _checkedAdd1(x, y int64, z *int64) bool {
-	sum := x + y
-	return (sum^x)&(sum^y) >= 0
+	*z = x + y
+	return (*z^x)&(*z^y) >= 0
 }
 
 // This requires two branches, but doesn't mess with escape analysis. (Second branch is when you check for sum == c.Inflated.)
@@ -157,4 +158,41 @@ func _checkedAdd2(x, y int64) (sum int64) {
 // Currently this is the fastest. It is
 func _checkedAdd3(x, y int64) (sum int64, ok bool) {
 	return Add(x, y)
+}
+
+// Something, something branch predictor...
+
+const N = 1e5
+
+var arr [N]int64
+
+func init() {
+	for i := 0; i < N; i++ {
+		arr[i] = rand.Int63()
+	}
+}
+
+var globalxx32 int32
+
+func BenchmarkCastIsInt32(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		globalxx32, globalok = _castIsInt32(arr[i%N])
+	}
+}
+
+func BenchmarkCmpIsInt32(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		globalxx32, globalok = _cmpIsInt32(arr[i%N])
+	}
+}
+
+func _castIsInt32(x int64) (m int32, ok bool) {
+	m = int32(x)
+	return m, int64(m) == x
+}
+
+const minInt32 = -1 << 31
+
+func _cmpIsInt32(x int64) (int32, bool) {
+	return int32(x), x <= maxInt32 && x >= minInt32
 }

@@ -53,8 +53,19 @@ func SumSub(x, y, z int32) (res int32, ok bool) {
 	if !ok {
 		return 0, false
 	}
-	v, ok = Sub(v, int64(z))
-	return int32(v), ok && v <= math.MaxInt32
+	return Int32(v - int64(z))
+}
+
+// SubSum returns x - y + z and a bool indicating whether the operations
+// were successful.
+func SubSum(x, y, z int32) (res int32, ok bool) {
+	// Use int64s since only the result needs to fit in an int32, not all the
+	// intermediate steps.
+	v, ok := Sub(int64(x), int64(y))
+	if !ok {
+		return 0, false
+	}
+	return Int32(v + int64(z))
 }
 
 // MulPow10 computes 10 * x ** n and a bool indicating whether
@@ -86,4 +97,9 @@ func MulBigPow10(x *big.Int, n int32) *big.Int {
 	}
 	b := pow.BigTen(int64(n))
 	return x.Mul(x, &b)
+}
+
+// Int32 returns true if x can fit int an int32.
+func Int32(x int64) (int32, bool) {
+	return int32(x), x <= math.MaxInt32 && x >= math.MinInt32
 }
