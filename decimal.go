@@ -2,7 +2,6 @@ package decimal
 
 import (
 	"bytes"
-	"fmt"
 	"math"
 	"math/big"
 	"strconv"
@@ -551,13 +550,6 @@ func (z *Big) quoBig(x, y *Big) *Big {
 
 func (z *Big) quoBigAndRound(x, y *big.Int) *Big {
 	z.compact = c.Inflated
-
-	defer func() {
-		if err := recover(); err != nil {
-			fmt.Println(*x, *y)
-			fmt.Println(err)
-		}
-	}()
 
 	q, r := z.mantissa.QuoRem(x, y, new(big.Int))
 
