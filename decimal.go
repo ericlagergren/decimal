@@ -2,6 +2,7 @@ package decimal
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"math/big"
 	"strconv"
@@ -82,7 +83,7 @@ func (z *Big) Add(x, y *Big) *Big {
 	if x.form == finite && y.form == finite {
 		z.form = finite
 		if x.isCompact() {
-			if x.isCompact() {
+			if y.isCompact() {
 				return z.addCompact(x, y)
 			}
 			return z.addHalf(x, y)
@@ -255,11 +256,11 @@ func (x *Big) IsNaN() bool {
 	return x.form == nan
 }
 
-// Mul sets z to z * y and returns z.
+// Mul sets z to x * y and returns z.
 func (z *Big) Mul(x, y *Big) *Big {
 	if x.form == finite && y.form == finite {
 		z.form = finite
-		if z.isCompact() {
+		if x.isCompact() {
 			if y.isCompact() {
 				return z.mulCompact(x, y)
 			}
@@ -268,7 +269,7 @@ func (z *Big) Mul(x, y *Big) *Big {
 		if y.isCompact() {
 			return z.mulHalf(y, x)
 		}
-		return x.mulBig(x, y)
+		return z.mulBig(x, y)
 	}
 
 	if x.form == zero && y.form == inf || x.form == inf && y.form == zero {
@@ -550,6 +551,13 @@ func (z *Big) quoBig(x, y *Big) *Big {
 
 func (z *Big) quoBigAndRound(x, y *big.Int) *Big {
 	z.compact = c.Inflated
+
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Println(*x, *y)
+			fmt.Println(err)
+		}
+	}()
 
 	q, r := z.mantissa.QuoRem(x, y, new(big.Int))
 
