@@ -2,6 +2,8 @@ package decimal
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"math"
 	"math/big"
 	"strconv"
@@ -215,6 +217,102 @@ func (x *Big) BitLen() int {
 	return x.mantissa.BitLen()
 }
 
+// Cmp compares d and x and returns:
+//
+//   -1 if z <  x
+//    0 if z == x
+//   +1 if z >  x
+//
+// It does not modify d or x.
+func (z *Big) Cmp(x *Big) int {
+	return 0
+
+	// // Check for same pointers.
+	// if z == x {
+	// 	return 0
+	// }
+
+	// // Same scales means we can compare straight across.
+	// if z.scale == x.scale &&
+	// 	z.compact != overflown && x.compact != overflown {
+	// 	if z.compact > x.compact {
+	// 		return +1
+	// 	}
+	// 	if z.compact < x.compact {
+	// 		return -1
+	// 	}
+	// 	return 0
+	// }
+
+	// // Different scales -- check signs and/or if they're
+	// // both zero.
+
+	// ds := z.Sign()
+	// xs := x.Sign()
+	// switch {
+	// case ds > xs:
+	// 	return +1
+	// case ds < xs:
+	// 	return -1
+	// case ds == 0 && xs == 0:
+	// 	return 0
+	// }
+
+	// // Scales aren't equal, the signs are the same, and both
+	// // are non-zero.
+	// dl := z.Ilog10() - z.scale
+	// xl := x.Ilog10() - x.scale
+	// if dl > xl {
+	// 	return +1
+	// }
+	// if dl < xl {
+	// 	return -1
+	// }
+
+	// // We need to inflate one of the numbers.
+
+	// dc := z.compact // hi
+	// xc := x.compact // lo
+
+	// var swap bool
+
+	// hi, lo := z, x
+	// if hi.scale < lo.scale {
+	// 	hi, lo = lo, hi
+	// 	dc, xc = xc, dc
+	// 	swap = true // d is lo
+	// }
+
+	// diff := hi.scale - lo.scale
+	// if diff <= math.MaxInt64 {
+	// 	xc = mulPow10(xc, diff)
+	// 	if xc == overflown && dc == overflown {
+	// 		// d is lo
+	// 		if swap {
+	// 			return mulBigPow10(&z.mantissa, diff).
+	// 				Cmp(&x.mantissa)
+	// 		}
+	// 		// x is lo
+	// 		return z.mantissa.Cmp(mulBigPow10(&x.mantissa, diff))
+	// 	}
+	// }
+
+	// if swap {
+	// 	dc, xc = xc, dc
+	// }
+
+	// if dc != overflown {
+	// 	if xc != overflown {
+	// 		return cmpAbs(dc, xc)
+	// 	}
+	// 	return big.NewInt(dc).Cmp(&x.mantissa)
+	// }
+	// if xc != overflown {
+	// 	return z.mantissa.Cmp(big.NewInt(xc))
+	// }
+	// return z.mantissa.Cmp(&x.mantissa)
+}
+
 // Format implements the fmt.Formatter interface.
 // func (z *Big) Format(s fmt.State, r rune) {
 // 	switch r {
@@ -253,6 +351,20 @@ func (x *Big) IsInt() bool {
 // IsInf returns true if x is NaN.
 func (x *Big) IsNaN() bool {
 	return x.form == nan
+}
+
+// MarshalText implements encoding/TextMarshaler.
+func (x *Big) MarshalText() ([]byte, error) {
+	return []byte(x.String()), nil
+}
+
+// UnmarshalText implements encoding/TextUnmarshaler.
+func (x *Big) UnmarshalText(data []byte) error {
+	_, ok := x.SetString(string(data))
+	if !ok {
+		return errors.New("invalid unmarshal etc etc")
+	}
+	return nil
 }
 
 // Mul sets z to x * y and returns z.
@@ -409,6 +521,8 @@ func (z *Big) Quo(x, y *Big) *Big {
 }
 
 func (z *Big) quoAndRound(x, y int64) *Big {
+	fmt.Println(x, y)
+
 	// Quotient
 	z.compact = x / y
 
@@ -427,6 +541,7 @@ func (z *Big) quoAndRound(x, y int64) *Big {
 	if r != 0 && z.needsInc(y, r, sign > 0, z.compact&1 != 0) {
 		z.compact += sign
 	}
+	fmt.Println(z, z.scale, z.ctx.prec())
 	return z.Round(z.ctx.prec())
 }
 
@@ -467,8 +582,10 @@ func (z *Big) quoCompact(x, y *Big) *Big {
 		return z
 	}
 	xs, ys := x.compact, y.compact
+	fmt.Println(xs, ys, shift)
 	if shift > 0 {
 		xs, ok = checked.MulPow10(x.compact, shift)
+		fmt.Println(shift, xs, ok, y.compact)
 		if !ok {
 			x0 := checked.MulBigPow10(big.NewInt(x.compact), shift)
 			return z.quoBigAndRound(x0, big.NewInt(y.compact))
