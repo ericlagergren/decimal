@@ -41,7 +41,7 @@ func (z *Big) gtez() bool {
 // returns true if x > y.
 func cmpNorm(x int64, xs int32, y int64, ys int32) (ok bool) {
 	if debug && (x == 0 || y == 0) {
-		panic("x and y cannot be zero")
+		panic("x and/or y cannot be zero")
 	}
 	if diff := xs - ys; diff != 0 {
 		if diff < 0 {
