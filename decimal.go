@@ -521,8 +521,6 @@ func (z *Big) Quo(x, y *Big) *Big {
 }
 
 func (z *Big) quoAndRound(x, y int64) *Big {
-	fmt.Println(x, y)
-
 	// Quotient
 	z.compact = x / y
 
@@ -541,7 +539,6 @@ func (z *Big) quoAndRound(x, y int64) *Big {
 	if r != 0 && z.needsInc(y, r, sign > 0, z.compact&1 != 0) {
 		z.compact += sign
 	}
-	fmt.Println(z, z.scale, z.ctx.prec())
 	return z.Round(z.ctx.prec())
 }
 
@@ -582,10 +579,8 @@ func (z *Big) quoCompact(x, y *Big) *Big {
 		return z
 	}
 	xs, ys := x.compact, y.compact
-	fmt.Println(xs, ys, shift)
 	if shift > 0 {
 		xs, ok = checked.MulPow10(x.compact, shift)
-		fmt.Println(shift, xs, ok, y.compact)
 		if !ok {
 			x0 := checked.MulBigPow10(big.NewInt(x.compact), shift)
 			return z.quoBigAndRound(x0, big.NewInt(y.compact))
@@ -627,6 +622,8 @@ func (z *Big) quoBig(x, y *Big) *Big {
 	zp := z.ctx.prec()
 	xp := int32(x.Prec())
 	yp := int32(y.Prec())
+
+	fmt.Println(xp, yp)
 
 	// Multiply y by 10 if x' > y'
 	if cmpNormBig(&x.mantissa, xp, &y.mantissa, yp) {
@@ -885,13 +882,9 @@ func (z *Big) Shrink(saveCap ...bool) *Big {
 //
 func (x *Big) Sign() int {
 	if x.isCompact() {
-		if x.compact < 0 {
-			return -1
-		}
-		if x.compact == 0 {
-			return 0
-		}
-		return +1
+		// Hacker's Delight, page 21, section 2-8.
+		// This prevents the incorrect answer for -1 << 63.
+		return int((x.compact >> 63) | int64(uint64(-x.compact)>>63))
 	}
 	return x.mantissa.Sign()
 }
