@@ -64,9 +64,11 @@ func cmpNorm(x int64, xs int32, y int64, ys int32) (ok bool) {
 func cmpNormBig(x *big.Int, xs int32, y *big.Int, ys int32) (ok bool) {
 	diff := xs - ys
 	if diff < 0 {
-		return checked.MulBigPow10(x, -diff).Cmp(y) > 0
+		x1 := new(big.Int).Set(x)
+		return checked.MulBigPow10(x1, -diff).Cmp(y) > 0
 	}
-	return x.Cmp(checked.MulBigPow10(y, diff)) > 0
+	y1 := new(big.Int).Set(y)
+	return x.Cmp(checked.MulBigPow10(y1, diff)) > 0
 }
 
 type buffer struct{ bytes.Buffer }
