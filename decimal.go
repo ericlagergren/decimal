@@ -3,7 +3,6 @@ package decimal
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"math"
 	"math/big"
 	"strconv"
@@ -14,8 +13,6 @@ import (
 	"github.com/EricLagergren/decimal/internal/arith/pow"
 	"github.com/EricLagergren/decimal/internal/c"
 )
-
-var _ = fmt.Println
 
 // for inf checks: https://play.golang.org/p/RtH3UCt5IH
 
