@@ -15,6 +15,8 @@ import (
 	"github.com/EricLagergren/decimal/internal/c"
 )
 
+var _ = fmt.Println
+
 // for inf checks: https://play.golang.org/p/RtH3UCt5IH
 
 // Big represents a fixed-point, multi-precision
@@ -578,6 +580,7 @@ func (z *Big) quoCompact(x, y *Big) *Big {
 		z.form = inf
 		return z
 	}
+
 	xs, ys := x.compact, y.compact
 	if shift > 0 {
 		xs, ok = checked.MulPow10(x.compact, shift)
@@ -622,8 +625,6 @@ func (z *Big) quoBig(x, y *Big) *Big {
 	zp := z.ctx.prec()
 	xp := int32(x.Prec())
 	yp := int32(y.Prec())
-
-	fmt.Println(xp, yp)
 
 	// Multiply y by 10 if x' > y'
 	if cmpNormBig(&x.mantissa, xp, &y.mantissa, yp) {
@@ -703,6 +704,7 @@ func (z *Big) Round(n int32) *Big {
 	if shift == 0 {
 		return z
 	}
+	z.scale -= int32(shift)
 
 	if z.isCompact() {
 		val, ok := pow.Ten64(shift)
