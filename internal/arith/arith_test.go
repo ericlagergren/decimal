@@ -3,8 +3,8 @@ package arith
 import "testing"
 
 func TestCLZ(t *testing.T) {
-	if n := CLZ(0); n != 0 {
-		t.Errorf("got CLZ(0) = %d; want 0", n)
+	if n := CLZ(0); n != 64 {
+		t.Errorf("got CLZ(0) = %d; want 64", n)
 	}
 
 	x := int64((_B >> 1) / 2)
@@ -33,7 +33,7 @@ func TestCTZ(t *testing.T) {
 }
 
 func TestBitLen(t *testing.T) {
-	for i := 0; i <= _W; i++ {
+	for i := 0; i < _W; i++ {
 		x := uint64(1) << uint64(i-1)
 		n := BitLen(int64(x))
 		if n != i {
