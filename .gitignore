@@ -30,4 +30,6 @@ _test*
 .git
 *.swp
 .tags
-old
+old.*
+.vagrant/
+Vagrantfile
