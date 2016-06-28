@@ -33,7 +33,7 @@ func TestLength(t *testing.T) {
 	}
 	for i, v := range tests {
 		if l := Length(v.i); l != v.l {
-			t.Fatalf("#%d: wanted %d, got %d", i, v.l, l)
+			t.Errorf("#%d: wanted %d, got %d", i, v.l, l)
 		}
 	}
 }
@@ -66,7 +66,7 @@ func TestBigLength(t *testing.T) {
 	}
 	for i, v := range tests {
 		if l := BigLength(v.i); l != v.l {
-			t.Fatalf("#%d: wanted %d, got %d", i, v.l, l)
+			t.Errorf("#%d: wanted %d, got %d", i, v.l, l)
 		}
 	}
 
@@ -79,6 +79,6 @@ func TestBigLength(t *testing.T) {
 	}
 	n := len(x.String())
 	if l := BigLength(x); l != n {
-		t.Fatalf("#%d: wanted %d, got %d", len(tests), n, l)
+		t.Errorf("#%d: wanted %d, got %d", len(tests), n, l)
 	}
 }
