@@ -3,7 +3,7 @@
 // func CLZ(x int64) (n int)
 TEXT ·CLZ(SB),NOSPLIT,$0
 	BSRQ 	x+0(FP), AX
-	MOVQ	$0, DX
+	MOVQ	$64, DX
 	XORQ	$63, AX
 	TESTQ 	DI, DI
 	CMOVQEQ	DX, AX
