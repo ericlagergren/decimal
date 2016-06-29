@@ -71,6 +71,40 @@ func TestBig_BitLen(t *testing.T) {
 	}
 }
 
+const (
+	lesser  = -1
+	equal   = 0
+	greater = +1
+)
+
+func TestBig_Cmp(t *testing.T) {
+	samePtr := New(0, 0)
+	large, ok := new(Big).SetString(strings.Repeat("9", 500))
+	if !ok {
+		t.Fatal(ok)
+	}
+	for i, test := range [...]struct {
+		a, b *Big
+		v    int
+	}{
+		{New(1, 0), New(0, 0), greater},
+		{New(0, 0), New(1, 0), lesser},
+		{New(0, 0), New(0, 0), equal},
+		{New(9876, 3), New(1234, 0), lesser},
+		{New(1234, 3), New(50, 25), greater},
+		{samePtr, samePtr, equal},
+		{New(99999999999, 0), large, lesser},
+		{large, New(999999999999999999, 0), greater},
+		{New(4, 0), New(4, 0), equal},
+		{New(4, 0), new(Big).Quo(New(12, 0), New(3, 0)), equal},
+	} {
+		r := test.a.Cmp(test.b)
+		if test.v != r {
+			t.Errorf("#%d: wanted %d, got %d", i, test.v, r)
+		}
+	}
+}
+
 func TestBig_IsInt(t *testing.T) {
 	for i, test := range [...]string{
 		"0 int",
