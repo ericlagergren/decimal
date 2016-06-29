@@ -231,15 +231,44 @@ func (z *Big) Cmp(x *Big) int {
 	}
 
 	// Same scales means we can compare straight across.
-	// isCompact is required
-	if z.scale == x.scale && z.isCompact() && x.isCompact() {
-		if z.compact > x.compact {
-			return +1
+	if z.scale == x.scale {
+		if z.isCompact() && x.isCompact() {
+			if z.compact > x.compact {
+				return +1
+			}
+			if z.compact < x.compact {
+				return -1
+			}
+			return 0
 		}
-		if z.compact < x.compact {
-			return -1
+		if z.isInflated() && x.isInflated() {
+			if z.mantissa.Sign() != x.mantissa.Sign() {
+				return z.mantissa.Sign()
+			}
+
+			if z.scale < 0 {
+				return z.mantissa.Cmp(&x.mantissa)
+			}
+
+			zb := z.mantissa.Bits()
+			xb := x.mantissa.Bits()
+
+			min := len(zb)
+			if len(xb) < len(zb) {
+				min = len(xb)
+			}
+			i := 0
+			for i < min-1 && zb[i] == xb[i] {
+				i++
+			}
+			if zb[i] > xb[i] {
+				return +1
+			}
+			if zb[i] < xb[i] {
+				return -1
+			}
+			return 0
 		}
-		return 0
 	}
 
 	// Different scales -- check signs and/or if they're

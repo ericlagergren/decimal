@@ -87,16 +87,25 @@ func TestBig_Cmp(t *testing.T) {
 		a, b *Big
 		v    int
 	}{
+		// Simple
 		{New(1, 0), New(0, 0), greater},
 		{New(0, 0), New(1, 0), lesser},
 		{New(0, 0), New(0, 0), equal},
+		// Fractional
 		{New(9876, 3), New(1234, 0), lesser},
 		{New(1234, 3), New(50, 25), greater},
+		// Same pointers
 		{samePtr, samePtr, equal},
+		// Large int vs large big.Int
 		{New(99999999999, 0), large, lesser},
 		{large, New(999999999999999999, 0), greater},
 		{New(4, 0), New(4, 0), equal},
 		{New(4, 0), new(Big).Quo(New(12, 0), New(3, 0)), equal},
+		// z.scale < 0
+		{large, new(Big).Set(large), equal},
+		// Differing signs
+		{new(Big).Set(large).Neg(large), large, lesser},
+		{new(Big).Quo(new(Big).Set(large), New(314156, 5)), large, lesser},
 	} {
 		r := test.a.Cmp(test.b)
 		if test.v != r {

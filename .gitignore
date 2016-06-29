@@ -33,3 +33,5 @@ _test*
 old.*
 .vagrant/
 Vagrantfile
+*.test
+*.out
