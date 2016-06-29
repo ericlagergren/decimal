@@ -16,7 +16,7 @@ func TestBig_Add(t *testing.T) {
 		res string
 	}
 
-	inputs := []inp{
+	inputs := [...]inp{
 		0: {a: "2", b: "3", res: "5"},
 		1: {a: "2454495034", b: "3451204593", res: "5905699627"},
 		2: {a: "24544.95034", b: ".3451204593", res: "24545.2954604593"},
@@ -238,16 +238,18 @@ func TestBig_Quo(t *testing.T) {
 }
 
 func TestBig_Sign(t *testing.T) {
-	for i, test := range []struct {
+	for i, test := range [...]struct {
 		x string
 		s int
 	}{
-		{"-Inf", 0},
-		{"-1", -1},
-		{"-0", 0},
-		{"+0", 0},
-		{"+1", +1},
-		{"+Inf", 0},
+		0: {"-Inf", 0},
+		1: {"-1", -1},
+		2: {"-0", 0},
+		3: {"+0", 0},
+		4: {"+1", +1},
+		5: {"+Inf", 0},
+		6: {"100", 1},
+		7: {"-100", -1},
 	} {
 		x, ok := new(Big).SetString(test.x)
 		if !ok {
@@ -255,8 +257,7 @@ func TestBig_Sign(t *testing.T) {
 		}
 		s := x.Sign()
 		if s != test.s {
-			t.Errorf("#%d: %s.Sign() = %d; want %d",
-				i, test.x, s, test.s)
+			t.Errorf("#%d: %s.Sign() = %d; want %d", i, test.x, s, test.s)
 		}
 	}
 }

@@ -4,7 +4,7 @@ package arith
 
 func CLZ(x int64) (n int) {
 	if x == 0 {
-		return 0
+		return 64
 	}
 	return _W - BitLen(x)
 }

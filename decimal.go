@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"math/big"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -881,9 +882,19 @@ func (z *Big) Shrink(saveCap ...bool) *Big {
 //
 func (x *Big) Sign() int {
 	if x.isCompact() {
-		// Hacker's Delight, page 21, section 2-8.
-		// This prevents the incorrect answer for -1 << 63.
-		return int((x.compact >> 63) | int64(uint64(-x.compact)>>63))
+		// See: https://github.com/golang/go/issues/16203
+		if runtime.GOARCH == "amd64" {
+			// Hacker's Delight, page 21, section 2-8.
+			// This prevents the incorrect answer for -1 << 63.
+			return int((x.compact >> 63) | int64(uint64(-x.compact)>>63))
+		}
+		if x.compact == 0 {
+			return 0
+		}
+		if x.compact < 0 {
+			return -1
+		}
+		return +1
 	}
 	return x.mantissa.Sign()
 }
