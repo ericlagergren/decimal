@@ -27,7 +27,7 @@ import (
 // A negative scale indicates the lack of a radix (typically a
 // very large number).
 type Big struct {
-	// If |v| <= math.MaxInt64 then the mantissa will be stored
+	// If |v| <= 1 << 64 - 1 then the mantissa will be stored
 	// in this field...
 	compact int64
 	scale   int32
@@ -348,13 +348,14 @@ func (x *Big) IsInt() bool {
 	return x.scale <= 0 || x.Prec() < int(x.scale)
 }
 
-// IsInf returns true if x is NaN.
+// IsNaN returns true if x is NaN.
 func (x *Big) IsNaN() bool {
 	return x.form == nan
 }
 
 // MarshalText implements encoding/TextMarshaler.
 func (x *Big) MarshalText() ([]byte, error) {
+	// TODO: Don't convert to []byte.
 	return []byte(x.String()), nil
 }
 
@@ -362,7 +363,7 @@ func (x *Big) MarshalText() ([]byte, error) {
 func (x *Big) UnmarshalText(data []byte) error {
 	_, ok := x.SetString(string(data))
 	if !ok {
-		return errors.New("invalid unmarshal etc etc")
+		return errors.New("decimal.Big.UnmarshalText: invalid decimal format")
 	}
 	return nil
 }
@@ -751,13 +752,10 @@ func (z *Big) SetMantScale(value int64, scale int32) *Big {
 		z.form = zero
 		return z
 	}
-
 	if value == c.Inflated {
 		z.mantissa.SetInt64(value)
-		z.compact = c.Inflated
-	} else {
-		z.compact = value
 	}
+	z.compact = value
 	z.form = finite
 	return z
 }
