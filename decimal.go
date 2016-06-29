@@ -225,92 +225,92 @@ func (x *Big) BitLen() int {
 //
 // It does not modify d or x.
 func (z *Big) Cmp(x *Big) int {
-	return 0
+	// Check for same pointers.
+	if z == x {
+		return 0
+	}
 
-	// // Check for same pointers.
-	// if z == x {
-	// 	return 0
-	// }
+	// Same scales means we can compare straight across.
+	// isCompact is required
+	if z.scale == x.scale && z.isCompact() && x.isCompact() {
+		if z.compact > x.compact {
+			return +1
+		}
+		if z.compact < x.compact {
+			return -1
+		}
+		return 0
+	}
 
-	// // Same scales means we can compare straight across.
-	// if z.scale == x.scale &&
-	// 	z.compact != overflown && x.compact != overflown {
-	// 	if z.compact > x.compact {
-	// 		return +1
-	// 	}
-	// 	if z.compact < x.compact {
-	// 		return -1
-	// 	}
-	// 	return 0
-	// }
+	// Different scales -- check signs and/or if they're
+	// both zero.
 
-	// // Different scales -- check signs and/or if they're
-	// // both zero.
+	ds := z.Sign()
+	xs := x.Sign()
+	switch {
+	case ds > xs:
+		return +1
+	case ds < xs:
+		return -1
+	case ds == 0 && xs == 0:
+		return 0
+	}
 
-	// ds := z.Sign()
-	// xs := x.Sign()
-	// switch {
-	// case ds > xs:
-	// 	return +1
-	// case ds < xs:
-	// 	return -1
-	// case ds == 0 && xs == 0:
-	// 	return 0
-	// }
+	// Scales aren't equal, the signs are the same, and both
+	// are non-zero.
+	dl := int32(z.Prec()) - z.scale
+	xl := int32(x.Prec()) - x.scale
+	if dl > xl {
+		return +1
+	}
+	if dl < xl {
+		return -1
+	}
 
-	// // Scales aren't equal, the signs are the same, and both
-	// // are non-zero.
-	// dl := z.Ilog10() - z.scale
-	// xl := x.Ilog10() - x.scale
-	// if dl > xl {
-	// 	return +1
-	// }
-	// if dl < xl {
-	// 	return -1
-	// }
+	// We need to inflate one of the numbers.
 
-	// // We need to inflate one of the numbers.
+	dc := z.compact // hi
+	xc := x.compact // lo
 
-	// dc := z.compact // hi
-	// xc := x.compact // lo
+	var swap bool
 
-	// var swap bool
+	hi, lo := z, x
+	if hi.scale < lo.scale {
+		hi, lo = lo, hi
+		dc, xc = xc, dc
+		swap = true // d is lo
+	}
 
-	// hi, lo := z, x
-	// if hi.scale < lo.scale {
-	// 	hi, lo = lo, hi
-	// 	dc, xc = xc, dc
-	// 	swap = true // d is lo
-	// }
+	diff := hi.scale - lo.scale
+	if diff <= c.BadScale {
+		var ok bool
+		xc, ok = checked.MulPow10(xc, diff)
+		if !ok && dc == c.Inflated {
+			// d is lo
+			if swap {
+				zm := new(big.Int).Set(&z.mantissa)
+				return checked.MulBigPow10(zm, diff).Cmp(&x.mantissa)
+			}
+			// x is lo
+			xm := new(big.Int).Set(&x.mantissa)
+			return z.mantissa.Cmp(checked.MulBigPow10(xm, diff))
+		}
+	}
 
-	// diff := hi.scale - lo.scale
-	// if diff <= math.MaxInt64 {
-	// 	xc = mulPow10(xc, diff)
-	// 	if xc == overflown && dc == overflown {
-	// 		// d is lo
-	// 		if swap {
-	// 			return mulBigPow10(&z.mantissa, diff).
-	// 				Cmp(&x.mantissa)
-	// 		}
-	// 		// x is lo
-	// 		return z.mantissa.Cmp(mulBigPow10(&x.mantissa, diff))
-	// 	}
-	// }
+	if swap {
+		dc, xc = xc, dc
+	}
 
-	// if swap {
-	// 	dc, xc = xc, dc
-	// }
-
-	// if dc != overflown {
-	// 	if xc != overflown {
-	// 		return cmpAbs(dc, xc)
-	// 	}
-	// 	return big.NewInt(dc).Cmp(&x.mantissa)
-	// }
-	// if xc != overflown {
-	// 	return z.mantissa.Cmp(big.NewInt(xc))
-	// }
-	// return z.mantissa.Cmp(&x.mantissa)
+	if dc != c.Inflated {
+		if xc != c.Inflated {
+			return arith.AbsCmp(dc, xc)
+		}
+		return big.NewInt(dc).Cmp(&x.mantissa)
+	}
+	if xc != c.Inflated {
+		return z.mantissa.Cmp(big.NewInt(xc))
+	}
+	return z.mantissa.Cmp(&x.mantissa)
 }
 
 // Format implements the fmt.Formatter interface.

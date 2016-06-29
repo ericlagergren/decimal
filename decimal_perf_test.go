@@ -18,16 +18,16 @@ func BenchmarkSub(b *testing.B) {
 	}
 }
 
-func BenchmarkMul(b *testing.B) {
-	y := New(12345, 4)
+func BenchmarkQuo(b *testing.B) {
+	y := New(1987, 3)
 	for i := 0; i < b.N; i++ {
-		x.Mul(&x, y)
+		x.Quo(&x, y)
 	}
 }
 
-func BenchmarkQuo(b *testing.B) {
-	y := New(1234, 3)
+func BenchmarkMul(b *testing.B) {
+	y := New(11234, 5)
 	for i := 0; i < b.N; i++ {
-		x.Quo(&x, y)
+		x.Mul(&x, y)
 	}
 }
