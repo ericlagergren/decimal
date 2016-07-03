@@ -118,16 +118,18 @@ func TestBig_Int(t *testing.T) {
 	for i, test := range [...]string{
 		"1.234", "4.567", "11111111111111111111111111111111111.2",
 		"1234234.2321", "121111111111", "44444444.241", "1241.1",
-		"4", "5123", "1.2345123134123414123123213", "0.11", "0.1",
+		"4", "5123", "1.2345123134123414123123213", "0.11", ".1",
 	} {
 		a, ok := new(Big).SetString(test)
 		if !ok {
 			t.Fatalf("#%d: !ok", i)
 		}
 		iv := test
-		x := strings.IndexByte(test, '.')
-		if x >= 0 {
+		switch x := strings.IndexByte(test, '.'); {
+		case x > 0:
 			iv = test[:x]
+		case x == 0:
+			iv = "0"
 		}
 		n := a.Int()
 		if n.String() != iv {
