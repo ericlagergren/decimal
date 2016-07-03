@@ -114,6 +114,42 @@ func TestBig_Cmp(t *testing.T) {
 	}
 }
 
+func TestBig_Int(t *testing.T) {
+	for i, test := range [...]string{
+		"1.234", "4.567", "11111111111111111111111111111111111.2",
+		"1234234.2321", "121111111111", "44444444.241", "1241.1",
+		"4", "5123", "1.2345123134123414123123213", "0.11", "0.1",
+	} {
+		a, ok := new(Big).SetString(test)
+		if !ok {
+			t.Fatalf("#%d: !ok", i)
+		}
+		iv := test
+		x := strings.IndexByte(test, '.')
+		if x >= 0 {
+			iv = test[:x]
+		}
+		n := a.Int()
+		if n.String() != iv {
+			t.Fatalf("#%d: wanted %q, got %q", i, iv, n.String())
+		}
+	}
+}
+
+func TestBig_Int64(t *testing.T) {
+	for i, test := range [...]int64{
+		1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+		100, 200, 300, 400, 500, 600, 700, 800, 900,
+		1000, 2000, 4000, 5000, 6000, 7000, 8000, 9000,
+		1000000, 2000000, -12, -500, -13123213,
+	} {
+		a := New(test, 0)
+		if a.Int64() != test {
+			t.Fatalf("#%d: wanted %d, got %d", i, test, a.Int64())
+		}
+	}
+}
+
 func TestBig_IsInt(t *testing.T) {
 	for i, test := range [...]string{
 		"0 int",

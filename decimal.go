@@ -354,6 +354,53 @@ func (z *Big) Cmp(x *Big) int {
 // 	}
 // }
 
+// Int returns x as a big.Int, truncating the fractional portion, if any.
+func (x *Big) Int() *big.Int {
+	var b big.Int
+	if x.isCompact() {
+		b.SetInt64(x.compact)
+	} else {
+		b.Set(&x.mantissa)
+	}
+	if x.scale == 0 {
+		return &b
+	}
+	if x.scale < 0 {
+		return checked.MulBigPow10(&b, -x.scale)
+	}
+	p := pow.BigTen(int64(x.scale))
+	return b.Div(&b, &p)
+}
+
+// Int64 returns x as an int64, truncating the fractional portion, if any.
+func (x *Big) Int64() int64 {
+	var b int64
+	if x.isCompact() {
+		b = x.compact
+	} else {
+		b = x.mantissa.Int64()
+	}
+	if x.scale == 0 {
+		return b
+	}
+	if x.scale < 0 {
+		b, ok := checked.MulPow10(b, -x.scale)
+		// Undefined. So, return a sane value. IMO 0 is a better choice
+		// than 1 << 64 - 1 because it could cause a divsion by zero panic
+		// which would be a clear indication something is incorrect.
+		if !ok {
+			return 0
+		}
+		return b
+	}
+	p, ok := pow.Ten64(int64(x.scale))
+	// See above comment.
+	if !ok {
+		return 0
+	}
+	return b / p
+}
+
 // IsInf returns true if x is an infinity.
 func (x *Big) IsInf() bool {
 	return x.form == inf
