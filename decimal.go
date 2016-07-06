@@ -362,7 +362,7 @@ func (x *Big) Context() Context {
 // the mantissa or compact member is currently being used.
 func (x *Big) IsBig() bool {
 	return (x.isCompact() && (x.scale < -19 || x.scale > 19)) ||
-		x.mantissa.Cmp(c.MaxInt64) > 0
+		(x.mantissa.Cmp(c.MinInt64) < 0 || x.mantissa.Cmp(c.MaxInt64) >= 0)
 }
 
 // Int returns x as a big.Int, truncating the fractional portion, if any.
