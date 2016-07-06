@@ -18,12 +18,12 @@ const (
 // or using new.
 const DefaultPrec = 16
 
-type context struct {
+type Context struct {
 	precision int32
 	mode      RoundingMode
 }
 
-func (c context) prec() int32 {
+func (c Context) prec() int32 {
 	if c.precision == 0 {
 		return DefaultPrec
 	}
@@ -33,7 +33,7 @@ func (c context) prec() int32 {
 	return c.precision
 }
 
-// The following are called contextXX instead of DecimalXX
+// The following are called ContextXX instead of DecimalXX
 // to reserve the DecimalXX namespace for future decimal types.
 
 // ContextXX tells the lossy arithmetic operations how to do their jobs.
@@ -47,15 +47,15 @@ func (c context) prec() int32 {
 var (
 	// Context32 is the IEEE 754R Decimal32 format.
 	// It has a precision of 7 and mode of ToNearestEven.
-	Context32 = context{precision: 7, mode: ToNearestEven}
+	Context32 = Context{precision: 7, mode: ToNearestEven}
 
 	// Context64 is the IEEE 754R Decimal64 format.
 	// It has a precision of 16 and mode of ToNearestEven.
-	Context64 = context{precision: 16, mode: ToNearestEven}
+	Context64 = Context{precision: 16, mode: ToNearestEven}
 
 	// Context128 is the IEEE 754R Decimal128 format.
 	// It has a precision of 34 and mode of ToNearestEven.
-	Context128 = context{precision: 34, mode: ToNearestEven}
+	Context128 = Context{precision: 34, mode: ToNearestEven}
 )
 
 // RoundingMode determines how a Decimal will be rounded

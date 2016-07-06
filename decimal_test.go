@@ -71,13 +71,13 @@ func TestBig_BitLen(t *testing.T) {
 	}
 }
 
-const (
-	lesser  = -1
-	equal   = 0
-	greater = +1
-)
-
 func TestBig_Cmp(t *testing.T) {
+	const (
+		lesser  = -1
+		equal   = 0
+		greater = +1
+	)
+
 	samePtr := New(0, 0)
 	large, ok := new(Big).SetString(strings.Repeat("9", 500))
 	if !ok {
@@ -114,6 +114,32 @@ func TestBig_Cmp(t *testing.T) {
 	}
 }
 
+func TestBig_IsBig(t *testing.T) {
+	newbig := func(s string) *Big {
+		x, ok := new(Big).SetString(s)
+		if !ok {
+			t.Fatal("wanted true got false during set")
+		}
+		return x
+	}
+	for i, test := range [...]struct {
+		a   *Big
+		big bool
+	}{
+		0: {newbig("100"), false},
+		1: {newbig("-100"), false},
+		2: {newbig("5000"), false},
+		3: {newbig("-5000"), false},
+		4: {newbig("9999999999999999999999999999"), true},
+		5: {newbig("1000.5000E+500"), true},
+		6: {newbig("1000.5000E-500"), true},
+	} {
+		if ib := test.a.IsBig(); ib != test.big {
+			t.Fatalf("#%d: wanted %t, got %t", i, test.big, ib)
+		}
+	}
+}
+
 func TestBig_Int(t *testing.T) {
 	for i, test := range [...]string{
 		"1.234", "4.567", "11111111111111111111111111111111111.2",
@@ -139,15 +165,26 @@ func TestBig_Int(t *testing.T) {
 }
 
 func TestBig_Int64(t *testing.T) {
-	for i, test := range [...]int64{
-		1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-		100, 200, 300, 400, 500, 600, 700, 800, 900,
-		1000, 2000, 4000, 5000, 6000, 7000, 8000, 9000,
-		1000000, 2000000, -12, -500, -13123213,
+	for i, test := range [...]string{
+		"1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
+		"100", "200", "300", "400", "500", "600", "700", "800", "900",
+		"1000", "2000", "4000", "5000", "6000", "7000", "8000", "9000",
+		"1000000", "2000000", "-12", "-500", "-13123213", "12.000000",
 	} {
-		a := New(test, 0)
-		if a.Int64() != test {
-			t.Fatalf("#%d: wanted %d, got %d", i, test, a.Int64())
+		a, ok := new(Big).SetString(test)
+		if !ok {
+			t.Fatalf("#%d: !ok", i)
+		}
+		iv := test
+		switch x := strings.IndexByte(test, '.'); {
+		case x > 0:
+			iv = test[:x]
+		case x == 0:
+			iv = "0"
+		}
+		n := a.Int64()
+		if ns := strconv.FormatInt(n, 10); ns != iv {
+			t.Fatalf("#%d: wanted %q, got %q", i, iv, ns)
 		}
 	}
 }
@@ -172,11 +209,11 @@ func TestBig_IsInt(t *testing.T) {
 		"nan",
 	} {
 		s := strings.TrimSuffix(test, " int")
-		want := s != test
 		x, ok := new(Big).SetString(s)
 		if !ok {
 			t.Fatal("TestBig_IsInt !ok")
 		}
+		want := s != test
 		if got := x.IsInt(); got != want {
 			t.Errorf("#%d: %s.IsInt() == %t", i, s, got)
 		}

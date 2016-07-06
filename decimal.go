@@ -15,7 +15,7 @@ import (
 	"github.com/EricLagergren/decimal/internal/c"
 )
 
-// for inf checks: https://play.golang.org/p/RtH3UCt5IH
+// Note: For +/-inf/nan checks: https://play.golang.org/p/RtH3UCt5IH
 
 // Big represents a fixed-point, multi-precision
 // decimal number.
@@ -31,7 +31,7 @@ type Big struct {
 	// in this field...
 	compact int64
 	scale   int32
-	ctx     context
+	ctx     Context
 	form    form // norm, inf, or nan
 
 	// ...otherwise, it's held here.
@@ -210,7 +210,6 @@ func (x *Big) BitLen() int {
 		d := -int(x.scale) + x.Prec()
 		return int(math.Ceil(float64(d-1) * ln210))
 	}
-
 	if x.isCompact() {
 		return arith.BitLen(x.compact)
 	}
@@ -342,6 +341,11 @@ func (z *Big) Cmp(x *Big) int {
 	return z.mantissa.Cmp(&x.mantissa)
 }
 
+// Context returns x's Context.
+func (x *Big) Context() Context {
+	return x.ctx
+}
+
 // Format implements the fmt.Formatter interface.
 // func (z *Big) Format(s fmt.State, r rune) {
 // 	switch r {
@@ -353,6 +357,13 @@ func (z *Big) Cmp(x *Big) int {
 // 		fmt.Fprint(s, *z)
 // 	}
 // }
+
+// IsBig returns true if x cannot fit inside an int64, regardless whether
+// the mantissa or compact member is currently being used.
+func (x *Big) IsBig() bool {
+	return (x.isCompact() && (x.scale < -19 || x.scale > 19)) ||
+		x.mantissa.Cmp(c.MaxInt64) > 0
+}
 
 // Int returns x as a big.Int, truncating the fractional portion, if any.
 func (x *Big) Int() *big.Int {
@@ -386,7 +397,7 @@ func (x *Big) Int64() int64 {
 	if x.scale < 0 {
 		b, ok := checked.MulPow10(b, -x.scale)
 		// Undefined. So, return a sane value. IMO 0 is a better choice
-		// than 1 << 64 - 1 because it could cause a divsion by zero panic
+		// than 1 << 64 - 1 because it could cause a division by zero panic
 		// which would be a clear indication something is incorrect.
 		if !ok {
 			return 0
@@ -409,16 +420,12 @@ func (x *Big) IsInf() bool {
 // IsInt reports whether x is an integer.
 // ±Inf and NaN values are not integers.
 func (x *Big) IsInt() bool {
-	// Alternatively,
-	// return (x.form != finite && x.form == 0) ||
-	// 	       x.scale <= 0 || x.Prec() < int(x.scale)
-
 	if x.form != finite {
 		return x.form == zero
 	}
 	// Prec doesn't count trailing zeros,
-	// so number with precision <= scale means
-	// the scale is all trailing zeros.
+	// so precision <= scale means scale is all
+	// trailing zeros.
 	// E.g., 12.000:    scale == 3, prec == 2
 	//       1234.0000: scale == 4, prec == 4
 	return x.scale <= 0 || x.Prec() < int(x.scale)
@@ -810,7 +817,7 @@ func (z *Big) Set(x *Big) *Big {
 }
 
 // SetContext sets z's Context and returns z.
-func (z *Big) SetContext(ctx context) *Big {
+func (z *Big) SetContext(ctx Context) *Big {
 	z.ctx = ctx
 	return z
 }
@@ -819,6 +826,18 @@ func (z *Big) SetContext(ctx context) *Big {
 func (x *Big) SetInf() *Big {
 	x.form = inf
 	return x
+}
+
+// SetBigMantScale sets z to the given value and scale.
+func (z *Big) SetBigMantScale(value *big.Int, scale int32) *Big {
+	z.scale = scale
+	if value.Sign() == 0 {
+		z.form = zero
+		return z
+	}
+	z.mantissa.Set(value)
+	z.form = finite
+	return z
 }
 
 // SetMantScale sets z to the given value and scale.
@@ -848,6 +867,12 @@ func (z *Big) SetMode(mode RoundingMode) *Big {
 // The latter describes the number of digits in the decimal.
 func (z *Big) SetPrec(prec int32) *Big {
 	z.ctx.precision = prec
+	return z
+}
+
+// SetScale sets z's scale to scale and returns z.
+func (z *Big) SetScale(scale int32) *Big {
+	z.scale = scale
 	return z
 }
 
@@ -888,7 +913,7 @@ func (z *Big) SetString(s string) (*Big, bool) {
 	var scale int32
 
 	// Check for a scientific string.
-	i := strings.IndexAny(s, "Ee")
+	i := strings.LastIndexAny(s, "Ee")
 	if i > 0 {
 		eint, err := strconv.ParseInt(s[i+1:], 10, 32)
 		if err != nil {
@@ -898,54 +923,38 @@ func (z *Big) SetString(s string) (*Big, bool) {
 		scale = -int32(eint)
 	}
 
-	str := s
-	parts := strings.Split(s, ".")
-	if pl := len(parts); pl == 2 {
-		str = parts[0] + parts[1]
-		scale += int32(len(parts[1]))
-	} else if pl != 1 {
+	switch strings.Count(s, ".") {
+	case 0:
+	case 1:
+		i = strings.IndexByte(s, '.')
+		s = s[:i] + s[i+1:]
+		scale += int32(len(s) - i)
+	default:
 		return nil, false
 	}
 
-	var val big.Int
-	_, ok := val.SetString(str, 10)
-	if !ok {
-		return nil, false
-	}
-	z.compact = c.Inflated
-	z.scale = scale
-	z.mantissa = val
-	z.form = finite
-	return z.Shrink(), true
-}
-
-// Shrink shrinks d from a big.Int into an int64 if possible
-// and returns z.
-// saveCap is optional and if true is passed will save the mantissa's
-// capacity. This may be useful if z is to be reused and could expand into
-// its mantissa member again.
-func (z *Big) Shrink(saveCap ...bool) *Big {
-	if z.isInflated() {
-		sign := z.mantissa.Sign()
-		// Shrink iff:
-		// 	Zero, or
-		// 	Positive and < MaxInt64, or
-		// 	Negative and > MinIn64
-		if sign == 0 ||
-			(sign > 0 && z.mantissa.Cmp(c.MaxInt64) < 0) ||
-			(sign < 0 && z.mantissa.Cmp(c.MinInt64) > 0) {
-
-			z.compact = z.mantissa.Int64()
-
-			if len(saveCap) > 0 && saveCap[0] {
-				m := z.mantissa.Bits()
-				z.mantissa.SetBits(m[:0])
-			} else {
-				z.mantissa.SetBits(nil)
+	var err error
+	// Numbers == 19 can be out of range, but try the edge case anyway.
+	if len(s) <= 19 {
+		z.compact, err = strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			nerr, ok := err.(*strconv.NumError)
+			if !ok || nerr.Err == strconv.ErrSyntax {
+				return nil, false
 			}
+			err = nerr.Err
 		}
 	}
-	return z
+	if (err == strconv.ErrRange && len(s) == 19) || len(s) > 19 {
+		_, ok := z.mantissa.SetString(s, 10)
+		if !ok {
+			return nil, false
+		}
+		z.compact = c.Inflated
+	}
+	z.scale = scale
+	z.form = finite
+	return z, true
 }
 
 // Sign returns:
@@ -1036,7 +1045,7 @@ func (x *Big) toString(sci bool, opts byte) string {
 		str = strconv.FormatInt(x.compact, 10)
 	}
 
-	// Either this or we have to use a boolean flag plus format the mantisssa
+	// Either this or we have to use a boolean flag plus format the mantissa
 	// and/or compact integer as unsigned values which incurs
 	// an allocation with the mantissa.
 	if str[0] == '-' {
