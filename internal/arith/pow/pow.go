@@ -11,7 +11,6 @@ import (
 const (
 	Tab64Len  = 19
 	ThreshLen = 19
-	Tab32Len  = 8
 )
 
 var (
@@ -73,27 +72,15 @@ func pow10(e int32) float64 {
 	return math.Pow10(int(e))
 }
 
-func PowInt32(e int32) (int32, bool) {
-	return pow10int32(e)
-}
-
-func pow10int32(e int32) (int32, bool) {
-	if e < 0 {
-		p, ok := pow10int32(-e)
-		return 1 / p, ok
-	}
-	if e < Tab32Len {
-		p, ok := Ten64(int64(e))
-		return int32(p), ok
-	}
-	return 0, false
-}
-
 // Ten64 returns 10 ** e and a boolean indicating whether
 // it fits into an int64.
 func Ten64(e int64) (int64, bool) {
 	if e < 0 {
 		p, ok := Ten64(-e)
+		// Otherwise division by zero.
+		if !ok {
+			return 0, false
+		}
 		return 1 / p, ok
 	}
 	if e < Tab64Len {

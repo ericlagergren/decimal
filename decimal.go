@@ -395,13 +395,11 @@ func (x *Big) Int64() int64 {
 		return b
 	}
 	if x.scale < 0 {
-		b, ok := checked.MulPow10(b, -x.scale)
-		// Undefined. So, return a sane value. IMO 0 is a better choice
-		// than 1 << 64 - 1 because it could cause a division by zero panic
-		// which would be a clear indication something is incorrect.
-		if !ok {
-			return 0
-		}
+		// Undefined. checked.MulPow10 returns 0 when ok is false.
+		// IMO, 0 is a better choice than 1 << 64 - 1 because it could cause a
+		// division by zero panic which would be a clear indication something is
+		// incorrect.
+		b, _ = checked.MulPow10(b, -x.scale)
 		return b
 	}
 	p, ok := pow.Ten64(int64(x.scale))
