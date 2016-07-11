@@ -6,8 +6,26 @@ import (
 	"testing"
 )
 
+func newbig(t *testing.T, s string) *Big {
+	x, ok := new(Big).SetString(s)
+	if !ok {
+		t.Fatal("wanted true got false during set")
+	}
+	return x
+}
+
 // Verify that ErrNaN implements the error interface.
 var _ error = ErrNaN{}
+
+func TestBig_Abs(t *testing.T) {
+	// for i, test := range [...]string{} {
+	// 	if test[0] == '-' {
+	// 		test = test[1:]
+	// 	}
+	// 	x := newbig(t, test)
+	// 	// if x.Abs()
+	// }
+}
 
 func TestBig_Add(t *testing.T) {
 	type inp struct {
@@ -115,24 +133,17 @@ func TestBig_Cmp(t *testing.T) {
 }
 
 func TestBig_IsBig(t *testing.T) {
-	newbig := func(s string) *Big {
-		x, ok := new(Big).SetString(s)
-		if !ok {
-			t.Fatal("wanted true got false during set")
-		}
-		return x
-	}
 	for i, test := range [...]struct {
 		a   *Big
 		big bool
 	}{
-		0: {newbig("100"), false},
-		1: {newbig("-100"), false},
-		2: {newbig("5000"), false},
-		3: {newbig("-5000"), false},
-		4: {newbig("9999999999999999999999999999"), true},
-		5: {newbig("1000.5000E+500"), true},
-		6: {newbig("1000.5000E-500"), true},
+		0: {newbig(t, "100"), false},
+		1: {newbig(t, "-100"), false},
+		2: {newbig(t, "5000"), false},
+		3: {newbig(t, "-5000"), false},
+		4: {newbig(t, "9999999999999999999999999999"), true},
+		5: {newbig(t, "1000.5000E+500"), true},
+		6: {newbig(t, "1000.5000E-500"), true},
 	} {
 		if ib := test.a.IsBig(); ib != test.big {
 			t.Fatalf("#%d: wanted %t, got %t", i, test.big, ib)
@@ -351,6 +362,25 @@ func TestBig_Quo(t *testing.T) {
 		q := v.a.Quo(v.a, v.b)
 		if qs := q.String(); qs != v.r {
 			t.Fatalf("#%d: wanted %q, got %q", i, v.r, qs)
+		}
+	}
+}
+
+func TestBig_Round(t *testing.T) {
+	for i, test := range [...]struct {
+		v   string
+		to  int32
+		res string
+	}{
+		{"5.5", 1, "6"},
+		{"1.234", 2, "1.2"},
+		{"1", 1, "1"},
+		{"9.876", 0, "9.876"},
+		{"5.65", 2, "5.6"},
+	} {
+		bd := newbig(t, test.v)
+		if rs := bd.Round(test.to).String(); rs != test.res {
+			t.Fatalf("#%d: wanted %s, got %s", i, test.res, rs)
 		}
 	}
 }
