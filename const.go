@@ -23,6 +23,11 @@ type Context struct {
 	mode      RoundingMode
 }
 
+// Precision returns c's precision.
+func (c Context) Precision() int32 {
+	return c.prec()
+}
+
 func (c Context) prec() int32 {
 	if c.precision == 0 {
 		return DefaultPrec

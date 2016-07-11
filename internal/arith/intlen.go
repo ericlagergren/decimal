@@ -25,15 +25,15 @@ func BigLength(x *big.Int) int {
 
 func ilog10(x int64) int {
 	// From https://graphics.stanford.edu/~seander/bithacks.html
-	r := ((64 - CLZ(x) + 1) * 1233) >> 12
-	v, ok := pow.Ten64(int64(r))
+	t := ((64 - CLZ(x) + 1) * 1233) >> 12
+	v, ok := pow.Ten64(int64(t))
 	if !ok {
 		return bigIlog10(big.NewInt(x))
 	}
 	if x < v {
-		return r
+		return t
 	}
-	return r + 1
+	return t + 1
 }
 
 func bigIlog10(x *big.Int) int {

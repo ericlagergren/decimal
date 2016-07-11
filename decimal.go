@@ -79,6 +79,22 @@ func New(value int64, scale int32) *Big {
 	return new(Big).SetMantScale(value, scale)
 }
 
+// Abs sets z to the absolute value of x if x is finite and returns z.
+func (z *Big) Abs(x *Big) *Big {
+	if x.form != finite {
+		return z
+	}
+	if x.isCompact() {
+		z.compact = arith.Abs(x.compact)
+	} else {
+		z.mantissa.Abs(&x.mantissa)
+	}
+	z.scale = x.scale
+	z.ctx = x.ctx
+	z.form = finite
+	return z
+}
+
 // Add sets z to x + y and returns z.
 func (z *Big) Add(x, y *Big) *Big {
 	if x.form == finite && y.form == finite {
@@ -199,7 +215,7 @@ func (z *Big) addBig(x, y *Big) *Big {
 // log2(10)
 const ln210 = 3.321928094887362347870319429489390175864831393024580612054
 
-// BitLen returns the absolute value of z in bits.
+// BitLen returns the absolute value of x in bits.
 func (x *Big) BitLen() int {
 	// If using an artificially inflated number determine the
 	// bitlen using the number of digits.
@@ -410,6 +426,11 @@ func (x *Big) Int64() int64 {
 	return b / p
 }
 
+// IsInf returns true if x is finite.
+func (x *Big) IsFinite() bool {
+	return x.form == finite
+}
+
 // IsInf returns true if x is an infinity.
 func (x *Big) IsInf() bool {
 	return x.form == inf
@@ -440,13 +461,9 @@ func (x *Big) MarshalText() ([]byte, error) {
 	return []byte(x.String()), nil
 }
 
-// UnmarshalText implements encoding/TextUnmarshaler.
-func (x *Big) UnmarshalText(data []byte) error {
-	_, ok := x.SetString(string(data))
-	if !ok {
-		return errors.New("decimal.Big.UnmarshalText: invalid decimal format")
-	}
-	return nil
+// Mode returns the rounding mode of x.
+func (x *Big) Mode() RoundingMode {
+	return x.ctx.mode
 }
 
 // Mul sets z to x * y and returns z.
@@ -552,9 +569,13 @@ func (z *Big) Neg(x *Big) *Big {
 	return z
 }
 
-// Prec returns the precision of z.
-// That is, it returns the number of decimal digits z requires.
+// Prec returns the precision of z. That is, it returns the number of
+// decimal digits z requires.
 func (x *Big) Prec() int {
+	// 0, NaN, and Inf.
+	if x.form != finite {
+		return 0
+	}
 	if x.isCompact() {
 		return arith.Length(x.compact)
 	}
@@ -764,10 +785,11 @@ func (z *Big) quoBigAndRound(x, y *big.Int) *Big {
 	return z.Round(z.ctx.prec())
 }
 
-// Round rounds z to n digits of precision and returns z.
-// The result is undefined if n is less than zero.
+// Round rounds z down to n digits of precision and returns z. The result is
+// undefined if n is less than zero. No rounding will occur if n is zero.
+// The result of Round will always be within the interval [⌊z⌋, z].
 func (z *Big) Round(n int32) *Big {
-	if n < 0 || z.form != finite {
+	if n <= 0 || n > z.scale || z.form != finite {
 		return z
 	}
 
@@ -1162,4 +1184,13 @@ func (z *Big) Sub(x, y *Big) *Big {
 	// ±0 - y
 	// x - ±Inf
 	return z.Neg(y)
+}
+
+// UnmarshalText implements encoding/TextUnmarshaler.
+func (x *Big) UnmarshalText(data []byte) error {
+	_, ok := x.SetString(string(data))
+	if !ok {
+		return errors.New("decimal.Big.UnmarshalText: invalid decimal format")
+	}
+	return nil
 }
