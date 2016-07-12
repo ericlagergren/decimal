@@ -3,6 +3,7 @@ package decimal
 import (
 	"bytes"
 	"io"
+	"math"
 	"math/big"
 
 	"github.com/EricLagergren/decimal/internal/arith"
@@ -130,4 +131,73 @@ func equalFold(s1, s2 string) bool {
 		return false
 	}
 	return true
+}
+
+// findScale determines the precision of a float64.
+func findScale(f float64) (precision int32) {
+	switch {
+	case f == 0.0, math.Floor(f) == f:
+		return 0
+	case math.IsNaN(f), math.IsInf(f, 0):
+		return c.BadScale
+	}
+
+	e := float64(1)
+	for cmp := round(f*e) / e; !math.IsNaN(cmp) &&
+		cmp != f; cmp = round(f*e) / e {
+		e *= 10
+	}
+	return int32(math.Ceil(math.Log10(e)))
+}
+
+// The default rounding should be unbiased rounding.
+// It takes marginally longer than
+//
+// 		if f < 0 {
+// 			return math.Ceil(f - 0.5)
+// 		}
+// 		return math.Floor(f + 0.5)
+//
+// But returns more accurate results.
+func round(f float64) float64 {
+	d, frac := math.Modf(f)
+	if f > 0.0 && (frac > 0.5 || (frac == 0.5 && uint64(d)%2 != 0)) {
+		return d + 1.0
+	}
+	if f < 0.0 && (frac < -0.5 || (frac == -0.5 && uint64(d)%2 != 0)) {
+		return d - 1.0
+	}
+	return d
+}
+
+// "stolen" from https://golang.org/pkg/math/big/#Rat.SetFloat64
+// Removed non-finite case because we already check for
+// Inf/NaN values
+func bigIntFromFloat(f float64) *big.Int {
+	const expMask = 1<<11 - 1
+	bits := math.Float64bits(f)
+	mantissa := bits & (1<<52 - 1)
+	exp := int((bits >> 52) & expMask)
+	if exp == 0 { // denormal
+		exp -= 1022
+	} else { // normal
+		mantissa |= 1 << 52
+		exp -= 1023
+	}
+
+	shift := 52 - exp
+
+	// Optimization (?): partially pre-normalise.
+	for mantissa&1 == 0 && shift > 0 {
+		mantissa >>= 1
+		shift--
+	}
+
+	if shift < 0 {
+		shift = -shift
+	}
+
+	var a big.Int
+	a.SetUint64(mantissa)
+	return a.Lsh(&a, uint(shift))
 }

@@ -1,10 +1,17 @@
 package decimal
 
 import (
+	"math"
 	"strconv"
 	"strings"
 	"testing"
 )
+
+func didPanic(f func()) (ok bool) {
+	defer func() { ok = recover() != nil }()
+	f()
+	return ok
+}
 
 func newbig(t *testing.T, s string) *Big {
 	x, ok := new(Big).SetString(s)
@@ -56,7 +63,7 @@ func TestBig_Add(t *testing.T) {
 		}
 		c := a.Add(a, b)
 		if cs := c.String(); cs != inp.res {
-			t.Errorf("#%d: expected %s, got %s", i, inp.res, cs)
+			t.Errorf("#%d: wanted %s, got %s", i, inp.res, cs)
 		}
 	}
 }
@@ -385,6 +392,59 @@ func TestBig_Round(t *testing.T) {
 	}
 }
 
+func TestBig_SetFloat64(t *testing.T) {
+	tests := map[float64]string{
+		123.4:          "123.4",
+		123.42:         "123.42",
+		123.412345:     "123.412345",
+		123.4123456:    "123.4123456",
+		123.41234567:   "123.41234567",
+		123.412345678:  "123.412345678",
+		123.4123456789: "123.4123456789",
+	}
+
+	// add negatives
+	for p, s := range tests {
+		if p > 0 {
+			tests[-p] = "-" + s
+		}
+	}
+
+	var d Big
+	for input, s := range tests {
+		d.SetFloat64(input)
+		if ds := d.String(); ds != s {
+			t.Errorf("wanted %s, got %s", s, ds)
+		}
+	}
+
+	if !didPanic(func() { d.SetFloat64(math.NaN()) }) {
+		t.Fatalf("wanted panic when creating a Big from NaN, got %s instead",
+			d.String())
+	}
+
+	if testing.Short() {
+		return
+	}
+
+	var err float64
+	for f, s := range testTable {
+		d.SetFloat64(f)
+		if d.String() != s {
+			err++
+		}
+	}
+
+	// Some margin of error is acceptable when converting from
+	// a float. On a table of roughly 9,000 entries an acceptable
+	// margin of error is around 450. Using Gaussian/banker's rounding our
+	// margin of error is roughly 215 per 9,000 entries, for a rate of around
+	// 2.3%.
+	if err >= 0.05*float64(len(testTable)) {
+		t.Errorf("wanted error rate to be < 0.05%% of table, got %.f", err)
+	}
+}
+
 func TestBig_Sign(t *testing.T) {
 	for i, test := range [...]struct {
 		x string
@@ -450,7 +510,7 @@ func TestBig_String(t *testing.T) {
 	}
 }
 
-func TestDecimal_Sub(t *testing.T) {
+func TestBig_Sub(t *testing.T) {
 	inputs := [...]struct {
 		a string
 		b string
@@ -479,7 +539,7 @@ func TestDecimal_Sub(t *testing.T) {
 		}
 		c := a.Sub(a, b)
 		if cs := c.String(); cs != inp.r {
-			t.Errorf("#%d: expected %s, got %s", i, inp.r, cs)
+			t.Errorf("#%d: wanted %s, got %s", i, inp.r, cs)
 		}
 	}
 }

@@ -789,21 +789,17 @@ func (z *Big) quoBigAndRound(x, y *big.Int) *Big {
 // undefined if n is less than zero. No rounding will occur if n is zero.
 // The result of Round will always be within the interval [⌊z⌋, z].
 func (z *Big) Round(n int32) *Big {
-	if n <= 0 || n > z.scale || z.form != finite {
+	zp := z.Prec()
+	if n <= 0 || int(n) < zp-int(z.scale) || z.form != finite {
 		return z
 	}
 
-	zp := z.ctx.prec()
-	if zp <= 0 {
-		return z
-	}
-
-	shift, ok := checked.Sub(int64(z.Prec()), int64(n))
+	shift, ok := checked.Sub(int64(zp), int64(n))
 	if !ok {
 		z.form = inf
 		return z
 	}
-	if shift == 0 {
+	if shift <= 0 {
 		return z
 	}
 	z.scale -= int32(shift)
@@ -856,6 +852,43 @@ func (z *Big) SetBigMantScale(value *big.Int, scale int32) *Big {
 		return z
 	}
 	z.mantissa.Set(value)
+	z.form = finite
+	return z
+}
+
+// SetFloat64 sets z to the provided float64.
+//
+// Keep in mind that float to decimal conversions can be lossy.
+// For example, 0.1 appears to be "just" 0.1, but in reality it's
+// 0.1000000000000000055511151231257827021181583404541015625
+//
+// To cope, the number of decimal digits in the float are calculated as closely
+// as possible use that as the scale.
+//
+// Approximately 2.3% of decimals created from floats will have a rounding
+// imprecision of ± 1 ULP.
+func (z *Big) SetFloat64(value float64) *Big {
+	scale := findScale(value)
+	value *= math.Pow10(int(scale))
+	switch {
+	case math.IsNaN(value):
+		panic(ErrNaN{"NewFromFloat(NaN)"})
+	case math.IsInf(value, 0):
+		z.form = inf
+		return z
+	}
+	// Given float64(math.MaxInt64) == math.MaxInt64.
+	if value <= math.MaxInt64 {
+		z.compact = int64(value)
+	} else {
+		if value <= math.MaxUint64 {
+			z.mantissa.SetUint64(uint64(value))
+		} else {
+			z.mantissa.Set(bigIntFromFloat(value))
+		}
+		z.compact = c.Inflated
+	}
+	z.scale = scale
 	z.form = finite
 	return z
 }
