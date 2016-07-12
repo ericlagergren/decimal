@@ -42,13 +42,11 @@ func (c Context) prec() int32 {
 // to reserve the DecimalXX namespace for future decimal types.
 
 // ContextXX tells the lossy arithmetic operations how to do their jobs.
+// Precision is the maximum number of digits to be used for the decimal. Mode
+// instructs lossy operations how to round.
 //
-// The precision is the maximum number of digits to be used for the decimal.
-//
-// The mode instructs lossy operations how to round.
-//
-// Three contexts based of IEEE 754R are defined. context is exported for
-// this documentation but is not expected to be used itself.
+// The following Contexts are based on IEEE 754R. Context is exported for this
+// documentation but is not expected to be used itself.
 var (
 	// Context32 is the IEEE 754R Decimal32 format.
 	// It has a precision of 7 and mode of ToNearestEven.
