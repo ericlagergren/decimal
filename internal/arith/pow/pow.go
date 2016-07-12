@@ -66,12 +66,6 @@ func BigTen(n int64) (p big.Int) {
 	return p
 }
 
-// pow10 is a wrapper around math.Pow10.
-func pow10(e int32) float64 {
-	// Should be lossless.
-	return math.Pow10(int(e))
-}
-
 // Ten64 returns 10 ** e and a boolean indicating whether
 // it fits into an int64.
 func Ten64(e int64) (int64, bool) {
