@@ -31,27 +31,31 @@ import (
 
 // It's all very similar to math/big's API.
 func main() {
-	price, err := decimal.NewFromString("136.02")
-    if err != nil {
-        log.Fatalln(err)
+	price := decimal.New(13602, 2)
+
+	quantity := new(decimal.Big).SetFloat(3)
+
+    fee, ok := new(decimal.Big).SetString(".035")
+    if !ok {
+        // handle invalid decimal
     }
 
-	quantity := decimal.NewFromFloat(3)
+    taxRate, ok := new(decimal.Big).SetString(".08875")
+    if !ok {
+        // handle invalid decimal
+    }
 
-    fee, _ := decimal.NewFromString(".035")
-    taxRate, _ := decimal.NewFromString(".08875")
+    subtotal := new(decimal.Big).Mul(price, quantity)
 
-    subtotal := new(decimal.Decimal).Mul(price, quantity)
+    preTax := new(decimal.Big).Mul(subtotal, fee.Add(fee, decimal.New(1, 0)))
 
-    preTax := new(decimal.Decimal).Mul(subtotal, fee.Add(fee, decimal.New(1, 0)))
-
-    total := new(decimal.Decimal).Mul(preTax, taxRate.Add(taxRate, decimal.New(1, 0)))
+    total := new(decimal.Big).Mul(preTax, taxRate.Add(taxRate, decimal.New(1, 0)))
 
     fmt.Println("Subtotal:", subtotal)                                                   // Subtotal: 408.06
     fmt.Println("Pre-tax:", preTax)                                                      // Pre-tax: 422.3421
     fmt.Println("Taxes:", total.Sub(total, preTax))                                      // Taxes: 37.482861375
     fmt.Println("Total:", total)                                                         // Total: 459.824961375
-    fmt.Println("Tax rate:", new(decimal.Decimal).Sub(total, preTax).Quo(total, preTax)) // Tax rate: 0.08875
+    fmt.Println("Tax rate:", new(decimal.Big).Sub(total, preTax).Quo(total, preTax)) // Tax rate: 0.08875
 }
 ```
 
