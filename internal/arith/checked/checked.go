@@ -1,3 +1,4 @@
+// Package checked implements basic checked arithmetic.
 package checked
 
 import (
