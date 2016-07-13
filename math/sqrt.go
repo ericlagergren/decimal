@@ -12,7 +12,7 @@ import (
 // The precision of Sqrt is determined by z's Context.
 // Sqrt will panic on negative values since decimal.Big cannot
 // represent imaginary numbers.
-func Sqrt(z *decimal.Big, x *decimal.Big) *decimal.Big {
+func Sqrt(z, x *decimal.Big) *decimal.Big {
 	if x.SignBit() {
 		panic("math.Sqrt: cannot take square root of negative number")
 	}
