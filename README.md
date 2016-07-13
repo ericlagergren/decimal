@@ -1,14 +1,16 @@
 # decimal [![Build Status](https://travis-ci.org/EricLagergren/decimal.png?branch=master)](https://travis-ci.org/EricLagergren/decimal)
 
-Decima is a high-performance, arbitrary precision, fixed-point decimal library.
+Decimal is a high-performance, arbitrary precision, fixed-point decimal library.
+
+Note: The `math/` subpackage is under development and should be used with care.
 
 ## Features
 
- * Zero-value is 0 and is safe to use without initialization
- * Addition, subtraction, and multiplication with no loss of precision
- * Division with specified precision
- * database/sql serialization/deserialization
- * JSON, XML, and Gob serialization/deserialization
+ * Zero-value is 0 and is safe to use without initialization.
+ * Addition, subtraction, and multiplication with no loss of precision.
+ * Division with specified precision.
+ * JSON and XML serialization and deserialization.
+ * High performance
 
  TODO:
  * Many useful functions and methods like Sqrt, Hypot, and Jacobi

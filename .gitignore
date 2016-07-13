@@ -35,3 +35,4 @@ old.*
 Vagrantfile
 *.test
 *.out
+old/
