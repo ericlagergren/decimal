@@ -1,3 +1,4 @@
+// Package c provides basic, internal constants.
 package c
 
 import (

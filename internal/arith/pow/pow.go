@@ -1,3 +1,4 @@
+// Package pow implements basic power functions.
 package pow
 
 import (
