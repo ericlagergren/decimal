@@ -1,5 +1,5 @@
-//  Package Decimal is a high-performance, arbitrary precision, fixed-point
-//  decimal library.
+// Package decimal is a high-performance, arbitrary precision, fixed-point
+// decimal library.
 package decimal
 
 import (
@@ -29,14 +29,13 @@ import (
 // A negative scale indicates the lack of a radix (typically a
 // very large number).
 type Big struct {
-	// If |v| <= 1 << 64 - 1 then the mantissa will be stored
-	// in this field...
+	// If |v| <= 1 << 64 - 1 the mantissa will be stored in this field.
 	compact int64
 	scale   int32
 	ctx     Context
-	form    form // norm, inf, or nan
+	form    form // zero, finite, inf, or nan.
 
-	// ...otherwise, it's held here.
+	// If the mantissa is not stored in the compact field, it's held here.
 	mantissa big.Int
 }
 
@@ -52,7 +51,7 @@ const (
 	nan
 )
 
-// An ErrNaN panic is raised by a Float operation that would lead to a NaN
+// An ErrNaN panic is raised by a Decimal operation that would lead to a NaN
 // under IEEE-754 rules. An ErrNaN implements the error interface.
 type ErrNaN struct {
 	msg string
@@ -376,8 +375,8 @@ func (x *Big) Context() Context {
 // 	}
 // }
 
-// IsBig returns true if x cannot fit inside an int64, regardless whether
-// the mantissa or compact member is currently being used.
+// IsBig returns true if x, with its fractional part truncated, cannot fit
+// inside an int64.
 func (x *Big) IsBig() bool {
 	return (x.isCompact() && (x.scale < -19 || x.scale > 19)) ||
 		(x.mantissa.Cmp(c.MinInt64) < 0 || x.mantissa.Cmp(c.MaxInt64) >= 0)
@@ -428,7 +427,7 @@ func (x *Big) Int64() int64 {
 	return b / p
 }
 
-// IsInf returns true if x is finite.
+// IsFinite returns true if x is finite.
 func (x *Big) IsFinite() bool {
 	return x.form == finite
 }
@@ -834,18 +833,6 @@ func (z *Big) Set(x *Big) *Big {
 	return z
 }
 
-// SetContext sets z's Context and returns z.
-func (z *Big) SetContext(ctx Context) *Big {
-	z.ctx = ctx
-	return z
-}
-
-// SetInf sets z to Inf and returns z.
-func (x *Big) SetInf() *Big {
-	x.form = inf
-	return x
-}
-
 // SetBigMantScale sets z to the given value and scale.
 func (z *Big) SetBigMantScale(value *big.Int, scale int32) *Big {
 	if value.Sign() == 0 {
@@ -859,17 +846,25 @@ func (z *Big) SetBigMantScale(value *big.Int, scale int32) *Big {
 	return z
 }
 
+// SetContext sets z's Context and returns z.
+func (z *Big) SetContext(ctx Context) *Big {
+	z.ctx = ctx
+	return z
+}
+
 // SetFloat64 sets z to the provided float64.
 //
-// Keep in mind that float to decimal conversions can be lossy.
-// For example, 0.1 appears to be "just" 0.1, but in reality it's
-// 0.1000000000000000055511151231257827021181583404541015625
+// Remember floating-point to decimal conversions can be lossy. For example,
+// the floating-point number `0.1' appears to simply be 0.1, but its actual
+// value is 0.1000000000000000055511151231257827021181583404541015625.
 //
-// To cope, the number of decimal digits in the float are calculated as closely
-// as possible use that as the scale.
+// SetFloat64 is particularly lossy because will round non-integer values.
+// For example, if passed the value `3.1415' it attempts to do the same as if
+// SetMantScale(31415, 4) were called.
 //
-// Approximately 2.3% of decimals created from floats will have a rounding
-// imprecision of ± 1 ULP.
+// To do this, it scales up the provided number by its scale. This involves
+// rounding, so approximately 2.3% of decimals created from floats will have a
+// rounding imprecision of ± 1 ULP.
 func (z *Big) SetFloat64(value float64) *Big {
 	if value == 0 {
 		z.form = 0
@@ -908,6 +903,12 @@ func (z *Big) SetFloat64(value float64) *Big {
 	z.scale = scale
 	z.form = finite
 	return z
+}
+
+// SetInf sets z to Inf and returns z.
+func (x *Big) SetInf() *Big {
+	x.form = inf
+	return x
 }
 
 // SetMantScale sets z to the given value and scale.
@@ -1059,8 +1060,8 @@ func (x *Big) SignBit() bool {
 }
 
 // String returns the scientific string representation of x.
-// For special cases, if x == nil returns "<nil>",
-// x.IsNaN() returns "NaN", and x.IsInf() returns "Inf".
+// For special cases, x == nil returns "<nil>", x.IsNaN() returns "NaN", and
+// x.IsInf() returns "Inf".
 func (x *Big) String() string {
 	return x.toString(true, lower)
 }
@@ -1106,7 +1107,7 @@ func (x *Big) toString(sci bool, opts byte) string {
 
 	var (
 		str string
-		b   buffer // bytes.Buffer
+		b   buffer // is bytes.Buffer
 	)
 
 	if x.isInflated() {
@@ -1129,7 +1130,6 @@ func (x *Big) toString(sci bool, opts byte) string {
 }
 
 func (x *Big) toSciString(str string, b writer, opts byte) string {
-
 	if debug && (opts < 0 || opts > 1) {
 		panic("toSciString: (bug) opts != 0 || opts != 1")
 	}
