@@ -1,4 +1,4 @@
-# decimal [![Build Status](https://travis-ci.org/EricLagergren/decimal.png?branch=master)](https://travis-ci.org/EricLagergren/decimal)
+# decimal [![Build Status](https://travis-ci.org/EricLagergren/decimal.png?branch=master)](https://travis-ci.org/EricLagergren/decimal) [![GoDoc](https://godoc.org/github.com/EricLagergren/decimal?status.svg)](https://godoc.org/github.com/EricLagergren/decimal)
 
 Decimal is a high-performance, arbitrary precision, fixed-point decimal library.
 
