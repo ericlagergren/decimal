@@ -41,7 +41,7 @@ func BigTen(n int64) (p big.Int) {
 	// To keep from making silly mistkes like that, keep the slice's
 	// size at something reasonable.
 	if n > 1e5 {
-		p.Exp(c.TenInt, big.NewInt(int64(n)), nil)
+		p.Exp(c.TenInt, big.NewInt(n), nil)
 		bigPow10Tab.RUnlock()
 		return p
 	}

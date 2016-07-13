@@ -846,13 +846,14 @@ func (x *Big) SetInf() *Big {
 
 // SetBigMantScale sets z to the given value and scale.
 func (z *Big) SetBigMantScale(value *big.Int, scale int32) *Big {
-	z.scale = scale
 	if value.Sign() == 0 {
 		z.form = zero
 		return z
 	}
+	z.scale = scale
 	z.mantissa.Set(value)
 	z.form = finite
+	z.compact = c.Inflated
 	return z
 }
 
@@ -868,15 +869,29 @@ func (z *Big) SetBigMantScale(value *big.Int, scale int32) *Big {
 // Approximately 2.3% of decimals created from floats will have a rounding
 // imprecision of ± 1 ULP.
 func (z *Big) SetFloat64(value float64) *Big {
-	scale := findScale(value)
-	value *= math.Pow10(int(scale))
-	switch {
-	case math.IsNaN(value):
+	if value == 0 {
+		z.form = 0
+		return z
+	}
+
+	var scale int32
+
+	// If value is not an integer (has a fractional part) bump its value up
+	// and find the appropriate scale.
+	_, fr := math.Modf(value)
+	if fr != 0 {
+		scale = findScale(value)
+		value *= math.Pow10(int(scale))
+	}
+
+	if math.IsNaN(value) {
 		panic(ErrNaN{"NewFromFloat(NaN)"})
-	case math.IsInf(value, 0):
+	}
+	if math.IsInf(value, 0) {
 		z.form = inf
 		return z
 	}
+
 	// Given float64(math.MaxInt64) == math.MaxInt64.
 	if value <= math.MaxInt64 {
 		z.compact = int64(value)
@@ -895,11 +910,11 @@ func (z *Big) SetFloat64(value float64) *Big {
 
 // SetMantScale sets z to the given value and scale.
 func (z *Big) SetMantScale(value int64, scale int32) *Big {
-	z.scale = scale
 	if value == 0 {
 		z.form = zero
 		return z
 	}
+	z.scale = scale
 	if value == c.Inflated {
 		z.mantissa.SetInt64(value)
 	}
@@ -1181,7 +1196,7 @@ func (x *Big) normString(str string, b writer) string {
 	// log10(mantissa) < scale, so before p "0s" and before str.
 	default:
 		b.WriteString("0.")
-		b.Write(bytes.Repeat([]byte{'0'}, -int(pad)))
+		b.Write(bytes.Repeat([]byte{'0'}, -pad))
 		b.WriteString(str)
 	}
 	return b.String()
