@@ -1,3 +1,4 @@
+// Package arith provides simple, primarily bit-specific, arithmetic operations.
 package arith
 
 // This section is borrowed and slightly modified from
