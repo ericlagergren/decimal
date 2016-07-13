@@ -1,23 +1,12 @@
 package math
 
 import (
-	"fmt"
 	"math"
 	"math/big"
 
 	"github.com/EricLagergren/decimal"
-	"github.com/EricLagergren/decimal/internal/arith/checked"
+	"github.com/EricLagergren/decimal/internal/arith"
 )
-
-var _ = fmt.Println
-
-func shiftRadixRight(x *decimal.Big, n int) {
-	ns, ok := checked.Sub32(x.Scale(), int32(n))
-	if !ok {
-		panic(ok)
-	}
-	x.SetScale(ns)
-}
 
 // Sqrt sets z to the square root of x and returns z.
 // The precision of Sqrt is determined by z's Context.
@@ -28,16 +17,56 @@ func Sqrt(z *decimal.Big, x *decimal.Big) *decimal.Big {
 		panic("math.Sqrt: cannot take square root of negative number")
 	}
 
-	// Check if x is a perfect square. If it is, we can avoid having to
-	// inflate x and can possibly use can use the hardware SQRT.
+	switch {
+	case x.IsNaN():
+		panic(ErrNaN{"square root of NaN"})
+	case x.IsInf():
+		return z.SetInf()
+	case x.Sign() == 0:
+		return z.SetMantScale(0, 0)
+	}
+
+	// First fast path---check if x is a perfect square. If it is, we can avoid
+	// having to inflate x and can possibly use can use the hardware SQRT.
 	// Note that we can only catch perfect squares that aren't big.Ints.
 	if sq, ok := perfectSquare(x); ok {
 		return z.SetMantScale(sq, 0).SetContext(x.Context())
 	}
+
+	zp := z.Context().Precision()
+
+	// Temporary inflation. Should be enough to accurately determine the sqrt
+	// with at least zp digits after the radix.
+	zpadj := int(zp) << 1
+
+	var tmp *decimal.Big
+	if z != x {
+		zctx := z.Context()
+		tmp = z.Set(x)
+		tmp.SetContext(zctx)
+	} else {
+		tmp = new(decimal.Big).Set(x)
+	}
+	shiftRadixRight(tmp, zpadj)
+
+	// Second fast path. Check to see if we can calculate the square root without
+	// using big.Int
+	if !x.IsBig() && zpadj <= 19 {
+		n := tmp.Int64()
+		ix := n >> uint((arith.BitLen(n)+1)>>1)
+		var p int64
+		for {
+			p = ix
+			ix += n / ix
+			ix >>= 1
+			if ix == p {
+				return z.SetMantScale(ix, zp)
+			}
+		}
+	}
+
 	// x isn't a perfect square or x is a big.Int
 
-	tmp := new(decimal.Big).Set(x)
-	shiftRadixRight(tmp, int(z.Context().Precision()<<1))
 	n := tmp.Int()
 	ix := new(big.Int).Rsh(n, uint((n.BitLen()+1)>>1))
 
@@ -46,7 +75,7 @@ func Sqrt(z *decimal.Big, x *decimal.Big) *decimal.Big {
 		p.Set(ix)
 		ix.Add(ix, a.Quo(n, ix)).Rsh(ix, 1)
 		if ix.Cmp(&p) == 0 {
-			return z.SetBigMantScale(ix, z.Context().Precision())
+			return z.SetBigMantScale(ix, zp)
 		}
 	}
 }

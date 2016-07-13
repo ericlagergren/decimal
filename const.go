@@ -18,6 +18,9 @@ const (
 // or using new.
 const DefaultPrec = 16
 
+// Context tells the lossy arithmetic operations how to do their jobs.
+// Precision is the maximum number of digits to be used for the decimal. Mode
+// instructs lossy operations how to round.
 type Context struct {
 	precision int32
 	mode      RoundingMode
@@ -40,10 +43,6 @@ func (c Context) prec() int32 {
 
 // The following are called ContextXX instead of DecimalXX
 // to reserve the DecimalXX namespace for future decimal types.
-
-// ContextXX tells the lossy arithmetic operations how to do their jobs.
-// Precision is the maximum number of digits to be used for the decimal. Mode
-// instructs lossy operations how to round.
 //
 // The following Contexts are based on IEEE 754R. Context is exported for this
 // documentation but is not expected to be used itself.
