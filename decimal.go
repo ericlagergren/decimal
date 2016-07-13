@@ -1,3 +1,5 @@
+//  Package Decimal is a high-performance, arbitrary precision, fixed-point
+//  decimal library.
 package decimal
 
 import (
