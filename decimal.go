@@ -1299,7 +1299,10 @@ func (z *Big) Sqrt(x *Big) *Big {
 	} else {
 		tmp = new(Big).Set(x)
 	}
-	shiftRadixRight(tmp, zpadj)
+	if !shiftRadixRight(tmp, zpadj) {
+		z.form = inf
+		return z
+	}
 
 	// Second fast path. Check to see if we can calculate the square root without
 	// using big.Int

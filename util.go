@@ -202,10 +202,11 @@ func bigIntFromFloat(f float64) *big.Int {
 	return a.Lsh(&a, uint(shift))
 }
 
-func shiftRadixRight(x *Big, n int) {
+func shiftRadixRight(x *Big, n int) bool {
 	ns, ok := checked.Sub32(x.Scale(), int32(n))
 	if !ok {
-		panic(ok)
+		return false
 	}
 	x.SetScale(ns)
+	return true
 }
