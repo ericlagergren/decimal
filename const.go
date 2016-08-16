@@ -82,6 +82,11 @@ const (
 //go:generate stringer -type RoundingMode
 
 var (
+	ptFive = New(5, 1)
+	one    = New(1, 0)
+	two    = New(2, 0)
+	max64  = New(math.MaxInt64, 0)
+
 	oneInt = big.NewInt(1)
 	twoInt = big.NewInt(2)
 )

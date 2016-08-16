@@ -33,7 +33,7 @@ type Big struct {
 	compact int64
 	scale   int32
 	ctx     Context
-	form    form // zero, finite, inf, or nan.
+	form    form // zero, finite, or inf.
 
 	// If the mantissa is not stored in the compact field, it's held here.
 	mantissa big.Int
@@ -48,7 +48,6 @@ const (
 	zero = iota
 	finite
 	inf
-	nan
 )
 
 // An ErrNaN panic is raised by a Decimal operation that would lead to a NaN
@@ -146,9 +145,15 @@ func (z *Big) addCompact(x, y *Big) *Big {
 		sum, ok := checked.Add(x.compact, y.compact)
 		if ok {
 			z.compact = sum
+			if sum == 0 {
+				z.form = zero
+			}
 		} else {
 			z.mantissa.Add(big.NewInt(x.compact), big.NewInt(y.compact))
 			z.compact = c.Inflated
+			if z.mantissa.Sign() == 0 {
+				z.form = zero
+			}
 		}
 		return z
 	}
@@ -175,6 +180,9 @@ func (z *Big) addCompact(x, y *Big) *Big {
 	scaled := checked.MulBigPow10(big.NewInt(lo.compact), inc)
 	z.mantissa.Add(scaled, big.NewInt(hi.compact))
 	z.compact = c.Inflated
+	if z.mantissa.Sign() == 0 {
+		z.form = zero
+	}
 	return z
 }
 
@@ -188,6 +196,9 @@ func (z *Big) addHalf(comp, non *Big) *Big {
 		z.mantissa.Add(big.NewInt(comp.compact), &non.mantissa)
 		z.scale = comp.scale
 		z.compact = c.Inflated
+		if z.mantissa.Sign() == 0 {
+			z.form = zero
+		}
 		return z
 	}
 	// Since we have to rescale we need to add two big.Ints
@@ -210,6 +221,9 @@ func (z *Big) addBig(x, y *Big) *Big {
 	z.mantissa.Add(&hi.mantissa, scaled)
 	z.compact = c.Inflated
 	z.scale = hi.scale
+	if z.mantissa.Sign() == 0 {
+		z.form = zero
+	}
 	return z
 }
 
@@ -363,6 +377,34 @@ func (x *Big) Context() Context {
 	return x.ctx
 }
 
+// Exp sets z to e ** x and returns z.
+/*func (z *Big) Exp(x *Big) *Big {
+	if x.form == zero {
+		// e ** 0 == 1
+		return z.SetMantScale(1, 0)
+	}
+	if x.SignBit() {
+		// 1 / (e ** -x)
+		return z.Quo(one, z.Exp(z.Neg(x)))
+	}
+	intg, frac := new(Big).Modf(x)
+	if intg.form == zero {
+		return frac.taylor(x)
+	}
+
+	// n = e ** (1 + frac / integ)
+	n := new(Big).taylor(z.Add(z.Quo(frac, intg), one))
+
+	r := New(1, 0)
+	zp := z.ctx.prec()
+	var tmp Big
+	for intg.Cmp(max64) >= 0 {
+		r.Mul(r, tmp.powInt(n, math.MaxInt64)).Round(zp)
+		frac.Sub(frac, max64)
+	}
+	return z.Mul(r, n.powInt(n, intg.compact)).Round(zp)
+}*/
+
 // Format implements the fmt.Formatter interface.
 // func (z *Big) Format(s fmt.State, r rune) {
 // 	switch r {
@@ -438,7 +480,7 @@ func (x *Big) IsInf() bool {
 }
 
 // IsInt reports whether x is an integer.
-// ±Inf and NaN values are not integers.
+// ±Inf values are not integers.
 func (x *Big) IsInt() bool {
 	if x.form != finite {
 		return x.form == zero
@@ -451,10 +493,23 @@ func (x *Big) IsInt() bool {
 	return x.scale <= 0 || x.Prec() < int(x.scale)
 }
 
-// IsNaN returns true if x is NaN.
-func (x *Big) IsNaN() bool {
-	return x.form == nan
-}
+// Log sets z to the base-e logarithm of x and returns z.
+/*func (z *Big) Log(x *Big) *Big {
+	if x.ltez() {
+		panic(ErrNaN{"base-e logarithm of x <= 0"})
+	}
+	if x.form == inf {
+		z.form = inf
+		return z
+	}
+	mag := int64(x.Prec() - int(x.scale) - 1)
+	if mag < 3 {
+		return z.logNewton(x)
+	}
+	root := z.integralRoot(x, mag)
+	lnRoot := root.logNewton(root)
+	return z.Mul(New(mag, 0), lnRoot)
+}*/
 
 // MarshalText implements encoding/TextMarshaler.
 func (x *Big) MarshalText() ([]byte, error) {
@@ -573,7 +628,7 @@ func (z *Big) Neg(x *Big) *Big {
 // Prec returns the precision of z. That is, it returns the number of
 // decimal digits z requires.
 func (x *Big) Prec() int {
-	// 0, NaN, and Inf.
+	// 0 and Inf.
 	if x.form != finite {
 		return 0
 	}
@@ -592,14 +647,22 @@ func (z *Big) Quo(x, y *Big) *Big {
 			if y.isCompact() {
 				return z.quoCompact(x, y)
 			}
-			x0 := *x
-			x0.mantissa.Set(big.NewInt(x.compact))
-			return z.quoBig(&x0, y)
+			return z.quoBig(&Big{
+				compact:  c.Inflated,
+				mantissa: *big.NewInt(x.compact),
+				ctx:      x.ctx,
+				form:     x.form,
+				scale:    x.scale,
+			}, y)
 		}
 		if y.isCompact() {
-			y0 := *y
-			y0.mantissa.Set(big.NewInt(y.compact))
-			return z.quoBig(x, &y0)
+			return z.quoBig(x, &Big{
+				compact:  c.Inflated,
+				mantissa: *big.NewInt(y.compact),
+				ctx:      y.ctx,
+				form:     y.form,
+				scale:    y.scale,
+			})
 		}
 		return z.quoBig(x, y)
 	}
@@ -824,7 +887,11 @@ func (x *Big) Scale() int32 {
 // Set sets z to x and returns z.
 func (z *Big) Set(x *Big) *Big {
 	if z != x {
-		*z = *x
+		z.compact = x.compact
+		z.ctx = x.ctx
+		z.form = x.form
+		z.scale = x.scale
+
 		// Copy over mantissa if need be.
 		if x.isInflated() {
 			z.mantissa.Set(&x.mantissa)
@@ -956,29 +1023,18 @@ func (z *Big) SetScale(scale int32) *Big {
 // 	1.234e+5
 // 	1.234E-5
 // 	0.000001234
+// 	Inf
 // 	+Inf
 // 	-Inf
-// 	Inf
-// 	NaN
 //
 //	No distinction is made between +Inf and -Inf.
 func (z *Big) SetString(s string) (*Big, bool) {
-	if len(s) == 3 {
-		if equalFold(s, "Inf") {
-			z.SetInf()
-			return z, true
-		}
-		if equalFold(s, "NaN") {
-			z.form = nan
-			return z, true
-		}
-	}
-	if len(s) == 4 {
-		if (s[0] == '+' || s[0] == '-') &&
-			equalFold(s[1:], "Inf") {
-			z.SetInf()
-			return z, true
-		}
+	// Inf or +Inf or -Inf
+	if (len(s) == 3 && equalFold(s, "Inf")) ||
+		(len(s) == 4 && (s[0] == '+' || s[0] == '-') &&
+			equalFold(s[1:], "Inf")) {
+		z.form = inf
+		return z, true
 	}
 
 	var scale int32
@@ -1034,7 +1090,11 @@ func (z *Big) SetString(s string) (*Big, bool) {
 //	 0 if x is ±0
 //	+1 if x >   0
 //
+// Undefined if
 func (x *Big) Sign() int {
+	if x.form == zero {
+		return 0
+	}
 	if x.isCompact() {
 		// See: https://github.com/golang/go/issues/16203
 		if runtime.GOARCH == "amd64" {
@@ -1060,15 +1120,13 @@ func (x *Big) SignBit() bool {
 }
 
 // String returns the scientific string representation of x.
-// For special cases, x == nil returns "<nil>", x.IsNaN() returns "NaN", and
-// x.IsInf() returns "Inf".
+// For special cases, x == nil returns "<nil>" and x.IsInf() returns "Inf".
 func (x *Big) String() string {
 	return x.toString(true, lower)
 }
 
 // PlainString returns the plain string representation of x.
-// For special cases, if x == nil returns "<nil>",
-// x.IsNaN() returns "NaN", and x.IsInf() returns "Inf".
+// For special cases, if x == nil returns "<nil>" and x.IsInf() returns "Inf".
 func (x *Big) PlainString() string {
 	return x.toString(false, lower)
 }
@@ -1081,9 +1139,6 @@ const (
 func (x *Big) toString(sci bool, opts byte) string {
 	if x == nil {
 		return "<nil>"
-	}
-	if x.IsNaN() {
-		return "NaN"
 	}
 	if x.IsInf() {
 		return "Inf"
@@ -1204,6 +1259,99 @@ func (x *Big) normString(str string, b writer) string {
 	return b.String()
 }
 
+// Sqrt sets z to the square root of x and returns z.
+// The precision of Sqrt is determined by z's Context.
+// Sqrt will panic on negative values since Big cannot
+// represent imaginary numbers.
+func (z *Big) Sqrt(x *Big) *Big {
+	if x.SignBit() {
+		panic("math.Sqrt: cannot take square root of negative number")
+	}
+
+	switch {
+	case x.form == inf:
+		z.form = inf
+		return z
+	case x.Sign() == 0:
+		z.form = zero
+		return z
+	}
+
+	// First fast path---check if x is a perfect square. If it is, we can avoid
+	// having to inflate x and can possibly use can use the hardware SQRT.
+	// Note that we can only catch perfect squares that aren't big.Ints.
+	if sq, ok := perfectSquare(x); ok {
+		z.ctx = x.ctx
+		return z.SetMantScale(sq, 0)
+	}
+
+	zp := z.ctx.prec()
+
+	// Temporary inflation. Should be enough to accurately determine the sqrt
+	// with at least zp digits after the radix.
+	zpadj := int(zp) << 1
+
+	var tmp *Big
+	if z != x {
+		zctx := z.ctx
+		tmp = z.Set(x)
+		tmp.ctx = zctx
+	} else {
+		tmp = new(Big).Set(x)
+	}
+	shiftRadixRight(tmp, zpadj)
+
+	// Second fast path. Check to see if we can calculate the square root without
+	// using big.Int
+	if !x.IsBig() && zpadj <= 19 {
+		n := tmp.Int64()
+		ix := n >> uint((arith.BitLen(n)+1)>>1)
+		var p int64
+		for {
+			p = ix
+			ix += n / ix
+			ix >>= 1
+			if ix == p {
+				return z.SetMantScale(ix, zp)
+			}
+		}
+	}
+
+	// x isn't a perfect square or x is a big.Int
+
+	n := tmp.Int()
+	ix := new(big.Int).Rsh(n, uint((n.BitLen()+1)>>1))
+
+	var a, p big.Int
+	for {
+		p.Set(ix)
+		ix.Add(ix, a.Quo(n, ix)).Rsh(ix, 1)
+		if ix.Cmp(&p) == 0 {
+			return z.SetBigMantScale(ix, zp)
+		}
+	}
+}
+
+// perfectSquare algorithm slightly partially borrowed from
+// https://stackoverflow.com/a/295678/2967113
+func perfectSquare(x *Big) (square int64, ok bool) {
+	if x.IsBig() || !x.IsInt() {
+		return 0, false
+	}
+	xc := x.Int64()
+	h := xc & 0xF
+	if h > 9 {
+		return 0, false
+	}
+	if h != 2 && h != 3 && h != 5 && h != 6 && h != 7 && h != 8 {
+		// "Show that floating point sqrt(x*x) >= x for all long x."
+		// https://math.stackexchange.com/a/238885/153292
+		tst := int64(math.Sqrt(float64(xc)))
+		return tst, tst*tst == xc
+	}
+	return 0, false
+}
+
 // Sub sets z to x - y and returns z.
 func (z *Big) Sub(x, y *Big) *Big {
 	if x.form == finite && y.form == finite {
@@ -1240,7 +1388,7 @@ func (z *Big) Sub(x, y *Big) *Big {
 func (x *Big) UnmarshalText(data []byte) error {
 	_, ok := x.SetString(string(data))
 	if !ok {
-		return errors.New("decimal.Big.UnmarshalText: invalid decimal format")
+		return errors.New("Big.UnmarshalText: invalid decimal format")
 	}
 	return nil
 }

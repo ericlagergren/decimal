@@ -16,4 +16,7 @@ var (
 
 	MaxInt64 = big.NewInt(math.MaxInt64)
 	MinInt64 = big.NewInt(math.MinInt64)
+
+	MaxInt32 = big.NewInt(math.MaxInt32)
+	MinInt32 = big.NewInt(math.MinInt32)
 )
