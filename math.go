@@ -7,58 +7,50 @@ import (
 	"github.com/EricLagergren/decimal/internal/c"
 )
 
-// Modf returns the decomposed integral and fractional parts of the
-// value of x such that int + frac == x.
-// Neither int nor frac will alias x's mantissa.
-func (x *Big) Modf() (int *Big, frac *Big) {
-	int = new(Big)
+// Modf decomposes x into its integral and fractional parts such that int +
+// frac == x, sets z to the integral part, and returns the integral and
+// fractional parts.
+func (z *Big) Modf(x *Big) (int *Big, frac *Big) {
+	int = z
 	frac = new(Big)
 
+	if x.form == zero {
+		z.form = zero
+		frac.form = zero
+		return z, frac
+	}
+
 	if x.form == inf {
-		int.form = inf
-		frac.form = nan
-		return int, frac
+		z.form = inf
+		frac.form = inf
+		return z, frac
 	}
 
-	if x.form == nan {
-		int.form = nan
-		frac.form = nan
-		return int, frac
-	}
-
-	// scale == 0
-	int.ctx = x.ctx
-	int.form = finite
+	z.ctx = x.ctx
+	z.form = finite
 
 	// Needs proper scale.
+	// Set frac before z in case z aliases x.
 	frac.scale = x.scale
 	frac.ctx = x.ctx
 	frac.form = finite
 
 	if x.IsInt() {
 		if x.isCompact() {
-			int.compact = x.compact
+			z.compact = x.compact
 		} else {
-			// int and frac cannot alias.
-			// This should be faster than any other method...
-			m := make([]big.Word, len(x.mantissa.Bits()))
-			copy(m, x.mantissa.Bits())
-			int.mantissa.SetBits(m)
-			int.compact = c.Inflated
-
-			// Bits sets |x| so manually correct negative values.
-			if x.SignBit() {
-				int.mantissa.Neg(&int.mantissa)
-			}
+			z.mantissa.Set(&x.mantissa)
 		}
-		return int, new(Big)
+		z.scale = 0
+		return z, frac
 	}
 
 	if x.isCompact() {
 		i, f, ok := mod(x.compact, x.scale)
 		if ok {
-			int.compact, frac.compact = i, f
-			return int, frac
+			z.compact, frac.compact = i, f
+			z.scale = 0
+			return z, frac
 		}
 	}
 
@@ -68,14 +60,15 @@ func (x *Big) Modf() (int *Big, frac *Big) {
 		m = big.NewInt(x.compact)
 	}
 	i, f := modbig(m, x.scale)
-	int.compact = c.Inflated
+	z.compact = c.Inflated
 	frac.compact = c.Inflated
-	int.mantissa.Set(i)
+	z.mantissa.Set(i)
 	frac.mantissa.Set(f)
-	return int, frac
+	z.scale = 0
+	return z, frac
 }
 
-// mod splits f, a scaled decimal, into its integeral and fractional parts.
+// mod splits fr, a scaled decimal, into its integeral and fractional parts.
 func mod(fr int64, scale int32) (dec int64, frac int64, ok bool) {
 	if fr < 0 {
 		dec, frac, ok = mod(-fr, scale)
@@ -93,7 +86,7 @@ func mod(fr int64, scale int32) (dec int64, frac int64, ok bool) {
 	return dec, frac, true
 }
 
-// modbig splits f, a scaled decimal, into its integeral and fractional parts.
+// modbig splits b, a scaled decimal, into its integeral and fractional parts.
 func modbig(b *big.Int, scale int32) (dec *big.Int, frac *big.Int) {
 	if b.Sign() < 0 {
 		dec, frac = modbig(new(big.Int).Neg(b), scale)

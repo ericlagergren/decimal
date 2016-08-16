@@ -33,6 +33,13 @@ func Mul(x, y int64) (prod int64, ok bool) {
 	return prod, ((arith.Abs(x)|arith.Abs(y))>>31 == 0 || prod/y == x)
 }
 
+// Mul returns x * y and a bool indicating whether the addition
+// was successful.
+func Mul32(x, y int32) (prod int32, ok bool) {
+	p, ok := Mul(int64(x), int64(y))
+	return int32(p), ok && int64(int32(p)) == p
+}
+
 // Sub returns x - y and a bool indicating whether the addition
 // was successful.
 func Sub(x, y int64) (diff int64, ok bool) {

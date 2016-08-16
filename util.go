@@ -201,3 +201,11 @@ func bigIntFromFloat(f float64) *big.Int {
 	a.SetUint64(mantissa)
 	return a.Lsh(&a, uint(shift))
 }
+
+func shiftRadixRight(x *Big, n int) {
+	ns, ok := checked.Sub32(x.Scale(), int32(n))
+	if !ok {
+		panic(ok)
+	}
+	x.SetScale(ns)
+}
