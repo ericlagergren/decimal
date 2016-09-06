@@ -21,6 +21,9 @@ func main() {
 	}
 
 	for _, info := range infos {
+		if strings.HasSuffix(info.Name(), ".json") {
+			continue
+		}
 		func() {
 			name := info.Name()
 			file, err := os.Open(filepath.Join(dir, name))

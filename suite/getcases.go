@@ -115,8 +115,16 @@ func scanLines(data []byte, atEOF bool) (advance int, token []byte, err error) {
 
 // convCR converts a trailing carriage return to a line feed.
 func convCR(data []byte) []byte {
-	if len(data) > 0 && data[len(data)-1] == '\r' {
-		data[len(data)-1] = '\n'
+	if len(data) == 0 {
+		return data
 	}
-	return data
+	switch data[len(data)-1] {
+	case '\r':
+		data[len(data)-1] = '\n'
+		return data
+	case '\n':
+		return data
+	default:
+		return append(data, '\n')
+	}
 }

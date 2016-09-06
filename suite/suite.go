@@ -14,8 +14,6 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 // ParseCases returns a slice of test cases read from r.
@@ -44,7 +42,7 @@ func ParseCases(r io.Reader) (cases []Case, err error) {
 
 		i := bytes.IndexByte(line, ' ')
 		if i < 0 {
-			return nil, errors.Errorf("invalid line: %s", line)
+			return nil, fmt.Errorf("invalid line pre-op: %s", line)
 		}
 
 		var ok bool
@@ -56,7 +54,7 @@ func ParseCases(r io.Reader) (cases []Case, err error) {
 
 		i = bytes.IndexByte(line, ' ')
 		if i < 0 {
-			return nil, errors.Errorf("invalid line: %s", line)
+			return nil, fmt.Errorf("invalid line pre-mode: %s", line)
 		}
 
 		c.Mode, ok = valToMode[string(line[:i])]
@@ -67,7 +65,7 @@ func ParseCases(r io.Reader) (cases []Case, err error) {
 
 		i = bytes.IndexByte(line, ' ')
 		if i < 0 {
-			return nil, errors.Errorf("invalid line: %s", line)
+			return nil, fmt.Errorf("invalid line pre-trap: %s", line)
 		}
 
 		c.Trap, ok = valToException[string(line[:i])]
@@ -78,7 +76,7 @@ func ParseCases(r io.Reader) (cases []Case, err error) {
 
 		i = bytes.Index(line, []byte{'-', '>'})
 		if i < 0 {
-			return nil, errors.Errorf("invalid line: %s", line)
+			return nil, fmt.Errorf("invalid line pre-inputs: %s", line)
 		}
 
 		for _, p := range bytes.Split(line[:i], []byte{' '}) {
@@ -91,7 +89,7 @@ func ParseCases(r io.Reader) (cases []Case, err error) {
 
 		i = bytes.IndexByte(line, ' ')
 		if i < 0 {
-			return nil, errors.Errorf("invalid line: %s", line)
+			return nil, fmt.Errorf("invalid line pre-exception: %s", line)
 		}
 		c.Output = Data(line[:i])
 		line = line[i+1:]
@@ -126,10 +124,14 @@ type Case struct {
 // Data is input or output from a test case.
 type Data string
 
-func (i Data) IsNaN() bool {
-	return i == "S" || i == "Q"
+// IsNaN returns two booleans indicating whether the data is a NaN value
+// and whether it's signaling or not.
+func (i Data) IsNaN() (signal, nan bool) {
+	return i == "S", (i == "S" || i == "Q")
 }
 
+// Inf returns a boolean indicating whether the data is an Infinity and an
+// int indicating the signedness of the Infinity.
 func (i Data) Inf() (int, bool) {
 	if len(i) != 4 {
 		return 0, false
