@@ -1,8 +1,6 @@
 package decimal
 
 import (
-	"bytes"
-	"io"
 	"math"
 	"math/big"
 
@@ -70,31 +68,6 @@ func cmpNormBig(x *big.Int, xs int32, y *big.Int, ys int32) (ok bool) {
 	}
 	y1 := new(big.Int).Set(y)
 	return x.Cmp(checked.MulBigPow10(y1, diff)) > 0
-}
-
-type buffer struct{ bytes.Buffer }
-
-func (b *buffer) String() string {
-	// Trim zeros.
-	buf := b.Bytes()
-	i := len(buf) - 1
-	for ; i >= 0 && buf[i] == '0'; i-- {
-	}
-	if buf[i] == '.' {
-		i--
-	}
-	b.Truncate(i + 1)
-	return b.Buffer.String()
-}
-
-type writer interface {
-	io.Writer
-	io.ByteWriter
-	WriteString(string) (int, error)
-
-	// Change this to fmt.Stringer once we import fmt
-	// to make the Format method.
-	String() string
 }
 
 // equalFold reports whether s1 and s2, interpreted as small

@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"math/big"
 	"strconv"
 	"strings"
@@ -126,8 +125,8 @@ type Data string
 
 // IsNaN returns two booleans indicating whether the data is a NaN value
 // and whether it's signaling or not.
-func (i Data) IsNaN() (signal, nan bool) {
-	return i == "S", (i == "S" || i == "Q")
+func (i Data) IsNaN() (nan, signal bool) {
+	return (i == "S" || i == "Q"), i == "S"
 }
 
 // Inf returns a boolean indicating whether the data is an Infinity and an
@@ -136,7 +135,7 @@ func (i Data) Inf() (int, bool) {
 	if len(i) != 4 {
 		return 0, false
 	}
-	if strings.EqualFold(string(i), "+Inf") {
+	if strings.EqualFold(string(i), "-Inf") {
 		return -1, true
 	}
 	if strings.EqualFold(string(i), "+Inf") {
@@ -231,7 +230,7 @@ const (
 
 func init() {
 	if len(valToOp) != int(Equiv)+1 /* +1 since Add is 0 */ {
-		log.Fatalf("wanted %d toks, got %d", Equiv, len(valToOp))
+		panic(fmt.Sprintf("wanted %d toks, got %d", Equiv, len(valToOp)))
 	}
 }
 

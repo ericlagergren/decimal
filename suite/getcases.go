@@ -14,17 +14,18 @@ import (
 )
 
 const prefix = "https://www.research.ibm.com/haifa/projects/verification/fpgen/download/Decimal-"
+const suffix = ".fptest"
 
 var urls = [...]string{
-	prefix + "Basic-Types-Inputs.fptest",
-	prefix + "Basic-Types-Intermediate.fptest",
-	prefix + "Rounding.fptest",
-	prefix + "Overflow.fptest",
-	prefix + "Underflow.fptest",
-	prefix + "Trailing-And-Leading-Zeros-Input.fptest",
-	prefix + "Trailing-And-Leading-Zeros-Result.fptest",
-	prefix + "Clamping.fptest",
-	prefix + "Mul-Trailing-Zeros.fptest",
+	prefix + "Basic-Types-Inputs" + suffix,
+	prefix + "Basic-Types-Intermediate" + suffix,
+	prefix + "Rounding" + suffix,
+	prefix + "Overflow" + suffix,
+	prefix + "Underflow" + suffix,
+	prefix + "Trailing-And-Leading-Zeros-Input" + suffix,
+	prefix + "Trailing-And-Leading-Zeros-Result" + suffix,
+	prefix + "Clamping" + suffix,
+	prefix + "Mul-Trailing-Zeros" + suffix,
 }
 
 func main() {
@@ -64,12 +65,11 @@ func copyLines(w io.Writer, r io.Reader) (err error) {
 	var p []byte
 	for s.Scan() {
 		p = s.Bytes()
-		if badLine(p) {
-			continue
-		}
-		_, err = w.Write(p)
-		if err != nil {
-			return err
+		if !badLine(p) {
+			_, err = w.Write(p)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return s.Err()

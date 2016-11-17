@@ -18,19 +18,28 @@ const (
 // or using new.
 const DefaultPrec = 16
 
-// Context tells the lossy arithmetic operations how to do their jobs.
-// Precision is the maximum number of digits to be used for the decimal. Mode
-// instructs lossy operations how to round.
+// Context instructs lossy arithmetic operations how and to what precision they
+// should round. A Context is made up of a precision and mode.
+//
+// Some division operations have an infinite (repeating) decimal expansion
+// (digits following the radix) and thus need to be terminated at an arbitrary
+// position. The precision instructs where to terminate the expansion and the
+// mode instructs how the result should be rounded.
 type Context struct {
 	precision int32
 	mode      RoundingMode
 }
 
-// Precision returns c's precision.
+// Precision returns the Context's precision.
 func (c Context) Precision() int32 {
 	return c.prec()
 }
 
+// prec allows us to work with Go's zero-values. Were we to allow Context's
+// zero-value to be used as-is, all newly-created decimals would have a
+// precision of zero--very problematic. To accomidate this, the unexported prec
+// method will return DefaultPrec if the precision is zero, zero if it's less
+// than zero, and its current value if it's greater than zero.
 func (c Context) prec() int32 {
 	if c.precision == 0 {
 		return DefaultPrec

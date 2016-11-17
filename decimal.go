@@ -1,5 +1,24 @@
-// Package decimal is a high-performance, arbitrary precision, fixed-point
+// Package decimal provides a high-performance, arbitrary precision, fixed-point
 // decimal library.
+//
+// The following type is supported:
+//
+// 		Big decimal numbers
+//
+// The zero value for a Big corresponds with 0. Its method naming is the same
+// as :math/big's, meaning:
+//
+//  	func (z *T) SetV(v V) *T          // z = v
+//  	func (z *T) Unary(x *T) *T        // z = unary x
+//  	func (z *T) Binary(x, y *T) *T    // z = x binary y
+//  	func (x *T) Pred() P              // p = pred(x)
+//
+// In general, its conventions will mirror math/big's.
+//
+// Compared to other decimal libraries, this package:
+//
+// 		Will panic on NaN values, similar to math/big.Float
+//
 package decimal
 
 import (
@@ -19,24 +38,27 @@ import (
 
 // Note: For +/-inf/nan checks: https://play.golang.org/p/RtH3UCt5IH
 
-// Big represents a fixed-point, multi-precision
-// decimal number.
+// Big is a fixed-point, arbitrary-precision decimal number.
 //
-// A Big decimal is an arbitrary-precision number and a
-// scale; the latter representing the number of digits to the
-// right of the radix.
-//
-// A negative scale indicates the lack of a radix (typically a
-// very large number).
+// A Big decimal is a number and a scale, the latter representing the number
+// of digits following the radix if the scale is >= 0. Otherwise, it's the
+// number * 10 ^ -scale.
 type Big struct {
-	// If |v| <= 1 << 64 - 1 the mantissa will be stored in this field.
+	// Big is laid out like this so it takes up as little memory as possible.
+	//
+	// compact is use if the value fits into an int64. The scale does not
+	// affect whether this field is used; typically, if a decimal has <= 19
+	// digits this field will be used.
 	compact int64
-	scale   int32
-	ctx     Context
-	form    form // zero, finite, or inf.
 
-	// If the mantissa is not stored in the compact field, it's held here.
-	mantissa big.Int
+	// scale is the number of digits following the radix. If scale is negative
+	// the * 10 and ^ -scale is implied--it does not inflated either the
+	// compact or unscaled fields.
+	scale int32
+
+	ctx      Context
+	form     form
+	unscaled big.Int
 }
 
 // form represents whether the Big decimal is normal, infinite, or
@@ -45,7 +67,7 @@ type form byte
 
 // Do not change these constants -- their order is important.
 const (
-	zero = iota
+	zero form = iota
 	finite
 	inf
 )
@@ -53,12 +75,15 @@ const (
 // An ErrNaN panic is raised by a Decimal operation that would lead to a NaN
 // under IEEE-754 rules. An ErrNaN implements the error interface.
 type ErrNaN struct {
+	// TODO: Perhaps use math/big.ErrNaN if possible in the future?
 	msg string
 }
 
 func (e ErrNaN) Error() string {
 	return e.msg
 }
+
+// These methods are here to prevent typos.
 
 func (x *Big) isInflated() bool {
 	return x.compact == c.Inflated
@@ -71,10 +96,17 @@ func (x *Big) isCompact() bool {
 func (x *Big) isEvenInt() bool {
 	return x.IsInt() &&
 		(x.isCompact() && x.compact&1 == 0) ||
-		(x.isInflated() && x.mantissa.And(&x.mantissa, oneInt).Sign() == 0)
+		(x.isInflated() && x.unscaled.And(&x.unscaled, oneInt).Sign() == 0)
 }
 
-// New creates a new Big decimal with the given value and scale.
+// New creates a new Big decimal with the given value and scale. For example:
+//
+//  	New(1234, 3) // 1.234
+//  	New(42, 0)   // 42
+//  	New(4321, 5) // 0.04321
+//  	New(-1, 0)   // -1
+//  	New(3, -10)  // 30,000,000,000
+//al with the given value and scale.
 func New(value int64, scale int32) *Big {
 	return new(Big).SetMantScale(value, scale)
 }
@@ -87,7 +119,7 @@ func (z *Big) Abs(x *Big) *Big {
 	if x.isCompact() {
 		z.compact = arith.Abs(x.compact)
 	} else {
-		z.mantissa.Abs(&x.mantissa)
+		z.unscaled.Abs(&x.unscaled)
 	}
 	z.scale = x.scale
 	z.ctx = x.ctx
@@ -103,10 +135,10 @@ func (z *Big) Add(x, y *Big) *Big {
 			if y.isCompact() {
 				return z.addCompact(x, y)
 			}
-			return z.addHalf(x, y)
+			return z.addMixed(x, y)
 		}
 		if y.isCompact() {
-			return z.addHalf(y, x)
+			return z.addMixed(y, x)
 		}
 		return z.addBig(x, y)
 	}
@@ -149,9 +181,9 @@ func (z *Big) addCompact(x, y *Big) *Big {
 				z.form = zero
 			}
 		} else {
-			z.mantissa.Add(big.NewInt(x.compact), big.NewInt(y.compact))
+			z.unscaled.Add(big.NewInt(x.compact), big.NewInt(y.compact))
 			z.compact = c.Inflated
-			if z.mantissa.Sign() == 0 {
+			if z.unscaled.Sign() == 0 {
 				z.form = zero
 			}
 		}
@@ -178,25 +210,25 @@ func (z *Big) addCompact(x, y *Big) *Big {
 		}
 	}
 	scaled := checked.MulBigPow10(big.NewInt(lo.compact), inc)
-	z.mantissa.Add(scaled, big.NewInt(hi.compact))
+	z.unscaled.Add(scaled, big.NewInt(hi.compact))
 	z.compact = c.Inflated
-	if z.mantissa.Sign() == 0 {
+	if z.unscaled.Sign() == 0 {
 		z.form = zero
 	}
 	return z
 }
 
-// addHalf adds a compact Big with a non-compact Big.
-// addHalf will panic if the first argument is not compact.
-func (z *Big) addHalf(comp, non *Big) *Big {
+// addMixed adds a compact Big with a non-compact Big.
+// addMixed will panic if the first argument is not compact.
+func (z *Big) addMixed(comp, non *Big) *Big {
 	if comp.isInflated() {
 		panic("decimal.Add (bug) comp.isInflated() == true")
 	}
 	if comp.scale == non.scale {
-		z.mantissa.Add(big.NewInt(comp.compact), &non.mantissa)
+		z.unscaled.Add(big.NewInt(comp.compact), &non.unscaled)
 		z.scale = comp.scale
 		z.compact = c.Inflated
-		if z.mantissa.Sign() == 0 {
+		if z.unscaled.Sign() == 0 {
 			z.form = zero
 		}
 		return z
@@ -205,7 +237,7 @@ func (z *Big) addHalf(comp, non *Big) *Big {
 	// together because big.Int doesn't have an API for
 	// increasing its value by an integer.
 	return z.addBig(&Big{
-		mantissa: *big.NewInt(comp.compact),
+		unscaled: *big.NewInt(comp.compact),
 		scale:    comp.scale,
 	}, non)
 }
@@ -217,11 +249,11 @@ func (z *Big) addBig(x, y *Big) *Big {
 	}
 
 	inc := hi.scale - lo.scale
-	scaled := checked.MulBigPow10(&lo.mantissa, inc)
-	z.mantissa.Add(&hi.mantissa, scaled)
+	scaled := checked.MulBigPow10(&lo.unscaled, inc)
+	z.unscaled.Add(&hi.unscaled, scaled)
 	z.compact = c.Inflated
 	z.scale = hi.scale
-	if z.mantissa.Sign() == 0 {
+	if z.unscaled.Sign() == 0 {
 		z.form = zero
 	}
 	return z
@@ -244,7 +276,7 @@ func (x *Big) BitLen() int {
 	if x.isCompact() {
 		return arith.BitLen(x.compact)
 	}
-	return x.mantissa.BitLen()
+	return x.unscaled.BitLen()
 }
 
 // Cmp compares d and x and returns:
@@ -272,16 +304,16 @@ func (z *Big) Cmp(x *Big) int {
 			return 0
 		}
 		if z.isInflated() && x.isInflated() {
-			if z.mantissa.Sign() != x.mantissa.Sign() {
-				return z.mantissa.Sign()
+			if z.unscaled.Sign() != x.unscaled.Sign() {
+				return z.unscaled.Sign()
 			}
 
 			if z.scale < 0 {
-				return z.mantissa.Cmp(&x.mantissa)
+				return z.unscaled.Cmp(&x.unscaled)
 			}
 
-			zb := z.mantissa.Bits()
-			xb := x.mantissa.Bits()
+			zb := z.unscaled.Bits()
+			xb := x.unscaled.Bits()
 
 			min := len(zb)
 			if len(xb) < len(zb) {
@@ -347,12 +379,12 @@ func (z *Big) Cmp(x *Big) int {
 		if !ok && dc == c.Inflated {
 			// d is lo
 			if swap {
-				zm := new(big.Int).Set(&z.mantissa)
-				return checked.MulBigPow10(zm, diff).Cmp(&x.mantissa)
+				zm := new(big.Int).Set(&z.unscaled)
+				return checked.MulBigPow10(zm, diff).Cmp(&x.unscaled)
 			}
 			// x is lo
-			xm := new(big.Int).Set(&x.mantissa)
-			return z.mantissa.Cmp(checked.MulBigPow10(xm, diff))
+			xm := new(big.Int).Set(&x.unscaled)
+			return z.unscaled.Cmp(checked.MulBigPow10(xm, diff))
 		}
 	}
 
@@ -364,12 +396,12 @@ func (z *Big) Cmp(x *Big) int {
 		if xc != c.Inflated {
 			return arith.AbsCmp(dc, xc)
 		}
-		return big.NewInt(dc).Cmp(&x.mantissa)
+		return big.NewInt(dc).Cmp(&x.unscaled)
 	}
 	if xc != c.Inflated {
-		return z.mantissa.Cmp(big.NewInt(xc))
+		return z.unscaled.Cmp(big.NewInt(xc))
 	}
-	return z.mantissa.Cmp(&x.mantissa)
+	return z.unscaled.Cmp(&x.unscaled)
 }
 
 // Context returns x's Context.
@@ -421,7 +453,7 @@ func (x *Big) Context() Context {
 // inside an int64.
 func (x *Big) IsBig() bool {
 	return (x.isCompact() && (x.scale < -19 || x.scale > 19)) ||
-		(x.mantissa.Cmp(c.MinInt64) < 0 || x.mantissa.Cmp(c.MaxInt64) >= 0)
+		(x.unscaled.Cmp(c.MinInt64) < 0 || x.unscaled.Cmp(c.MaxInt64) >= 0)
 }
 
 // Int returns x as a big.Int, truncating the fractional portion, if any.
@@ -430,7 +462,7 @@ func (x *Big) Int() *big.Int {
 	if x.isCompact() {
 		b.SetInt64(x.compact)
 	} else {
-		b.Set(&x.mantissa)
+		b.Set(&x.unscaled)
 	}
 	if x.scale == 0 {
 		return &b
@@ -448,7 +480,7 @@ func (x *Big) Int64() int64 {
 	if x.isCompact() {
 		b = x.compact
 	} else {
-		b = x.mantissa.Int64()
+		b = x.unscaled.Int64()
 	}
 	if x.scale == 0 {
 		return b
@@ -530,10 +562,10 @@ func (z *Big) Mul(x, y *Big) *Big {
 			if y.isCompact() {
 				return z.mulCompact(x, y)
 			}
-			return z.mulHalf(x, y)
+			return z.mulMixed(x, y)
 		}
 		if y.isCompact() {
-			return z.mulHalf(y, x)
+			return z.mulMixed(y, x)
 		}
 		return z.mulBig(x, y)
 	}
@@ -569,7 +601,7 @@ func (z *Big) mulCompact(x, y *Big) *Big {
 	if ok {
 		z.compact = prod
 	} else {
-		z.mantissa.Mul(big.NewInt(x.compact), big.NewInt(y.compact))
+		z.unscaled.Mul(big.NewInt(x.compact), big.NewInt(y.compact))
 		z.compact = c.Inflated
 	}
 	z.scale = scale
@@ -577,7 +609,7 @@ func (z *Big) mulCompact(x, y *Big) *Big {
 	return z
 }
 
-func (z *Big) mulHalf(comp, non *Big) *Big {
+func (z *Big) mulMixed(comp, non *Big) *Big {
 	if comp.isInflated() {
 		panic("decimal.Mul (bug) comp.isInflated() == true")
 	}
@@ -587,14 +619,14 @@ func (z *Big) mulHalf(comp, non *Big) *Big {
 			z.form = inf
 			return z
 		}
-		z.mantissa.Mul(big.NewInt(comp.compact), &non.mantissa)
+		z.unscaled.Mul(big.NewInt(comp.compact), &non.unscaled)
 		z.compact = c.Inflated
 		z.scale = scale
 		z.form = finite
 		return z
 	}
 	return z.mulBig(&Big{
-		mantissa: *big.NewInt(comp.compact),
+		unscaled: *big.NewInt(comp.compact),
 		scale:    comp.scale,
 	}, non)
 }
@@ -605,7 +637,7 @@ func (z *Big) mulBig(x, y *Big) *Big {
 		z.form = inf
 		return z
 	}
-	z.mantissa.Mul(&x.mantissa, &y.mantissa)
+	z.unscaled.Mul(&x.unscaled, &y.unscaled)
 	z.compact = c.Inflated
 	z.scale = scale
 	z.form = finite
@@ -617,7 +649,7 @@ func (z *Big) Neg(x *Big) *Big {
 	if x.isCompact() {
 		z.compact = -x.compact
 	} else {
-		z.mantissa.Neg(&x.mantissa)
+		z.unscaled.Neg(&x.unscaled)
 		z.compact = c.Inflated
 	}
 	z.scale = x.scale
@@ -626,7 +658,7 @@ func (z *Big) Neg(x *Big) *Big {
 }
 
 // Prec returns the precision of z. That is, it returns the number of
-// decimal digits z requires.
+// decimal digits required to fully represent z.
 func (x *Big) Prec() int {
 	// 0 and Inf.
 	if x.form != finite {
@@ -635,7 +667,7 @@ func (x *Big) Prec() int {
 	if x.isCompact() {
 		return arith.Length(x.compact)
 	}
-	return arith.BigLength(&x.mantissa)
+	return arith.BigLength(&x.unscaled)
 }
 
 // Quo sets z to x / y and returns z.
@@ -649,7 +681,7 @@ func (z *Big) Quo(x, y *Big) *Big {
 			}
 			return z.quoBig(&Big{
 				compact:  c.Inflated,
-				mantissa: *big.NewInt(x.compact),
+				unscaled: *big.NewInt(x.compact),
 				ctx:      x.ctx,
 				form:     x.form,
 				scale:    x.scale,
@@ -658,7 +690,7 @@ func (z *Big) Quo(x, y *Big) *Big {
 		if y.isCompact() {
 			return z.quoBig(x, &Big{
 				compact:  c.Inflated,
-				mantissa: *big.NewInt(y.compact),
+				unscaled: *big.NewInt(y.compact),
 				ctx:      y.ctx,
 				form:     y.form,
 				scale:    y.scale,
@@ -792,7 +824,7 @@ func (z *Big) quoBig(x, y *Big) *Big {
 	yp := int32(y.Prec())
 
 	// Multiply y by 10 if x' > y'
-	if cmpNormBig(&x.mantissa, xp, &y.mantissa, yp) {
+	if cmpNormBig(&x.unscaled, xp, &y.unscaled, yp) {
 		yp--
 	}
 
@@ -809,8 +841,8 @@ func (z *Big) quoBig(x, y *Big) *Big {
 		return z
 	}
 	if shift > 0 {
-		xs := checked.MulBigPow10(new(big.Int).Set(&x.mantissa), shift)
-		return z.quoBigAndRound(xs, &y.mantissa)
+		xs := checked.MulBigPow10(new(big.Int).Set(&x.unscaled), shift)
+		return z.quoBigAndRound(xs, &y.unscaled)
 	}
 
 	// shift < 0
@@ -824,14 +856,14 @@ func (z *Big) quoBig(x, y *Big) *Big {
 		z.form = inf
 		return z
 	}
-	ys := checked.MulBigPow10(new(big.Int).Set(&y.mantissa), shift)
-	return z.quoBigAndRound(&x.mantissa, ys)
+	ys := checked.MulBigPow10(new(big.Int).Set(&y.unscaled), shift)
+	return z.quoBigAndRound(&x.unscaled, ys)
 }
 
 func (z *Big) quoBigAndRound(x, y *big.Int) *Big {
 	z.compact = c.Inflated
 
-	q, r := z.mantissa.QuoRem(x, y, new(big.Int))
+	q, r := z.unscaled.QuoRem(x, y, new(big.Int))
 
 	if z.ctx.mode == ToZero {
 		return z
@@ -844,7 +876,7 @@ func (z *Big) quoBigAndRound(x, y *big.Int) *Big {
 	odd := new(big.Int).And(q, oneInt).Sign() != 0
 
 	if r.Sign() != 0 && z.needsIncBig(y, r, sign > 0, odd) {
-		z.mantissa.Add(&z.mantissa, big.NewInt(sign))
+		z.unscaled.Add(&z.unscaled, big.NewInt(sign))
 	}
 	return z.Round(z.ctx.prec())
 }
@@ -873,10 +905,10 @@ func (z *Big) Round(n int32) *Big {
 		if ok {
 			return z.quoAndRound(z.compact, val)
 		}
-		z.mantissa.SetInt64(z.compact)
+		z.unscaled.SetInt64(z.compact)
 	}
 	val := pow.BigTen(shift)
-	return z.quoBigAndRound(&z.mantissa, &val)
+	return z.quoBigAndRound(&z.unscaled, &val)
 }
 
 // Scale returns x's scale.
@@ -892,9 +924,9 @@ func (z *Big) Set(x *Big) *Big {
 		z.form = x.form
 		z.scale = x.scale
 
-		// Copy over mantissa if need be.
+		// Copy over unscaled if need be.
 		if x.isInflated() {
-			z.mantissa.Set(&x.mantissa)
+			z.unscaled.Set(&x.unscaled)
 		}
 	}
 	return z
@@ -907,7 +939,7 @@ func (z *Big) SetBigMantScale(value *big.Int, scale int32) *Big {
 		return z
 	}
 	z.scale = scale
-	z.mantissa.Set(value)
+	z.unscaled.Set(value)
 	z.form = finite
 	z.compact = c.Inflated
 	return z
@@ -961,9 +993,9 @@ func (z *Big) SetFloat64(value float64) *Big {
 		z.compact = int64(value)
 	} else {
 		if value <= math.MaxUint64 {
-			z.mantissa.SetUint64(uint64(value))
+			z.unscaled.SetUint64(uint64(value))
 		} else {
-			z.mantissa.Set(bigIntFromFloat(value))
+			z.unscaled.Set(bigIntFromFloat(value))
 		}
 		z.compact = c.Inflated
 	}
@@ -972,7 +1004,8 @@ func (z *Big) SetFloat64(value float64) *Big {
 	return z
 }
 
-// SetInf sets z to Inf and returns z.
+// SetInf sets z to -Inf if signbit is set, +Inf is signbit is not set, and
+// returns z.
 func (x *Big) SetInf() *Big {
 	x.form = inf
 	return x
@@ -986,7 +1019,7 @@ func (z *Big) SetMantScale(value int64, scale int32) *Big {
 	}
 	z.scale = scale
 	if value == c.Inflated {
-		z.mantissa.SetInt64(value)
+		z.unscaled.SetInt64(value)
 	}
 	z.compact = value
 	z.form = finite
@@ -999,10 +1032,10 @@ func (z *Big) SetMode(mode RoundingMode) *Big {
 	return z
 }
 
-// SetPrec sets z's precision to prec and returns z.
-// This method is distinct from Prec. This sets the internal context
-// which dictates rounding and digits after the radix for lossy operations.
-// The latter describes the number of digits in the decimal.
+// SetPrecision sets z's precision to prec and returns z.
+// This method is distinct from Prec. This sets the internal context which
+// dictates rounding and digits after the radix for lossy operations. The
+// latter describes the number of digits in the decimal.
 func (z *Big) SetPrec(prec int32) *Big {
 	z.ctx.precision = prec
 	return z
@@ -1073,7 +1106,7 @@ func (z *Big) SetString(s string) (*Big, bool) {
 		}
 	}
 	if (err == strconv.ErrRange && len(s) == 19) || len(s) > 19 {
-		_, ok := z.mantissa.SetString(s, 10)
+		_, ok := z.unscaled.SetString(s, 10)
 		if !ok {
 			return nil, false
 		}
@@ -1110,25 +1143,23 @@ func (x *Big) Sign() int {
 		}
 		return +1
 	}
-	return x.mantissa.Sign()
+	return x.unscaled.Sign()
 }
 
 // SignBit returns true if x is negative.
 func (x *Big) SignBit() bool {
 	return (x.isCompact() && x.compact < 0) ||
-		(x.isInflated() && x.mantissa.Sign() < 0)
+		(x.isInflated() && x.unscaled.Sign() < 0)
 }
 
 // String returns the scientific string representation of x.
-// For special cases, x == nil returns "<nil>" and x.IsInf() returns "Inf".
+// Special cases are:
+//
+// 	x == nil  = "<nil>"
+//  x.IsInf() = "Inf"
+//
 func (x *Big) String() string {
-	return x.toString(true, lower)
-}
-
-// PlainString returns the plain string representation of x.
-// For special cases, if x == nil returns "<nil>" and x.IsInf() returns "Inf".
-func (x *Big) PlainString() string {
-	return x.toString(false, lower)
+	return string(x.format(true, lower))
 }
 
 const (
@@ -1136,55 +1167,78 @@ const (
 	upper = 1 // opts for uppercase sci notation
 )
 
-func (x *Big) toString(sci bool, opts byte) string {
+func (x *Big) format(sci bool, opts byte) []byte {
+	// Special cases.
 	if x == nil {
-		return "<nil>"
+		return []byte("<nil>")
 	}
 	if x.IsInf() {
-		return "Inf"
+		if x.SignBit() {
+			return []byte("-Inf")
+		}
+		return []byte("+Inf")
+	}
+
+	// Keep from allocating if x == 0.
+	if x.form == zero ||
+		(x.isCompact() && x.compact == 0) ||
+		(x.isInflated() && x.unscaled.Sign() == 0) {
+		return []byte("0")
 	}
 
 	// Fast path: return our value as-is.
 	if x.scale == 0 {
 		if x.isInflated() {
-			return x.mantissa.String()
+			// math/big.MarshalText never returns an error, only nil, so there's
+			// no need to check for an error. Use MarshalText instead of Append
+			// because it limits us to one allocation.
+			b, _ := x.unscaled.MarshalText()
+			return b
 		}
-		return strconv.FormatInt(x.compact, 10)
-	}
-
-	// Keep from allocating a buffer if x is zero.
-	if (x.isCompact() && x.compact == 0) ||
-		(x.isInflated() && x.mantissa.Sign() == 0) {
-		return "0"
+		// Enough for the largest/smallest numbers we can hold plus the sign.
+		var buf [20]byte
+		return strconv.AppendInt(buf[0:0], x.compact, 10)
 	}
 
 	// (x.scale > 0 || x.scale < 0) && x != 0
 
-	var (
-		str string
-		b   buffer // is bytes.Buffer
-	)
+	// We have two options: The first is to always interpret x as an unsigned
+	// number and selectively add the '-' if applicable. The second is to
+	// format x as a signed number and do some extra math later to determine
+	// where we need to place the radix, etc. depending on whether the
+	// formatted number is prefixed with a '-'.
+	//
+	// I'm chosing the first option because it's less gross elsewhere.
+	//
+	// TODO: If/when this gets merged into math/big use x.unscaled.abs.utoa
 
+	var b []byte
 	if x.isInflated() {
-		str = x.mantissa.String()
+		if x.unscaled.Sign() < 0 {
+			b, _ = x.unscaled.MarshalText()
+		} else {
+			var buf [1]byte
+			b = x.unscaled.Append(buf[0:1], 10)
+		}
 	} else {
-		str = strconv.FormatInt(x.compact, 10)
+		// The 20 bytes are to hold x.compact plus its sign.
+		var buf [20]byte
+		if x.compact < 0 {
+			b = strconv.AppendInt(buf[0:0], x.compact, 10)
+		} else {
+			b = strconv.AppendUint(buf[0:1], uint64(x.compact), 10)
+		}
 	}
 
-	// Either this or we have to use a boolean flag plus format the mantissa
-	// and/or compact integer as unsigned values which incurs
-	// an allocation with the mantissa.
-	if str[0] == '-' {
-		b.WriteByte('-')
-		str = str[1:]
-	}
 	if sci {
-		return x.toSciString(str, &b, opts)
+		return x.formatSci(b, opts)
 	}
-	return x.toPlainString(str, &b)
+	return x.formatPlain(b)
 }
 
-func (x *Big) toSciString(str string, b writer, opts byte) string {
+// formatSci returns the scientific version of x. It assumes the first byte
+// is either 0 (positive) or '-' (negative).
+func (x *Big) formatSci(b []byte, opts byte) []byte {
 	if debug && (opts < 0 || opts > 1) {
 		panic("toSciString: (bug) opts != 0 || opts != 1")
 	}
@@ -1192,71 +1246,94 @@ func (x *Big) toSciString(str string, b writer, opts byte) string {
 	// Following quotes are from:
 	// http://speleotrove.com/decimal/daconvs.html#reftostr
 
-	adj := -int(x.scale) + (len(str) - 1)
-	pos := adj > 0
+	adj := -int(x.scale) + (len(b) - 2)
 
 	// "If the exponent is less than or equal to zero and the
 	// adjusted exponent is greater than or equal to -6..."
 	if x.scale >= 0 && adj >= -6 {
 		// "...the number will be converted to a character
 		// form without using exponential notation."
-		return x.normString(str, b)
+		return x.formatNorm(b)
 	}
 
-	b.WriteByte(str[0])
-	if len(str) > 1 {
-		b.WriteByte('.')
-		b.WriteString(str[1:])
+	// Insert our period to turn, e.g., 0.0000000056 -> 5.6e-9 if we have
+	// more than one number.
+	if len(b)-1 > 1 {
+		b = append(b, 0)
+		copy(b[2+1:], b[2:])
+		b[2] = '.'
 	}
 	if adj != 0 {
-		b.WriteByte([2]byte{'e', 'E'}[opts])
-		// If !pos the following strconv.Itoa call will add
-		// the minus sign for us.
-		if pos {
-			b.WriteByte('+')
+		b = append(b, [2]byte{'e', 'E'}[opts])
+
+		// If negative the following strconv.Append call will add the minus sign
+		// for us.
+		if adj > 0 {
+			b = append(b, '+')
 		}
-		b.WriteString(strconv.Itoa(adj))
+		b = strconv.AppendInt(b, int64(adj), 10)
 	}
-	return b.String()
+	return trim(b)
 }
 
-// toPlainString returns the plain string version of x.
-func (x *Big) toPlainString(str string, b writer) string {
-	// Just mantissa + z.scale "0"s -- no radix.
+var zeroLiteral = []byte{'0'}
+
+// formatPlain returns the plain string version of x.
+func (x *Big) formatPlain(b []byte) []byte {
+	// Just unscaled + z.scale "0"s -- no radix.
 	if x.scale < 0 {
-		b.WriteString(str)
-		b.Write(bytes.Repeat([]byte{'0'}, -int(x.scale)))
-		return b.String()
+		return append(b, bytes.Repeat(zeroLiteral, -int(x.scale))...)
 	}
-	return x.normString(str, new(buffer))
+	return x.formatNorm(b)
 }
 
-// normString returns the plain string version of x.
-// It's distinct from 'toPlainString' in that toPlainString
-// calls this method once it's done its own internal checks.
-// Additionally, toSciString also calls this method if it
-// does not need to add the {e,E} suffix.
-func (x *Big) normString(str string, b writer) string {
-	switch pad := len(str) - int(x.scale); {
-
-	// log10(mantissa) == scale, so immediately before str.
+// formatNorm returns the plain version of x. It's distinct from formatPlain in
+// that formatPlain calls this method once it's done its own internal checks.
+// Additionally, formatSci also calls this method if it does not need to add
+// the {e,E} suffix. Essentially, formatNorm decides where to place the
+// radix point.
+func (x *Big) formatNorm(b []byte) []byte {
+	switch pad := (len(b) - 1) - int(x.scale); {
+	// log10(unscaled) == scale, so immediately before str.
 	case pad == 0:
-		b.WriteString("0.")
-		b.WriteString(str)
+		b = append([]byte{b[0], '0', '.'}, b[1:]...)
 
-	// log10(mantissa) > scale, so somewhere inside str.
+	// log10(unscaled) > scale, so somewhere inside str.
 	case pad > 0:
-		b.WriteString(str[:pad])
-		b.WriteByte('.')
-		b.WriteString(str[pad:])
+		b = append(b, 0)
+		copy(b[1+pad+1:], b[1+pad:])
+		b[1+pad] = '.'
 
-	// log10(mantissa) < scale, so before p "0s" and before str.
+	// log10(unscaled) < scale, so before p "0s" and before str.
 	default:
-		b.WriteString("0.")
-		b.Write(bytes.Repeat([]byte{'0'}, -pad))
-		b.WriteString(str)
+		b0 := append([]byte{b[0], '0', '.'}, bytes.Repeat(zeroLiteral, -pad)...)
+		b = append(b0, b[1:]...)
 	}
-	return b.String()
+	return trim(b)
+}
+
+// trim remove unnecessary bytes from b. Unnecessary bytes are defined as:
+//
+// 	1) Trailing '0' bytes
+// 	2) A trailing '.' after step #1
+// 	3) Leading 0 bytes
+//
+func trim(b []byte) []byte {
+	s, e := 0, len(b)-1
+	for ; e >= 0; e-- {
+		if b[e] != '0' {
+			break
+		}
+	}
+	if b[e] == '.' {
+		e--
+	}
+	for ; s < e; s++ {
+		if b[s] != 0 {
+			break
+		}
+	}
+	return b[s : e+1]
 }
 
 // Sqrt sets z to the square root of x and returns z.
@@ -1388,8 +1465,8 @@ func (z *Big) Sub(x, y *Big) *Big {
 }
 
 // UnmarshalText implements encoding/TextUnmarshaler.
-func (x *Big) UnmarshalText(data []byte) error {
-	_, ok := x.SetString(string(data))
+func (z *Big) UnmarshalText(data []byte) error {
+	_, ok := z.SetString(string(data))
 	if !ok {
 		return errors.New("Big.UnmarshalText: invalid decimal format")
 	}
