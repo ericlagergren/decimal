@@ -39,7 +39,7 @@ func (z *Big) Modf(x *Big) (int *Big, frac *Big) {
 		if x.isCompact() {
 			z.compact = x.compact
 		} else {
-			z.mantissa.Set(&x.mantissa)
+			z.unscaled.Set(&x.unscaled)
 		}
 		z.scale = 0
 		return z, frac
@@ -54,7 +54,7 @@ func (z *Big) Modf(x *Big) (int *Big, frac *Big) {
 		}
 	}
 
-	m := &x.mantissa
+	m := &x.unscaled
 	// Possible fallthrough.
 	if x.isCompact() {
 		m = big.NewInt(x.compact)
@@ -62,8 +62,8 @@ func (z *Big) Modf(x *Big) (int *Big, frac *Big) {
 	i, f := modbig(m, x.scale)
 	z.compact = c.Inflated
 	frac.compact = c.Inflated
-	z.mantissa.Set(i)
-	frac.mantissa.Set(f)
+	z.unscaled.Set(i)
+	frac.unscaled.Set(f)
 	z.scale = 0
 	return z, frac
 }

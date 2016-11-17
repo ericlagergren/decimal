@@ -36,3 +36,6 @@ Vagrantfile
 *.test
 *.out
 old/
+tags
+out.txt
+test.go

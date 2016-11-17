@@ -189,7 +189,7 @@ func (x *Big) isOdd() (odd bool) {
 	if dec.isCompact() {
 		odd = x.compact&1 != 0
 	} else {
-		odd = new(big.Int).And(&x.mantissa, oneInt).Cmp(oneInt) == 0
+		odd = new(big.Int).And(&x.unscaled, oneInt).Cmp(oneInt) == 0
 	}
 	return frac.ez() && odd
 }
