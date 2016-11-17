@@ -545,8 +545,7 @@ func (x *Big) IsInt() bool {
 
 // MarshalText implements encoding/TextMarshaler.
 func (x *Big) MarshalText() ([]byte, error) {
-	// TODO: Don't convert to []byte.
-	return []byte(x.String()), nil
+	return x.format(true, lower), nil
 }
 
 // Mode returns the rounding mode of x.
@@ -1062,10 +1061,10 @@ func (z *Big) SetScale(scale int32) *Big {
 //
 //	No distinction is made between +Inf and -Inf.
 func (z *Big) SetString(s string) (*Big, bool) {
-	// Inf or +Inf or -Inf
-	if (len(s) == 3 && equalFold(s, "Inf")) ||
+	// Inf, +Inf, or -Inf.
+	if strings.EqualFold(s, "Inf") ||
 		(len(s) == 4 && (s[0] == '+' || s[0] == '-') &&
-			equalFold(s[1:], "Inf")) {
+			strings.EqualFold(s[1:], "Inf")) {
 		z.form = inf
 		return z, true
 	}

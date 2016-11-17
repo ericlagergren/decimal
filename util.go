@@ -70,42 +70,6 @@ func cmpNormBig(x *big.Int, xs int32, y *big.Int, ys int32) (ok bool) {
 	return x.Cmp(checked.MulBigPow10(y1, diff)) > 0
 }
 
-// equalFold reports whether s1 and s2, interpreted as small
-// byte strings are equal under ASCII case-folding.
-// We only need this to check if "Inf" == "inf" and
-// "NaN" == "nan", etc.
-func equalFold(s1, s2 string) bool {
-	if len(s1) != len(s2) {
-		return false
-	}
-
-	var sr, tr byte
-	for i := 0; i < len(s1); i++ {
-		sr = s1[i]
-		tr = s2[i]
-
-		// Easy case.
-		if sr == tr {
-			continue
-		}
-
-		// Make sr < tr to simplify what follows.
-		if tr < sr {
-			tr, sr = sr, tr
-		}
-
-		if 'A' <= sr && sr <= 'Z' {
-			// ASCII, and sr is upper case.  tr must be lower case.
-			if tr == sr+'a'-'A' {
-				continue
-			}
-		}
-
-		return false
-	}
-	return true
-}
-
 // findScale determines the precision of a float64.
 func findScale(f float64) (precision int32) {
 	switch {
