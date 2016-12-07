@@ -21,7 +21,21 @@ func newbig(t *testing.T, s string) *Big {
 		}
 		t.Fatal("wanted true got false during set")
 	}
+	testFormZero(t, x)
 	return x
+}
+
+var bigZero = new(Big)
+
+// testFormZero verifies that if z == 0, z.form == zero.
+func testFormZero(t *testing.T, z *Big) {
+	iszero := z.Cmp(bigZero) == 0
+	if iszero && z.form != zero {
+		t.Errorf("z == 0, but form not marked zero: %v", z.form)
+	}
+	if !iszero && z.form == zero {
+		t.Errorf("z != 0, but form marked zero")
+	}
 }
 
 // Verify that ErrNaN implements the error interface.
