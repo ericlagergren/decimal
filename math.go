@@ -39,9 +39,11 @@ func (z *Big) Modf(x *Big) (int *Big, frac *Big) {
 		if x.isCompact() {
 			z.compact = x.compact
 		} else {
+			z.compact = c.Inflated
 			z.unscaled.Set(&x.unscaled)
 		}
 		z.scale = 0
+		frac.form = zero
 		return z, frac
 	}
 
@@ -50,6 +52,12 @@ func (z *Big) Modf(x *Big) (int *Big, frac *Big) {
 		if ok {
 			z.compact, frac.compact = i, f
 			z.scale = 0
+			if z.compact == 0 {
+				z.form = zero
+			}
+			if frac.compact == 0 {
+				frac.form = zero
+			}
 			return z, frac
 		}
 	}
@@ -64,6 +72,9 @@ func (z *Big) Modf(x *Big) (int *Big, frac *Big) {
 	frac.compact = c.Inflated
 	z.unscaled.Set(i)
 	frac.unscaled.Set(f)
+	if frac.unscaled.Sign() == 0 {
+		frac.form = zero
+	}
 	z.scale = 0
 	return z, frac
 }

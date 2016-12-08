@@ -249,7 +249,8 @@ func (z *Big) addBig(x, y *Big) *Big {
 	}
 
 	inc := hi.scale - lo.scale
-	scaled := checked.MulBigPow10(&lo.unscaled, inc)
+	tmp := new(big.Int).Set(&lo.unscaled)
+	scaled := checked.MulBigPow10(tmp, inc)
 	z.unscaled.Add(&hi.unscaled, scaled)
 	z.compact = c.Inflated
 	z.scale = hi.scale
@@ -1093,6 +1094,7 @@ func (z *Big) SetString(s string) (*Big, bool) {
 	}
 
 	var err error
+	z.form = finite
 	// Numbers == 19 can be out of range, but try the edge case anyway.
 	if len(s) <= 19 {
 		z.compact, err = strconv.ParseInt(s, 10, 64)
@@ -1102,6 +1104,8 @@ func (z *Big) SetString(s string) (*Big, bool) {
 				return nil, false
 			}
 			err = nerr.Err
+		} else if z.compact == 0 {
+			z.form = zero
 		}
 	}
 	if (err == strconv.ErrRange && len(s) == 19) || len(s) > 19 {
@@ -1110,9 +1114,11 @@ func (z *Big) SetString(s string) (*Big, bool) {
 			return nil, false
 		}
 		z.compact = c.Inflated
+		if z.unscaled.Sign() == 0 {
+			z.form = zero
+		}
 	}
 	z.scale = scale
-	z.form = finite
 	return z, true
 }
 
