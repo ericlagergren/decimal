@@ -249,7 +249,8 @@ func (z *Big) addBig(x, y *Big) *Big {
 	}
 
 	inc := hi.scale - lo.scale
-	scaled := checked.MulBigPow10(&lo.unscaled, inc)
+	tmp := new(big.Int).Set(&lo.unscaled)
+	scaled := checked.MulBigPow10(tmp, inc)
 	z.unscaled.Add(&hi.unscaled, scaled)
 	z.compact = c.Inflated
 	z.scale = hi.scale
