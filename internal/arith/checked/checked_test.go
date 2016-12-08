@@ -4,7 +4,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/EricLagergren/decimal/internal/c"
+	"github.com/ericlagergren/decimal/internal/c"
 )
 
 const maxInt64 = 1<<63 - 1

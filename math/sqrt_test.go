@@ -3,7 +3,7 @@ package math
 import (
 	"testing"
 
-	"github.com/EricLagergren/decimal"
+	"github.com/ericlagergren/decimal"
 )
 
 func TestDecimal_Hypot(t *testing.T) {

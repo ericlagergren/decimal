@@ -3,8 +3,8 @@ package decimal
 import (
 	"math/big"
 
-	"github.com/EricLagergren/decimal/internal/arith/pow"
-	"github.com/EricLagergren/decimal/internal/c"
+	"github.com/ericlagergren/decimal/internal/arith/pow"
+	"github.com/ericlagergren/decimal/internal/c"
 )
 
 // Modf decomposes x into its integral and fractional parts such that int +

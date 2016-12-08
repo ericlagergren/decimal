@@ -6,7 +6,7 @@ import (
 	"math/big"
 	"sync"
 
-	"github.com/EricLagergren/decimal/internal/c"
+	"github.com/ericlagergren/decimal/internal/c"
 )
 
 const (

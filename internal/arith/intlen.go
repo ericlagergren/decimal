@@ -3,7 +3,7 @@ package arith
 import (
 	"math/big"
 
-	"github.com/EricLagergren/decimal/internal/arith/pow"
+	"github.com/ericlagergren/decimal/internal/arith/pow"
 )
 
 // Length returns the number of digits in x.

@@ -5,9 +5,9 @@ import (
 	"math"
 	"math/big"
 
-	"github.com/EricLagergren/decimal/internal/arith"
-	"github.com/EricLagergren/decimal/internal/arith/pow"
-	"github.com/EricLagergren/decimal/internal/c"
+	"github.com/ericlagergren/decimal/internal/arith"
+	"github.com/ericlagergren/decimal/internal/arith/pow"
+	"github.com/ericlagergren/decimal/internal/c"
 )
 
 // Add returns x + y and a bool indicating whether the
