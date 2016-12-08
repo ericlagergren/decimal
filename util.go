@@ -4,9 +4,9 @@ import (
 	"math"
 	"math/big"
 
-	"github.com/EricLagergren/decimal/internal/arith"
-	"github.com/EricLagergren/decimal/internal/arith/checked"
-	"github.com/EricLagergren/decimal/internal/c"
+	"github.com/ericlagergren/decimal/internal/arith"
+	"github.com/ericlagergren/decimal/internal/arith/checked"
+	"github.com/ericlagergren/decimal/internal/c"
 )
 
 const debug = true

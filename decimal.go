@@ -30,10 +30,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/EricLagergren/decimal/internal/arith"
-	"github.com/EricLagergren/decimal/internal/arith/checked"
-	"github.com/EricLagergren/decimal/internal/arith/pow"
-	"github.com/EricLagergren/decimal/internal/c"
+	"github.com/ericlagergren/decimal/internal/arith"
+	"github.com/ericlagergren/decimal/internal/arith/checked"
+	"github.com/ericlagergren/decimal/internal/arith/pow"
+	"github.com/ericlagergren/decimal/internal/c"
 )
 
 // Note: For +/-inf/nan checks: https://play.golang.org/p/RtH3UCt5IH

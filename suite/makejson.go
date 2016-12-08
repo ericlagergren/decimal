@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/EricLagergren/decimal/suite"
+	"github.com/ericlagergren/decimal/suite"
 )
 
 func main() {

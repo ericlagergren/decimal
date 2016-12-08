@@ -4,7 +4,7 @@ import (
 	"math"
 	"math/big"
 
-	"github.com/EricLagergren/decimal/internal/arith"
+	"github.com/ericlagergren/decimal/internal/arith"
 )
 
 func (r RoundingMode) needsInc(c int, pos, odd bool) bool {
