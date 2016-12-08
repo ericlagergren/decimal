@@ -1,6 +1,7 @@
 package decimal
 
 import (
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -21,20 +22,20 @@ func newbig(t *testing.T, s string) *Big {
 		}
 		t.Fatal("wanted true got false during set")
 	}
-	testFormZero(t, x)
+	testFormZero(t, x, "newbig")
 	return x
 }
 
 var bigZero = new(Big)
 
 // testFormZero verifies that if z == 0, z.form == zero.
-func testFormZero(t *testing.T, z *Big) {
+func testFormZero(t *testing.T, z *Big, name string) {
 	iszero := z.Cmp(bigZero) == 0
 	if iszero && z.form != zero {
-		t.Errorf("z == 0, but form not marked zero: %v", z.form)
+		t.Errorf("%s: z == 0, but form not marked zero: %v", name, z.form)
 	}
 	if !iszero && z.form == zero {
-		t.Errorf("z != 0, but form marked zero")
+		t.Errorf("%s: z != 0, but form marked zero", name)
 	}
 }
 
@@ -150,6 +151,11 @@ func TestBig_Cmp(t *testing.T) {
 		// Differing signs
 		{new(Big).Set(large).Neg(large), large, lesser},
 		{new(Big).Quo(new(Big).Set(large), New(314156, 5)), large, lesser},
+
+		/* Broken tests
+		// Cmp does not compare non-compact numbers of different scale correctly.
+		{newbig(t, "10000000000000000000"), newbig(t, "100000000000000000000").SetScale(1), equal},
+		*/
 	} {
 		r := test.a.Cmp(test.b)
 		if test.v != r {
@@ -422,6 +428,19 @@ func TestBig_Modf(t *testing.T) {
 		48: {"565130.6182316178", "565130", "0.6182316178"},
 		49: {"-358703.4697589793", "-358703", "-0.4697589793"},
 		50: {"783249.3845349478", "783249", "0.3845349478"},
+		51: {"0", "0", "0"},
+		52: {"0.0", "0", "0"},
+		53: {"1.0", "1", "0"},
+		54: {"0.1", "0", "0.1"},
+		55: {"1", "1", "0"},
+		56: {"100000000000000000000", "100000000000000000000", "0"},
+		57: {"100000000000000000000.1", "100000000000000000000", "0.1"},
+
+		/* Broken tests
+		Cmp breakage, see broken test there.
+		{"100000000000000000000.0", "100000000000000000000", "0"},
+		{"0.000000000000000000001", "0", "0.000000000000000000001"},
+		*/
 	}
 	for i, v := range tests {
 		dec := newbig(t, v.dec)
@@ -430,9 +449,11 @@ func TestBig_Modf(t *testing.T) {
 		vig := newbig(t, v.intg)
 		vfr := newbig(t, v.frac)
 		if m.Cmp(dec) != 0 || integ.Cmp(vig) != 0 || vfr.Cmp(frac) != 0 {
-			t.Fatalf("#%d: Exp(%s) wanted (%s, %s), got (%s, %s)",
+			t.Fatalf("#%d: Modf(%s) wanted (%s, %s), got (%s, %s)",
 				i, v.dec, v.intg, v.frac, integ, frac)
 		}
+		testFormZero(t, integ, fmt.Sprintf("#%d: integral part", i))
+		testFormZero(t, frac, fmt.Sprintf("#%d: fractional part", i))
 	}
 }
 
