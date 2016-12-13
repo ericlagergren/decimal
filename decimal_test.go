@@ -466,7 +466,7 @@ func TestBig_Mul(t *testing.T) {
 }
 
 func TestBig_Prec(t *testing.T) {
-	// confirmed to work inside internal/arith/intlen_test.go
+	// confirmaed to work inside internal/arith/intlen_test.go
 }
 
 func TestBig_Quo(t *testing.T) {
