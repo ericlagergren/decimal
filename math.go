@@ -4,12 +4,11 @@ import (
 	"math/big"
 
 	"github.com/ericlagergren/decimal/internal/arith/pow"
-	"github.com/ericlagergren/decimal/internal/c"
 )
 
 // Modf decomposes x into its integral and fractional parts such that int +
-// frac == x, sets z to the integral part, and returns the integral and
-// fractional parts.
+// frac == x, sets z to the integral part (such that z aliases int) and returns
+// both parts.
 func (z *Big) Modf(x *Big) (int *Big, frac *Big) {
 	int = z
 	frac = new(Big)
@@ -26,60 +25,36 @@ func (z *Big) Modf(x *Big) (int *Big, frac *Big) {
 		return z, frac
 	}
 
-	z.ctx = x.ctx
-	z.form = finite
+	ctx := x.ctx
+	scale := x.scale
 
-	// Needs proper scale.
-	// Set frac before z in case z aliases x.
-	frac.scale = x.scale
-	frac.ctx = x.ctx
-	frac.form = finite
-
+	// x is an integer—we can just set z to x.
 	if x.IsInt() {
-		if x.isCompact() {
-			z.compact = x.compact
-		} else {
-			z.compact = c.Inflated
-			z.unscaled.Set(&x.unscaled)
-		}
-		z.scale = 0
 		frac.form = zero
-		return z, frac
+		return z.Set(x), frac
 	}
 
 	if x.isCompact() {
-		i, f, ok := mod(x.compact, x.scale)
+		i, f, ok := mod(x.compact, scale)
 		if ok {
-			z.compact, frac.compact = i, f
-			z.scale = 0
-			if z.compact == 0 {
-				z.form = zero
-			}
-			if frac.compact == 0 {
-				frac.form = zero
-			}
-			return z, frac
+			return z.SetMantScale(i, 0).SetContext(ctx),
+				frac.SetMantScale(f, scale).SetContext(ctx)
 		}
 	}
 
 	m := &x.unscaled
-	// Possible fallthrough.
+	// Possible fallthrough from 'ok'.
 	if x.isCompact() {
 		m = big.NewInt(x.compact)
 	}
-	i, f := modbig(m, x.scale)
-	z.compact = c.Inflated
-	frac.compact = c.Inflated
-	z.unscaled.Set(i)
-	frac.unscaled.Set(f)
-	if frac.unscaled.Sign() == 0 {
-		frac.form = zero
-	}
-	z.scale = 0
-	return z, frac
+	i, f := modbig(m, scale)
+	return z.SetBigMantScale(i, 0).SetContext(ctx),
+		frac.SetBigMantScale(f, scale).SetContext(ctx)
 }
 
 // mod splits fr, a scaled decimal, into its integeral and fractional parts.
+// The returned bool will be false if the scale is too large for 64-bit
+// arithmetic.
 func mod(fr int64, scale int32) (dec int64, frac int64, ok bool) {
 	if fr < 0 {
 		dec, frac, ok = mod(-fr, scale)

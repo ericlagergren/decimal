@@ -52,8 +52,8 @@ type Big struct {
 	compact int64
 
 	// scale is the number of digits following the radix. If scale is negative
-	// the * 10 and ^ -scale is implied--it does not inflated either the
-	// compact or unscaled fields.
+	// the inflation is implied; neither the compact nor unscaled fields are
+	// actually inflated.
 	scale int32
 
 	ctx      Context
@@ -293,9 +293,25 @@ func (z *Big) Cmp(x *Big) int {
 		return 0
 	}
 
+	// Fast path: different signs. (Catches both forms == zero.)
+
+	zs := z.Sign()
+	xs := x.Sign()
+	switch {
+	case zs > xs:
+		return +1
+	case zs < xs:
+		return -1
+	case zs == 0 && xs == 0:
+		return 0
+	}
+
+	// zs == xs
+
 	// Same scales means we can compare straight across.
 	if z.scale == x.scale {
-		if z.isCompact() && x.isCompact() {
+		switch {
+		case z.isCompact() && x.isCompact():
 			if z.compact > x.compact {
 				return +1
 			}
@@ -303,65 +319,38 @@ func (z *Big) Cmp(x *Big) int {
 				return -1
 			}
 			return 0
-		}
-		if z.isInflated() && x.isInflated() {
-			if z.unscaled.Sign() != x.unscaled.Sign() {
-				return z.unscaled.Sign()
+		case z.isInflated() && x.isInflated():
+			return z.unscaled.Cmp(&x.unscaled)
+		default:
+			// The inflated number is more than likely larger, but I'm not 100%
+			// certain that inflated > compact is an invariant.
+			zu, xu := &z.unscaled, &x.unscaled
+			if z.isCompact() {
+				zu = big.NewInt(z.compact)
+			} else {
+				xu = big.NewInt(x.compact)
 			}
-
-			if z.scale < 0 {
-				return z.unscaled.Cmp(&x.unscaled)
-			}
-
-			zb := z.unscaled.Bits()
-			xb := x.unscaled.Bits()
-
-			min := len(zb)
-			if len(xb) < len(zb) {
-				min = len(xb)
-			}
-			i := 0
-			for i < min-1 && zb[i] == xb[i] {
-				i++
-			}
-			if zb[i] > xb[i] {
-				return +1
-			}
-			if zb[i] < xb[i] {
-				return -1
-			}
-			return 0
+			return zu.Cmp(xu)
 		}
 	}
 
-	// Different scales -- check signs and/or if they're
-	// both zero.
+	// Signs are the same and the scales differ. Compare the lengths of their
+	// integral parts; if they differ in length one number is larger.
+	// E.g., 1234.01
+	//        123.011
 
-	ds := z.Sign()
-	xs := x.Sign()
-	switch {
-	case ds > xs:
-		return +1
-	case ds < xs:
-		return -1
-	case ds == 0 && xs == 0:
-		return 0
-	}
-
-	// Scales aren't equal, the signs are the same, and both
-	// are non-zero.
-	dl := int32(z.Prec()) - z.scale
-	xl := int32(x.Prec()) - x.scale
-	if dl > xl {
+	zl := z.Prec() - int(z.scale)
+	xl := x.Prec() - int(x.scale)
+	if zl > xl {
 		return +1
 	}
-	if dl < xl {
+	if zl < xl {
 		return -1
 	}
 
-	// We need to inflate one of the numbers.
+	// We have to inflate one of the numbrers.
 
-	dc := z.compact // hi
+	zc := z.compact // hi
 	xc := x.compact // lo
 
 	var swap bool
@@ -369,7 +358,7 @@ func (z *Big) Cmp(x *Big) int {
 	hi, lo := z, x
 	if hi.scale < lo.scale {
 		hi, lo = lo, hi
-		dc, xc = xc, dc
+		zc, xc = xc, zc
 		swap = true // d is lo
 	}
 
@@ -377,8 +366,8 @@ func (z *Big) Cmp(x *Big) int {
 	if diff <= c.BadScale {
 		var ok bool
 		xc, ok = checked.MulPow10(xc, diff)
-		if !ok && dc == c.Inflated {
-			// d is lo
+		if !ok || zc == c.Inflated {
+			// z is lo
 			if swap {
 				zm := new(big.Int).Set(&z.unscaled)
 				return checked.MulBigPow10(zm, diff).Cmp(&x.unscaled)
@@ -390,14 +379,14 @@ func (z *Big) Cmp(x *Big) int {
 	}
 
 	if swap {
-		dc, xc = xc, dc
+		zc, xc = xc, zc
 	}
 
-	if dc != c.Inflated {
+	if zc != c.Inflated {
 		if xc != c.Inflated {
-			return arith.AbsCmp(dc, xc)
+			return arith.AbsCmp(zc, xc)
 		}
-		return big.NewInt(dc).Cmp(&x.unscaled)
+		return big.NewInt(zc).Cmp(&x.unscaled)
 	}
 	if xc != c.Inflated {
 		return z.unscaled.Cmp(big.NewInt(xc))
@@ -412,30 +401,40 @@ func (x *Big) Context() Context {
 
 // Exp sets z to e ** x and returns z.
 /*func (z *Big) Exp(x *Big) *Big {
+	if x.form == inf {
+		z.form = inf
+		return z
+	}
+
 	if x.form == zero {
 		// e ** 0 == 1
 		return z.SetMantScale(1, 0)
 	}
+
 	if x.SignBit() {
 		// 1 / (e ** -x)
-		return z.Quo(one, z.Exp(z.Neg(x)))
-	}
-	intg, frac := new(Big).Modf(x)
-	if intg.form == zero {
-		return frac.taylor(x)
+		return z.Quo(one, z.Exp(new(Big).Neg(x)))
 	}
 
+	intg, frac := new(Big).Modf(x)
+	if intg.form == zero {
+		return z.Set(frac).taylor(x)
+	}
+
+	zz := alias(z, x).SetPrec(z.Context().Precision())
+
 	// n = e ** (1 + frac / integ)
-	n := new(Big).taylor(z.Add(z.Quo(frac, intg), one))
+	n := zz.taylor(zz.Add(zz.Quo(frac, intg), one))
 
 	r := New(1, 0)
 	zp := z.ctx.prec()
+	fmt.Println(zp)
 	var tmp Big
 	for intg.Cmp(max64) >= 0 {
-		r.Mul(r, tmp.powInt(n, math.MaxInt64)).Round(zp)
+		r.Mul(r, tmp.powInt(n, math.MaxInt64)) //.Round(zp)
 		frac.Sub(frac, max64)
 	}
-	return z.Mul(r, n.powInt(n, intg.compact)).Round(zp)
+	return z.Set(zz.Mul(r, new(Big).powInt(n, intg.compact)).Round(zp))
 }*/
 
 // Format implements the fmt.Formatter interface.
@@ -512,18 +511,17 @@ func (x *Big) IsInf() bool {
 	return x.form == inf
 }
 
-// IsInt reports whether x is an integer.
-// ±Inf values are not integers.
+// IsInt reports whether x is an integer. Inf values are not integers.
 func (x *Big) IsInt() bool {
 	if x.form != finite {
 		return x.form == zero
 	}
-	// Prec doesn't count trailing zeros,
-	// so precision <= scale means scale is all
-	// trailing zeros.
-	// E.g., 12.000:    scale == 3, prec == 2
-	//       1234.0000: scale == 4, prec == 4
-	return x.scale <= 0 || x.Prec() < int(x.scale)
+	// The x.Cmp(one) check is necessary because x might be a decimal *and*
+	// Prec <= 0 if x < 1.
+	//
+	// E.g., 0.1:  scale == 1, prec == 1
+	//       0.01: scale == 2, prec == 1
+	return x.scale <= 0 || (x.Prec() <= int(x.scale) && x.Cmp(one) > 0)
 }
 
 // Log sets z to the base-e logarithm of x and returns z.
@@ -654,15 +652,27 @@ func (z *Big) Neg(x *Big) *Big {
 	}
 	z.scale = x.scale
 	z.form = x.form
+	z.ctx = x.ctx
 	return z
 }
 
-// Prec returns the precision of z. That is, it returns the number of
-// decimal digits required to fully represent z.
+// Prec returns the precision of x. That is, it returns the number of
+// significant figures in x.
+//
+//  1234 // 4
+//  1200 // 2
+//  1.23 // 3
+//  0.02 // 1
+//  0    // 1
+//  Inf  // 0
+//
 func (x *Big) Prec() int {
 	// 0 and Inf.
 	if x.form != finite {
 		return 0
+	}
+	if x.form == zero {
+		return 1
 	}
 	if x.isCompact() {
 		return arith.Length(x.compact)
@@ -1124,11 +1134,10 @@ func (z *Big) SetString(s string) (*Big, bool) {
 
 // Sign returns:
 //
-//	-1 if x <   0
-//	 0 if x is ±0
-//	+1 if x >   0
+//	-1 if x <  0
+//	 0 if x is 0
+//	+1 if x >  0
 //
-// Undefined if
 func (x *Big) Sign() int {
 	if x.form == zero {
 		return 0
@@ -1160,8 +1169,8 @@ func (x *Big) SignBit() bool {
 // String returns the scientific string representation of x.
 // Special cases are:
 //
-// 	x == nil  = "<nil>"
-//  x.IsInf() = "Inf"
+//  "<nil>" if x == nil
+//  "Inf"   if x.IsInf()
 //
 func (x *Big) String() string {
 	return string(x.format(true, lower))
@@ -1354,12 +1363,12 @@ func (z *Big) Sqrt(x *Big) *Big {
 	case x.form == inf:
 		z.form = inf
 		return z
-	case x.Sign() == 0:
+	case x.form == zero:
 		z.form = zero
 		return z
 	}
 
-	// First fast path---check if x is a perfect square. If it is, we can avoid
+	// First fast path—check if x is a perfect square. If it is, we can avoid
 	// having to inflate x and can possibly use can use the hardware SQRT.
 	// Note that we can only catch perfect squares that aren't big.Ints.
 	if sq, ok := perfectSquare(x); ok {
@@ -1373,21 +1382,17 @@ func (z *Big) Sqrt(x *Big) *Big {
 	// with at least zp digits after the radix.
 	zpadj := int(zp) << 1
 
-	var tmp *Big
-	if z != x {
-		zctx := z.ctx
-		tmp = z.Set(x)
-		tmp.ctx = zctx
-	} else {
-		tmp = new(Big).Set(x)
-	}
+	zctx := z.ctx
+	tmp := alias(z, x).Set(x)
+	tmp.ctx = zctx
+
 	if !shiftRadixRight(tmp, zpadj) {
 		z.form = inf
 		return z
 	}
 
-	// Second fast path. Check to see if we can calculate the square root without
-	// using big.Int
+	// Second fast path. Check to see if we can calculate the square root
+	// without using big.Int
 	if !x.IsBig() && zpadj <= 19 {
 		n := tmp.Int64()
 		ix := n >> uint((arith.BitLen(n)+1)>>1)
@@ -1428,13 +1433,15 @@ func perfectSquare(x *Big) (square int64, ok bool) {
 	if h > 9 {
 		return 0, false
 	}
-	if h != 2 && h != 3 && h != 5 && h != 6 && h != 7 && h != 8 {
+	switch h {
+	case 2, 3, 5, 6, 7, 8:
 		// "Show that floating point sqrt(x*x) >= x for all long x."
 		// https://math.stackexchange.com/a/238885/153292
 		tst := int64(math.Sqrt(float64(xc)))
 		return tst, tst*tst == xc
+	default:
+		return 0, false
 	}
-	return 0, false
 }
 
 // Sub sets z to x - y and returns z.
