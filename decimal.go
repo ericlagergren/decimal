@@ -45,6 +45,8 @@ import (
 // number * 10 ^ -scale.
 type Big struct {
 	// Big is laid out like this so it takes up as little memory as possible.
+	// On 64-bit systems it takes up 42 bytes.
+	// On 32-bit systems it takes up 32 bytes.
 	//
 	// compact is use if the value fits into an int64. The scale does not
 	// affect whether this field is used; typically, if a decimal has <= 19
@@ -61,8 +63,7 @@ type Big struct {
 	unscaled big.Int
 }
 
-// form represents whether the Big decimal is normal, infinite, or
-// NaN.
+// form represents whether the Big decimal is normal, infinite, or NaN.
 type form byte
 
 // Do not change these constants -- their order is important.
@@ -656,19 +657,10 @@ func (z *Big) Neg(x *Big) *Big {
 	return z
 }
 
-// Prec returns the precision of x. That is, it returns the number of
-// significant figures in x.
-//
-//  1234 // 4
-//  1200 // 2
-//  1.23 // 3
-//  0.02 // 1
-//  0    // 1
-//  Inf  // 0
-//
+// Prec returns the precision of x. That is, it returns the number of digits
+// in the unscaled form of x. 0 has a precision of 1.
 func (x *Big) Prec() int {
-	// 0 and Inf.
-	if x.form != finite {
+	if x.form == inf {
 		return 0
 	}
 	if x.form == zero {
@@ -1259,6 +1251,9 @@ func (x *Big) formatSci(b []byte, opts byte) []byte {
 
 	// Following quotes are from:
 	// http://speleotrove.com/decimal/daconvs.html#reftostr
+	//
+	// Note: speleotrove's spec assumes "exponent" has the reverse sign from
+	// our implementation.
 
 	adj := -int(x.scale) + (len(b) - 2)
 
