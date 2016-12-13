@@ -11,6 +11,16 @@ import (
 
 const debug = true
 
+// alias returns a if a != b, otherwise it returns a newly-allocated Big. It
+// should be used if a *might* be able to be used for storage, but only if it
+// doesn't b.
+func alias(a, b *Big) *Big {
+	if a != b {
+		return a
+	}
+	return new(Big)
+}
+
 // ez returns true if z == 0.
 func (z *Big) ez() bool {
 	return z.Sign() == 0

@@ -133,33 +133,34 @@ func TestBig_Cmp(t *testing.T) {
 		v    int
 	}{
 		// Simple
-		{New(1, 0), New(0, 0), greater},
-		{New(0, 0), New(1, 0), lesser},
-		{New(0, 0), New(0, 0), equal},
+		0: {New(1, 0), New(0, 0), greater},
+		1: {New(0, 0), New(1, 0), lesser},
+		2: {New(0, 0), New(0, 0), equal},
 		// Fractional
-		{New(9876, 3), New(1234, 0), lesser},
-		{New(1234, 3), New(50, 25), greater},
+		3: {New(9876, 3), New(1234, 0), lesser},
+		4: {New(1234, 3), New(50, 25), greater},
 		// Same pointers
-		{samePtr, samePtr, equal},
+		5: {samePtr, samePtr, equal},
 		// Large int vs large big.Int
-		{New(99999999999, 0), large, lesser},
-		{large, New(999999999999999999, 0), greater},
-		{New(4, 0), New(4, 0), equal},
-		{New(4, 0), new(Big).Quo(New(12, 0), New(3, 0)), equal},
+		6: {New(99999999999, 0), large, lesser},
+		7: {large, New(999999999999999999, 0), greater},
+		8: {New(4, 0), New(4, 0), equal},
+		9: {New(4, 0), new(Big).Quo(New(12, 0), New(3, 0)), equal},
 		// z.scale < 0
-		{large, new(Big).Set(large), equal},
+		10: {large, new(Big).Set(large), equal},
 		// Differing signs
-		{new(Big).Set(large).Neg(large), large, lesser},
-		{new(Big).Quo(new(Big).Set(large), New(314156, 5)), large, lesser},
+		11: {new(Big).Set(large).Neg(large), large, lesser},
+		12: {new(Big).Quo(new(Big).Set(large), New(314156, 5)), large, lesser},
+		13: {New(1234, 3), newbig(t, "1000000000000000000000000000000.234"), lesser},
 
-		/* Broken tests
+		// Broken tests
 		// Cmp does not compare non-compact numbers of different scale correctly.
-		{newbig(t, "10000000000000000000"), newbig(t, "100000000000000000000").SetScale(1), equal},
-		*/
+		14: {newbig(t, "10000000000000000000"),
+			newbig(t, "100000000000000000000").SetScale(1), equal},
 	} {
 		r := test.a.Cmp(test.b)
 		if test.v != r {
-			t.Errorf("#%d: wanted %d, got %d", i, test.v, r)
+			t.Fatalf("#%d: wanted %d, got %d", i, test.v, r)
 		}
 	}
 }
@@ -171,7 +172,7 @@ func TestBig_Cmp(t *testing.T) {
 		prec int32
 	}{
 		0:  {"-8.748656950366438", "0.000158674", 6},
-		1:  {"40.40850241721978", "354151937244564508", 18},
+		1:  {"40.40850241721978", "354151937244564830", 18},
 		2:  {"73.30000879940332", "6.82007805E+31", 9},
 		3:  {"35.89159984662575", "3868332175374135.326826", 22},
 		4:  {"-4.1512363035379", "0.0157449389235511838", 18},
@@ -222,12 +223,12 @@ func TestBig_Cmp(t *testing.T) {
 		49: {"-48.751960790015346", "6.71881134599976028512284E-22", 24},
 	}
 	for i, v := range tests {
+		x := new(Big).SetPrec(v.prec)
 		a := newbig(t, v.dec)
-		a.SetPrec(v.prec)
-		as := a.Exp(a).toString(true, upper)
-		fmt.Println(as)
-		if as != v.exp {
-			t.Fatalf("#%d: wanted %s, got %s", i, v.exp, as)
+		x.Exp(a)
+		xs := string(x.format(true, upper))
+		if xs != v.exp {
+			t.Fatalf("#%d: exp(%s): wanted %s, got %s", i, v.dec, v.exp, xs)
 		}
 	}
 }*/
@@ -435,12 +436,8 @@ func TestBig_Modf(t *testing.T) {
 		55: {"1", "1", "0"},
 		56: {"100000000000000000000", "100000000000000000000", "0"},
 		57: {"100000000000000000000.1", "100000000000000000000", "0.1"},
-
-		/* Broken tests
-		Cmp breakage, see broken test there.
-		{"100000000000000000000.0", "100000000000000000000", "0"},
-		{"0.000000000000000000001", "0", "0.000000000000000000001"},
-		*/
+		58: {"100000000000000000000.0", "100000000000000000000", "0"},
+		59: {"0.000000000000000000001", "0", "0.000000000000000000001"},
 	}
 	for i, v := range tests {
 		dec := newbig(t, v.dec)
