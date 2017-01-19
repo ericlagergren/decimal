@@ -13,37 +13,12 @@ const debug = true
 
 // alias returns a if a != b, otherwise it returns a newly-allocated Big. It
 // should be used if a *might* be able to be used for storage, but only if it
-// doesn't b.
+// doesn't b. The returned Big will have a's Context.
 func alias(a, b *Big) *Big {
 	if a != b {
 		return a
 	}
-	return new(Big)
-}
-
-// ez returns true if z == 0.
-func (z *Big) ez() bool {
-	return z.Sign() == 0
-}
-
-// ltz returns true if z < 0
-func (z *Big) ltz() bool {
-	return z.Sign() < 0
-}
-
-// ltez returns true if z <= 0
-func (z *Big) ltez() bool {
-	return z.Sign() <= 0
-}
-
-// gtz returns true if z > 0
-func (z *Big) gtz() bool {
-	return z.Sign() > 0
-}
-
-// gtez returns true if z >= 0
-func (z *Big) gtez() bool {
-	return z.Sign() >= 0
+	return new(Big).SetContext(a.Context())
 }
 
 // cmpNorm compares x and y in the range [0.1, 0.999...] and
@@ -90,9 +65,10 @@ func findScale(f float64) (precision int32) {
 	}
 
 	e := float64(1)
-	for cmp := round(f*e) / e; !math.IsNaN(cmp) &&
-		cmp != f; cmp = round(f*e) / e {
+	cmp := round(f*e) / e
+	for !math.IsNaN(cmp) && cmp != f {
 		e *= 10
+		cmp = round(f*e) / e
 	}
 	return int32(math.Ceil(math.Log10(e)))
 }

@@ -21,7 +21,7 @@ func TestDecimal_Hypot(t *testing.T) {
 	}
 	var a decimal.Big
 	for i, v := range tests {
-		a.SetPrec(v.c)
+		a.SetPrecision(v.c)
 		if got := Hypot(&a, v.p, v.q).String(); got != v.a {
 			t.Errorf("#%d: wanted %q, got %q", i, v.a, got)
 		}

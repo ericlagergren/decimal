@@ -39,3 +39,7 @@ old/
 tags
 out.txt
 test.go
+algos/
+j/
+*.txt
+[a-z].go
