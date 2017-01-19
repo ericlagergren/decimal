@@ -91,10 +91,13 @@ const (
 //go:generate stringer -type RoundingMode
 
 var (
-	ptFive = New(5, 1)
-	one    = New(1, 0)
-	two    = New(2, 0)
-	max64  = New(math.MaxInt64, 0)
+	zerob = New(0, 0) // 'b' suffix because 'zero' is a form const.
+	one   = New(1, 0)
+	two   = New(2, 0)
+	three = New(3, 0)
+	four  = New(4, 0)
+	six   = New(6, 0)
+	max64 = New(math.MaxInt64, 0)
 
 	oneInt = big.NewInt(1)
 	twoInt = big.NewInt(2)

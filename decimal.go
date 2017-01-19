@@ -1,12 +1,12 @@
-// Package decimal provides a high-performance, arbitrary precision, fixed-point
-// decimal library.
+// Package decimal provides a high-performance, arbitrary precision,
+// fixed-point decimal library.
 //
 // The following type is supported:
 //
 // 		Big decimal numbers
 //
 // The zero value for a Big corresponds with 0. Its method naming is the same
-// as :math/big's, meaning:
+// as math/big's, meaning:
 //
 //  	func (z *T) SetV(v V) *T          // z = v
 //  	func (z *T) Unary(x *T) *T        // z = unary x
@@ -19,6 +19,8 @@
 //
 // 		Will panic on NaN values, similar to math/big.Float
 //
+// In general, operations that use the receiver z as storage will not modify
+// z's Context.
 package decimal
 
 import (
@@ -66,12 +68,24 @@ type Big struct {
 // form represents whether the Big decimal is normal, infinite, or NaN.
 type form byte
 
-// Do not change these constants -- their order is important.
 const (
-	zero form = iota
-	finite
-	inf
+	zero form = 0 // this constant must remain 0.
+
+	finite form = 1 << 1
+
+	// Reserve three bits for Inf state:
+	//
+	//    100: form is Inf
+	//    110: form is +Inf
+	//    101: form is -Inf
+	//
+	// *Never* assign inf, only pinf and ninf.
+	inf  form = 1 << 2
+	pinf form = inf | 1<<3
+	ninf form = inf | 1<<4
 )
+
+//go:generate stringer -type=form
 
 // An ErrNaN panic is raised by a Decimal operation that would lead to a NaN
 // under IEEE-754 rules. An ErrNaN implements the error interface.
@@ -107,7 +121,7 @@ func (x *Big) isEvenInt() bool {
 //  	New(4321, 5) // 0.04321
 //  	New(-1, 0)   // -1
 //  	New(3, -10)  // 30,000,000,000
-//al with the given value and scale.
+//
 func New(value int64, scale int32) *Big {
 	return new(Big).SetMantScale(value, scale)
 }
@@ -123,7 +137,6 @@ func (z *Big) Abs(x *Big) *Big {
 		z.unscaled.Abs(&x.unscaled)
 	}
 	z.scale = x.scale
-	z.ctx = x.ctx
 	z.form = finite
 	return z
 }
@@ -144,8 +157,7 @@ func (z *Big) Add(x, y *Big) *Big {
 		return z.addBig(x, y)
 	}
 
-	if x.form == inf && y.form == inf &&
-		x.SignBit() != y.SignBit() {
+	if x.form&inf != 0 && y.form&inf != 0 && x.form&pinf != y.form&pinf {
 		// +Inf + -Inf
 		// -Inf + +Inf
 		z.form = zero
@@ -158,7 +170,7 @@ func (z *Big) Add(x, y *Big) *Big {
 		return z
 	}
 
-	if x.form == inf || y.form == zero {
+	if x.form&inf != 0 || y.form == zero {
 		// ±Inf + y
 		// x + ±0
 		return z.Set(x)
@@ -400,10 +412,32 @@ func (x *Big) Context() Context {
 	return x.ctx
 }
 
+// Copy sets z to a copy of x and returns z.
+func (z *Big) Copy(x *Big) *Big {
+	if z != x {
+		z.compact = x.compact
+		z.ctx = x.ctx
+		z.form = x.form
+		z.scale = x.scale
+
+		// Copy over unscaled if need be.
+		if x.isInflated() {
+			z.unscaled.Set(&x.unscaled)
+		}
+	}
+	return z
+}
+
 // Exp sets z to e ** x and returns z.
-/*func (z *Big) Exp(x *Big) *Big {
-	if x.form == inf {
-		z.form = inf
+func (z *Big) Exp(x *Big) *Big {
+	if x.form&inf != 0 {
+		// e ** +Inf = +Inf
+		// e ** -Inf = 0
+		if x.form&pinf != 0 {
+			z.form = pinf
+		} else {
+			z.form = zero
+		}
 		return z
 	}
 
@@ -412,31 +446,22 @@ func (x *Big) Context() Context {
 		return z.SetMantScale(1, 0)
 	}
 
-	if x.SignBit() {
+	if x.Signbit() {
 		// 1 / (e ** -x)
-		return z.Quo(one, z.Exp(new(Big).Neg(x)))
+		return z.Quo(one, z.Exp(z.Neg(x)))
 	}
-
-	intg, frac := new(Big).Modf(x)
-	if intg.form == zero {
-		return z.Set(frac).taylor(x)
+	// TODO: this allocates a bit. Try and reduce some allocs.
+	g := expg{
+		recv: z,
+		z:    x,
+		pow:  new(Big).Mul(x, x),
+		m:    -1,
+		mv:   new(Big),
+		t:    Term{A: new(Big), B: new(Big)},
+		am:   new(Big),
 	}
-
-	zz := alias(z, x).SetPrec(z.Context().Precision())
-
-	// n = e ** (1 + frac / integ)
-	n := zz.taylor(zz.Add(zz.Quo(frac, intg), one))
-
-	r := New(1, 0)
-	zp := z.ctx.prec()
-	fmt.Println(zp)
-	var tmp Big
-	for intg.Cmp(max64) >= 0 {
-		r.Mul(r, tmp.powInt(n, math.MaxInt64)) //.Round(zp)
-		frac.Sub(frac, max64)
-	}
-	return z.Set(zz.Mul(r, new(Big).powInt(n, intg.compact)).Round(zp))
-}*/
+	return z.Set(Lentz(&g, z.Context().Precision()))
+}
 
 // Format implements the fmt.Formatter interface.
 // func (z *Big) Format(s fmt.State, r rune) {
@@ -451,13 +476,17 @@ func (x *Big) Context() Context {
 // }
 
 // IsBig returns true if x, with its fractional part truncated, cannot fit
-// inside an int64.
+// inside an int64. If x is an infinity the result is undefined.
 func (x *Big) IsBig() bool {
+	if x.form != finite {
+		return false
+	}
 	return (x.isCompact() && (x.scale < -19 || x.scale > 19)) ||
 		(x.unscaled.Cmp(c.MinInt64) < 0 || x.unscaled.Cmp(c.MaxInt64) >= 0)
 }
 
-// Int returns x as a big.Int, truncating the fractional portion, if any.
+// Int returns x as a big.Int, truncating the fractional portion, if any. If
+// x is an infinity the result is undefined.
 func (x *Big) Int() *big.Int {
 	var b big.Int
 	if x.isCompact() {
@@ -475,7 +504,8 @@ func (x *Big) Int() *big.Int {
 	return b.Div(&b, &p)
 }
 
-// Int64 returns x as an int64, truncating the fractional portion, if any.
+// Int64 returns x as an int64, truncating the fractional portion, if any. If
+// x is an infinity the result is undefined.
 func (x *Big) Int64() int64 {
 	var b int64
 	if x.isCompact() {
@@ -489,8 +519,8 @@ func (x *Big) Int64() int64 {
 	if x.scale < 0 {
 		// Undefined. checked.MulPow10 returns 0 when ok is false.
 		// IMO, 0 is a better choice than 1 << 64 - 1 because it could cause a
-		// division by zero panic which would be a clear indication something is
-		// incorrect.
+		// division by zero panic which would be a clear indication something
+		// is incorrect.
 		b, _ = checked.MulPow10(b, -x.scale)
 		return b
 	}
@@ -509,7 +539,7 @@ func (x *Big) IsFinite() bool {
 
 // IsInf returns true if x is an infinity.
 func (x *Big) IsInf() bool {
-	return x.form == inf
+	return x.form&inf != 0
 }
 
 // IsInt reports whether x is an integer. Inf values are not integers.
@@ -530,7 +560,7 @@ func (x *Big) IsInt() bool {
 	if x.ltez() {
 		panic(ErrNaN{"base-e logarithm of x <= 0"})
 	}
-	if x.form == inf {
+	if x.form &inf!=0 {
 		z.form = inf
 		return z
 	}
@@ -569,22 +599,26 @@ func (z *Big) Mul(x, y *Big) *Big {
 		return z.mulBig(x, y)
 	}
 
-	if x.form == zero && y.form == inf || x.form == inf && y.form == zero {
-		// ±0 * ±Inf
-		// ±Inf * ±0
+	if x.form == zero && y.form&inf != 0 || x.form&inf != 0 && y.form == 0 {
+		// 0 * ±Inf
+		// ±Inf * 0
 		z.form = zero
 		panic(ErrNaN{"multiplication of zero with infinity"})
 	}
 
-	if x.form == inf || y.form == inf {
+	if x.form&inf != 0 || y.form&inf != 0 {
 		// ±Inf * y
 		// x * ±Inf
-		z.form = inf
+		if (z.form&ninf|y.form)&ninf != 0 {
+			z.form = ninf
+		} else {
+			z.form = pinf
+		}
 		return z
 	}
 
-	// ±0 * y
-	// x * ±0
+	// 0 * y
+	// x * 0
 	z.form = zero
 	return z
 }
@@ -592,7 +626,12 @@ func (z *Big) Mul(x, y *Big) *Big {
 func (z *Big) mulCompact(x, y *Big) *Big {
 	scale, ok := checked.Add32(x.scale, y.scale)
 	if !ok {
-		z.form = inf
+		// x + -y ∈ {-1<<31, ..., 1<<31-1}
+		if x.scale > 0 {
+			z.form = pinf
+		} else {
+			z.form = ninf
+		}
 		return z
 	}
 
@@ -615,7 +654,12 @@ func (z *Big) mulMixed(comp, non *Big) *Big {
 	if comp.scale == non.scale {
 		scale, ok := checked.Add32(comp.scale, non.scale)
 		if !ok {
-			z.form = inf
+			// x + -y ∈ {-1<<31, ..., 1<<31-1}
+			if comp.scale > 0 {
+				z.form = pinf
+			} else {
+				z.form = ninf
+			}
 			return z
 		}
 		z.unscaled.Mul(big.NewInt(comp.compact), &non.unscaled)
@@ -633,7 +677,12 @@ func (z *Big) mulMixed(comp, non *Big) *Big {
 func (z *Big) mulBig(x, y *Big) *Big {
 	scale, ok := checked.Add32(x.scale, y.scale)
 	if !ok {
-		z.form = inf
+		// x + -y ∈ {-1<<31, ..., 1<<31-1}
+		if x.scale > 0 {
+			z.form = pinf
+		} else {
+			z.form = ninf
+		}
 		return z
 	}
 	z.unscaled.Mul(&x.unscaled, &y.unscaled)
@@ -653,14 +702,13 @@ func (z *Big) Neg(x *Big) *Big {
 	}
 	z.scale = x.scale
 	z.form = x.form
-	z.ctx = x.ctx
 	return z
 }
 
 // Prec returns the precision of x. That is, it returns the number of digits
 // in the unscaled form of x. 0 has a precision of 1.
 func (x *Big) Prec() int {
-	if x.form == inf {
+	if x.form&inf != 0 {
 		return 0
 	}
 	if x.form == zero {
@@ -701,23 +749,38 @@ func (z *Big) Quo(x, y *Big) *Big {
 		return z.quoBig(x, y)
 	}
 
-	if x.form == zero && y.form == zero || x.form == inf && y.form == inf {
-		// ±0 / ±0
+	if x.form^y.form == zero || x.form&y.form != 0 {
+		// 0 / 0
 		// ±Inf / ±Inf
 		z.form = zero
 		panic(ErrNaN{"division of zero by zero or infinity by infinity"})
 	}
 
-	if x.form == zero || y.form == inf {
-		// ±0 / y
+	if x.form == zero || y.form&inf != 0 {
+		// 0 / y
 		// x / ±Inf
 		z.form = zero
 		return z
 	}
 
-	// x / ±0
+	// x / 0
 	// ±Inf / y
-	z.form = inf
+
+	// The spec requires the resulting infinity's sign to match
+	// the  "exclusive or of the signs of the operands."
+	// http://speleotrove.com/decimal/daops.html#refdivide
+	//
+	// Since we do not have -0, y's sign is always 1.
+	if x.Signbit() {
+		z.form = ninf
+	} else {
+		z.form = pinf
+	}
+
+	if y.form == zero {
+		// Panic with ErrNaN since x / 0 is technically undefined.
+		panic(ErrNaN{"division by zero"})
+	}
 	return z
 }
 
@@ -740,25 +803,22 @@ func (z *Big) quoAndRound(x, y int64) *Big {
 	if r != 0 && z.needsInc(y, r, sign > 0, z.compact&1 != 0) {
 		z.compact += sign
 	}
-	return z.Round(z.ctx.prec())
+	return z.Round(z.Context().Precision())
 }
 
 func (z *Big) quoCompact(x, y *Big) *Big {
-	if x.compact == 0 {
-		if y.compact == 0 {
-			panic(ErrNaN{"division of zero by zero"})
-		}
-		z.form = 0
-		return z
-	}
-
 	scale, ok := checked.Sub32(x.scale, y.scale)
 	if !ok {
-		z.form = inf
+		// -x - y ∈ {-1<<31, ..., 1<<31-1}
+		if x.scale < 0 {
+			z.form = pinf
+		} else {
+			z.form = ninf
+		}
 		return z
 	}
 
-	zp := z.ctx.prec()
+	zp := z.Context().Precision()
 	xp := int32(x.Prec())
 	yp := int32(y.Prec())
 
@@ -769,14 +829,27 @@ func (z *Big) quoCompact(x, y *Big) *Big {
 
 	scale, ok = checked.Int32(int64(scale) + int64(yp) - int64(xp) + int64(zp))
 	if !ok {
-		z.form = inf
+		// The wraparound from int32(int64(x)) where x ∉ {-1<<31, ..., 1<<31-1}
+		// will swap its sign.
+		//
+		// TODO: for some reason I am not 100% sure the above accurate.
+		if scale > 0 {
+			z.form = ninf
+		} else {
+			z.form = pinf
+		}
 		return z
 	}
 	z.scale = scale
 
 	shift, ok := checked.SumSub(zp, yp, xp)
 	if !ok {
-		z.form = inf
+		// TODO: See above comment about wraparound.
+		if scale > 0 {
+			z.form = ninf
+		} else {
+			z.form = pinf
+		}
 		return z
 	}
 
@@ -793,7 +866,12 @@ func (z *Big) quoCompact(x, y *Big) *Big {
 	// shift < 0
 	ns, ok := checked.Sub32(xp, zp)
 	if !ok {
-		z.form = inf
+		// -x - y ∈ {-1<<31, ..., 1<<31-1}
+		if xp < 0 {
+			z.form = pinf
+		} else {
+			z.form = ninf
+		}
 		return z
 	}
 
@@ -803,7 +881,12 @@ func (z *Big) quoCompact(x, y *Big) *Big {
 	}
 	shift, ok = checked.Sub32(ns, yp)
 	if !ok {
-		z.form = inf
+		// -x - y ∈ {-1<<31, ..., 1<<31-1}
+		if ns < 0 {
+			z.form = pinf
+		} else {
+			z.form = ninf
+		}
 		return z
 	}
 	ys, ok = checked.MulPow10(ys, shift)
@@ -817,11 +900,16 @@ func (z *Big) quoCompact(x, y *Big) *Big {
 func (z *Big) quoBig(x, y *Big) *Big {
 	scale, ok := checked.Sub32(x.scale, y.scale)
 	if !ok {
-		z.form = inf
+		// -x - y ∈ {-1<<31, ..., 1<<31-1}
+		if x.scale < 0 {
+			z.form = pinf
+		} else {
+			z.form = ninf
+		}
 		return z
 	}
 
-	zp := z.ctx.prec()
+	zp := z.Context().Precision()
 	xp := int32(x.Prec())
 	yp := int32(y.Prec())
 
@@ -832,14 +920,27 @@ func (z *Big) quoBig(x, y *Big) *Big {
 
 	scale, ok = checked.Int32(int64(scale) + int64(yp) - int64(xp) + int64(zp))
 	if !ok {
-		z.form = inf
+		// The wraparound from int32(int64(x)) where x ∉ {-1<<31, ..., 1<<31-1}
+		// will swap its sign.
+		//
+		// TODO: for some reason I am not 100% sure the above accurate.
+		if scale > 0 {
+			z.form = ninf
+		} else {
+			z.form = pinf
+		}
 		return z
 	}
 	z.scale = scale
 
 	shift, ok := checked.SumSub(zp, yp, xp)
 	if !ok {
-		z.form = inf
+		// TODO: See above comment about wraparound.
+		if scale > 0 {
+			z.form = ninf
+		} else {
+			z.form = pinf
+		}
 		return z
 	}
 	if shift > 0 {
@@ -850,12 +951,22 @@ func (z *Big) quoBig(x, y *Big) *Big {
 	// shift < 0
 	ns, ok := checked.Sub32(xp, zp)
 	if !ok {
-		z.form = inf
+		// -x - y ∈ {-1<<31, ..., 1<<31-1}
+		if xp < 0 {
+			z.form = pinf
+		} else {
+			z.form = ninf
+		}
 		return z
 	}
 	shift, ok = checked.Sub32(ns, yp)
 	if !ok {
-		z.form = inf
+		// -x - y ∈ {-1<<31, ..., 1<<31-1}
+		if ns < 0 {
+			z.form = pinf
+		} else {
+			z.form = ninf
+		}
 		return z
 	}
 	ys := checked.MulBigPow10(new(big.Int).Set(&y.unscaled), shift)
@@ -865,6 +976,7 @@ func (z *Big) quoBig(x, y *Big) *Big {
 func (z *Big) quoBigAndRound(x, y *big.Int) *Big {
 	z.compact = c.Inflated
 
+	// TODO: perhaps use a pool for the allocated big.Int?
 	q, r := z.unscaled.QuoRem(x, y, new(big.Int))
 
 	if z.ctx.mode == ToZero {
@@ -880,7 +992,7 @@ func (z *Big) quoBigAndRound(x, y *big.Int) *Big {
 	if r.Sign() != 0 && z.needsIncBig(y, r, sign > 0, odd) {
 		z.unscaled.Add(&z.unscaled, big.NewInt(sign))
 	}
-	return z.Round(z.ctx.prec())
+	return z.Round(z.Context().Precision())
 }
 
 // Round rounds z down to n digits of precision and returns z. The result is
@@ -894,7 +1006,12 @@ func (z *Big) Round(n int32) *Big {
 
 	shift, ok := checked.Sub(int64(zp), int64(n))
 	if !ok {
-		z.form = inf
+		// -x - y ∈ {-1<<63, ..., 1<<63-1}
+		if zp < 0 {
+			z.form = pinf
+		} else {
+			z.form = ninf
+		}
 		return z
 	}
 	if shift <= 0 {
@@ -918,11 +1035,11 @@ func (x *Big) Scale() int32 {
 	return x.scale
 }
 
-// Set sets z to x and returns z.
+// Set sets z to x and returns z. The result might be rounded depending on z's
+// Context.
 func (z *Big) Set(x *Big) *Big {
 	if z != x {
 		z.compact = x.compact
-		z.ctx = x.ctx
 		z.form = x.form
 		z.scale = x.scale
 
@@ -930,6 +1047,7 @@ func (z *Big) Set(x *Big) *Big {
 		if x.isInflated() {
 			z.unscaled.Set(&x.unscaled)
 		}
+		z.Round(z.Context().Precision())
 	}
 	return z
 }
@@ -983,10 +1101,14 @@ func (z *Big) SetFloat64(value float64) *Big {
 	}
 
 	if math.IsNaN(value) {
-		panic(ErrNaN{"NewFromFloat(NaN)"})
+		panic(ErrNaN{"SetFloat64(NaN)"})
 	}
-	if math.IsInf(value, 0) {
-		z.form = inf
+	if math.IsInf(value, +1) {
+		z.form = pinf
+		return z
+	}
+	if math.IsInf(value, -1) {
+		z.form = ninf
 		return z
 	}
 
@@ -1008,8 +1130,12 @@ func (z *Big) SetFloat64(value float64) *Big {
 
 // SetInf sets z to -Inf if signbit is set, +Inf is signbit is not set, and
 // returns z.
-func (x *Big) SetInf() *Big {
-	x.form = inf
+func (x *Big) SetInf(signbit bool) *Big {
+	if signbit {
+		x.form = ninf
+	} else {
+		x.form = pinf
+	}
 	return x
 }
 
@@ -1038,7 +1164,7 @@ func (z *Big) SetMode(mode RoundingMode) *Big {
 // This method is distinct from Prec. This sets the internal context which
 // dictates rounding and digits after the radix for lossy operations. The
 // latter describes the number of digits in the decimal.
-func (z *Big) SetPrec(prec int32) *Big {
+func (z *Big) SetPrecision(prec int32) *Big {
 	z.ctx.precision = prec
 	return z
 }
@@ -1049,9 +1175,8 @@ func (z *Big) SetScale(scale int32) *Big {
 	return z
 }
 
-// SetString sets z to the value of s, returning z and a bool
-// indicating success. s must be a string in one of the following
-// formats:
+// SetString sets z to the value of s, returning z and a bool indicating
+// success. s must be a string in one of the following formats:
 //
 // 	1.234
 // 	1234
@@ -1062,13 +1187,16 @@ func (z *Big) SetScale(scale int32) *Big {
 // 	+Inf
 // 	-Inf
 //
-//	No distinction is made between +Inf and -Inf.
+// Inf values are not required to be case-sensitive and no distinction is made
+// between +Inf and Inf.
 func (z *Big) SetString(s string) (*Big, bool) {
 	// Inf, +Inf, or -Inf.
-	if strings.EqualFold(s, "Inf") ||
-		(len(s) == 4 && (s[0] == '+' || s[0] == '-') &&
-			strings.EqualFold(s[1:], "Inf")) {
-		z.form = inf
+	if strings.EqualFold(s, "Inf") || strings.EqualFold(s, "+Inf") {
+		z.form = pinf
+		return z, true
+	}
+	if strings.EqualFold(s, "-Inf") {
+		z.form = ninf
 		return z, true
 	}
 
@@ -1131,9 +1259,19 @@ func (z *Big) SetString(s string) (*Big, bool) {
 //	+1 if x >  0
 //
 func (x *Big) Sign() int {
+	// x = 0
 	if x.form == zero {
 		return 0
 	}
+	// x = +Inf
+	// x = -Inf
+	if x.form != finite {
+		if x.form&ninf != 0 {
+			return -1
+		}
+		return +1
+	}
+	// x is finite
 	if x.isCompact() {
 		// See: https://github.com/golang/go/issues/16203
 		if runtime.GOARCH == "amd64" {
@@ -1152,10 +1290,15 @@ func (x *Big) Sign() int {
 	return x.unscaled.Sign()
 }
 
-// SignBit returns true if x is negative.
-func (x *Big) SignBit() bool {
-	return (x.isCompact() && x.compact < 0) ||
-		(x.isInflated() && x.unscaled.Sign() < 0)
+// Signbit returns true if x is negative or negative infinity.
+func (x *Big) Signbit() bool {
+	if x.form&ninf != 0 {
+		return true
+	}
+	if x.isCompact() {
+		return x.compact < 0
+	}
+	return x.unscaled.Sign() < 0
 }
 
 // String returns the scientific string representation of x.
@@ -1179,7 +1322,7 @@ func (x *Big) format(sci bool, opts byte) []byte {
 		return []byte("<nil>")
 	}
 	if x.IsInf() {
-		if x.SignBit() {
+		if x.Signbit() {
 			return []byte("-Inf")
 		}
 		return []byte("+Inf")
@@ -1350,13 +1493,14 @@ func trim(b []byte) []byte {
 // Sqrt will panic on negative values since Big cannot
 // represent imaginary numbers.
 func (z *Big) Sqrt(x *Big) *Big {
-	if x.SignBit() {
-		panic("math.Sqrt: cannot take square root of negative number")
+	if x.Signbit() {
+		panic(ErrNaN{"square root of negative number"})
 	}
 
 	switch {
-	case x.form == inf:
-		z.form = inf
+	// x = +Inf
+	case x.form&inf != 0:
+		z.form = pinf
 		return z
 	case x.form == zero:
 		z.form = zero
@@ -1367,22 +1511,23 @@ func (z *Big) Sqrt(x *Big) *Big {
 	// having to inflate x and can possibly use can use the hardware SQRT.
 	// Note that we can only catch perfect squares that aren't big.Ints.
 	if sq, ok := perfectSquare(x); ok {
-		z.ctx = x.ctx
 		return z.SetMantScale(sq, 0)
 	}
 
-	zp := z.ctx.prec()
+	zp := z.Context().Precision()
 
 	// Temporary inflation. Should be enough to accurately determine the sqrt
 	// with at least zp digits after the radix.
 	zpadj := int(zp) << 1
 
-	zctx := z.ctx
 	tmp := alias(z, x).Set(x)
-	tmp.ctx = zctx
 
 	if !shiftRadixRight(tmp, zpadj) {
-		z.form = inf
+		if tmp.Signbit() {
+			z.form = ninf
+		} else {
+			z.form = pinf
+		}
 		return z
 	}
 
@@ -1446,8 +1591,7 @@ func (z *Big) Sub(x, y *Big) *Big {
 		return z.Add(x, new(Big).Neg(y))
 	}
 
-	if x.form == inf && y.form == inf &&
-		x.Sign() == y.Sign() {
+	if x.form&inf != 0 && x.form == y.form {
 		// +Inf - +Inf
 		// -Inf - -Inf
 		z.form = zero
@@ -1460,7 +1604,7 @@ func (z *Big) Sub(x, y *Big) *Big {
 		return z
 	}
 
-	if x.form == inf || y.form == zero {
+	if x.form&inf != 0 || y.form == zero {
 		// ±Inf - y
 		// x - ±0
 		return z.Set(x)

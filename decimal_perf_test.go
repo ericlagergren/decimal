@@ -50,7 +50,7 @@ var cs = []*Big{
 var b Big
 
 func bench(n int, cs []*Big, prec int32) {
-	b.SetPrec(prec)
+	b.SetPrecision(prec)
 	for i := 0; i < n; i++ {
 		b.Sqrt(cs[i%len(cs)])
 	}

@@ -2,11 +2,13 @@ package arith
 
 import "math/big"
 
+// Abs returns |x|.
 func Abs(x int64) int64 {
 	mask := -int64(uint64(x) >> 63)
 	return (x + mask) ^ mask
 }
 
+// BigAbs returns |x|.
 func BigAbs(x *big.Int) *big.Int {
 	m := make([]big.Word, len(x.Bits()))
 	copy(m, x.Bits())

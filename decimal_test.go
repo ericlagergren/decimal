@@ -171,7 +171,7 @@ func TestBig_Cmp(t *testing.T) {
 		exp  string
 		prec int32
 	}{
-		0:  {"-8.748656950366438", "0.000158674", 6},
+		0:  {"-8.748656950366438", "0.000158675", 6},
 		1:  {"40.40850241721978", "354151937244564830", 18},
 		2:  {"73.30000879940332", "6.82007805E+31", 9},
 		3:  {"35.89159984662575", "3868332175374135.326826", 22},
@@ -223,7 +223,7 @@ func TestBig_Cmp(t *testing.T) {
 		49: {"-48.751960790015346", "6.71881134599976028512284E-22", 24},
 	}
 	for i, v := range tests {
-		x := new(Big).SetPrec(v.prec)
+		x := new(Big).SetPrecision(v.prec)
 		a := newbig(t, v.dec)
 		x.Exp(a)
 		xs := string(x.format(true, upper))
@@ -466,7 +466,7 @@ func TestBig_Mul(t *testing.T) {
 }
 
 func TestBig_Prec(t *testing.T) {
-	// confirmaed to work inside internal/arith/intlen_test.go
+	// confirmed to work inside internal/arith/intlen_test.go
 }
 
 func TestBig_Quo(t *testing.T) {
@@ -509,9 +509,9 @@ func TestBig_Quo(t *testing.T) {
 	}
 	for i, v := range tests {
 		if v.p != 0 {
-			v.a.SetPrec(v.p)
+			v.a.SetPrecision(v.p)
 		} else {
-			v.a.SetPrec(DefaultPrec)
+			v.a.SetPrecision(DefaultPrec)
 		}
 		q := v.a.Quo(v.a, v.b)
 		if qs := q.String(); qs != v.r {
@@ -631,7 +631,7 @@ func TestBig_SignBit(t *testing.T) {
 		3: {a: new(Big).Neg(x), b: true},
 	}
 	for i, v := range tests {
-		sb := v.a.SignBit()
+		sb := v.a.Signbit()
 		if sb != v.b {
 			t.Fatalf("#%d: wanted %t, got %t", i, v.b, sb)
 		}
@@ -680,7 +680,7 @@ func TestSqrt(t *testing.T) {
 		12: {"1.8253080916808550e+00", "1.3510396336454586038718314", 25},
 	} {
 		var b Big
-		b.SetPrec(test.prec)
+		b.SetPrecision(test.prec)
 		a, ok := b.SetString(test.v)
 		if !ok {
 			t.Fatal("wanted true, got false")
