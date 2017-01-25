@@ -133,21 +133,40 @@ const (
 	Invalid
 )
 
-const maxExceptionLen = 1
-
-var valToException = map[string]Exception{
-	"x":  Inexact,
-	"u":  Underflow, // tininess and "extraordinary" error
-	"v":  Underflow, // tininess and inexactness after rounding
-	"w":  Underflow, // tininess and inexactness prior to rounding
-	"o":  Overflow,
-	"z":  DivByZero,
-	"i":  Invalid,
-	"xo": Inexact | Overflow,
-	"xu": Inexact | Underflow,
+var exceptions = [...]struct {
+	e Exception
+	s string
+}{
+	{Inexact, "Inexact"},
+	{Underflow, "Underflow"},
+	{Overflow, "Overflow"},
+	{DivByZero, "DivByZero"},
+	{Invalid, "Invalid"},
 }
 
-const maxModeLen = 2
+func (e Exception) String() string {
+	if e == None {
+		return "None"
+	}
+
+	var res string
+	for _, x := range exceptions {
+		if e&x.e != 0 {
+			res += x.s + " | "
+		}
+	}
+	return strings.TrimSuffix(res, " | ")
+}
+
+var valToException = map[string]Exception{
+	"x": Inexact,
+	"u": Underflow, // tininess and "extraordinary" error
+	"v": Underflow, // tininess and inexactness after rounding
+	"w": Underflow, // tininess and inexactness prior to rounding
+	"o": Overflow,
+	"z": DivByZero,
+	"i": Invalid,
+}
 
 var valToMode = map[string]big.RoundingMode{
 	">":  big.ToPositiveInf,
@@ -254,4 +273,4 @@ var valToOp = map[string]Op{
 	"eq":     Equiv,
 }
 
-//go:generate stringer -type=Exception,Op
+//go:generate stringer -type=Op

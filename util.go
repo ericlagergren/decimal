@@ -21,8 +21,8 @@ func alias(a, b *Big) *Big {
 	return new(Big).SetContext(a.Context())
 }
 
-// cmpNorm compares x and y in the range [0.1, 0.999...] and
-// returns true if x > y.
+// cmpNorm compares x and y in the range [0.1, 0.999...] and returns true if x
+// > y.
 func cmpNorm(x int64, xs int32, y int64, ys int32) (ok bool) {
 	if debug && (x == 0 || y == 0) {
 		panic("x and/or y cannot be zero")
@@ -43,8 +43,8 @@ func cmpNorm(x int64, xs int32, y int64, ys int32) (ok bool) {
 	return true
 }
 
-// cmpNormBig compares x and y in the range [0.1, 0.999...] and
-// returns true if x > y.
+// cmpNormBig compares x and y in the range [0.1, 0.999...] and returns true if
+// x > y.
 func cmpNormBig(x *big.Int, xs int32, y *big.Int, ys int32) (ok bool) {
 	diff := xs - ys
 	if diff < 0 {
@@ -123,13 +123,4 @@ func bigIntFromFloat(f float64) *big.Int {
 	var a big.Int
 	a.SetUint64(mantissa)
 	return a.Lsh(&a, uint(shift))
-}
-
-func shiftRadixRight(x *Big, n int) bool {
-	ns, ok := checked.Sub32(x.Scale(), int32(n))
-	if !ok {
-		return false
-	}
-	x.SetScale(ns)
-	return true
 }

@@ -3,24 +3,34 @@
 //
 // The following type is supported:
 //
-// 		Big decimal numbers
+//     Big decimal numbers
 //
 // The zero value for a Big corresponds with 0. Its method naming is the same
 // as math/big's, meaning:
 //
-//  	func (z *T) SetV(v V) *T          // z = v
-//  	func (z *T) Unary(x *T) *T        // z = unary x
-//  	func (z *T) Binary(x, y *T) *T    // z = x binary y
-//  	func (x *T) Pred() P              // p = pred(x)
+//     func (z *T) SetV(v V) *T          // z = v
+//     func (z *T) Unary(x *T) *T        // z = unary x
+//     func (z *T) Binary(x, y *T) *T    // z = x binary y
+//     func (x *T) Pred() P              // p = pred(x)
 //
 // In general, its conventions will mirror math/big's.
 //
+// In general, operations that use the receiver z as storage will not modify
+// z's Context. Additionally, the arguments to Binary and Unary methods are
+// allowed to alias, so the following is valid:
+//
+//     x := New(1, 0)
+//     x.Add(x, x) // x == 2
+//
 // Compared to other decimal libraries, this package:
 //
-// 		Will panic on NaN values, similar to math/big.Float
+//     1. Does not have signals* or traps
+//     2. Panics on NaN values† (e.g., +Inf + -Inf, x / 0)
+//     3. Does not make a distinction between 0 and -0
+//     4. Has only mutable decimals (for efficiency's sake)
 //
-// In general, operations that use the receiver z as storage will not modify
-// z's Context.
+//     *: see #2
+//     †: and usually sets those values to 0
 package decimal
 
 import (
@@ -69,20 +79,29 @@ type Big struct {
 type form byte
 
 const (
-	zero form = 0 // this constant must remain 0.
+	zero   form = 0 // this constant must remain 0.
+	finite form = 1
 
-	finite form = 1 << 1
-
-	// Reserve three bits for Inf state:
+	// Reserve the top three bits for Inf state:
 	//
-	//    100: form is Inf
-	//    110: form is +Inf
-	//    101: form is -Inf
+	//    00000100 = Inf
+	//    00000110 = +Inf
+	//    00000101 = -Inf
 	//
 	// *Never* assign inf, only pinf and ninf.
-	inf  form = 1 << 2
-	pinf form = inf | 1<<3
-	ninf form = inf | 1<<4
+	//
+	// Note: if mode forms are added various form operations will need to be
+	// revisited. Right now there are some operations running with the
+	// assumption that the only state the form can be in is:
+	//
+	// 	- zero
+	// 	- finite
+	// 	- pinf
+	// 	- ninf
+	//
+	inf  form = 1 << 5
+	pinf form = inf | 1<<6
+	ninf form = inf | 1<<7
 )
 
 //go:generate stringer -type=form
@@ -91,11 +110,11 @@ const (
 // under IEEE-754 rules. An ErrNaN implements the error interface.
 type ErrNaN struct {
 	// TODO: Perhaps use math/big.ErrNaN if possible in the future?
-	msg string
+	Msg string
 }
 
 func (e ErrNaN) Error() string {
-	return e.msg
+	return e.Msg
 }
 
 // These methods are here to prevent typos.
@@ -157,7 +176,7 @@ func (z *Big) Add(x, y *Big) *Big {
 		return z.addBig(x, y)
 	}
 
-	if x.form&inf != 0 && y.form&inf != 0 && x.form&pinf != y.form&pinf {
+	if (x.form&y.form)&inf == inf && x.form&pinf != y.form&pinf {
 		// +Inf + -Inf
 		// -Inf + +Inf
 		z.form = zero
@@ -246,9 +265,8 @@ func (z *Big) addMixed(comp, non *Big) *Big {
 		}
 		return z
 	}
-	// Since we have to rescale we need to add two big.Ints
-	// together because big.Int doesn't have an API for
-	// increasing its value by an integer.
+	// Since we have to rescale we need to add two big.Ints together because
+	// big.Int doesn't have an API for increasing its value by an integer.
 	return z.addBig(&Big{
 		unscaled: *big.NewInt(comp.compact),
 		scale:    comp.scale,
@@ -276,8 +294,13 @@ func (z *Big) addBig(x, y *Big) *Big {
 // log2(10)
 const ln210 = 3.321928094887362347870319429489390175864831393024580612054
 
-// BitLen returns the absolute value of x in bits.
+// BitLen returns the absolute value of x in bits. The result is undefined if
+// x is an infinity.
 func (x *Big) BitLen() int {
+	if x.form != finite {
+		return 0
+	}
+
 	// If using an artificially inflated number determine the
 	// bitlen using the number of digits.
 	//
@@ -306,8 +329,8 @@ func (z *Big) Cmp(x *Big) int {
 		return 0
 	}
 
-	// Fast path: different signs. (Catches both forms == zero.)
-
+	// Fast path: different signs. Catches non-finite forms like zero and
+	// ±Inf.
 	zs := z.Sign()
 	xs := x.Sign()
 	switch {
@@ -428,41 +451,6 @@ func (z *Big) Copy(x *Big) *Big {
 	return z
 }
 
-// Exp sets z to e ** x and returns z.
-func (z *Big) Exp(x *Big) *Big {
-	if x.form&inf != 0 {
-		// e ** +Inf = +Inf
-		// e ** -Inf = 0
-		if x.form&pinf != 0 {
-			z.form = pinf
-		} else {
-			z.form = zero
-		}
-		return z
-	}
-
-	if x.form == zero {
-		// e ** 0 == 1
-		return z.SetMantScale(1, 0)
-	}
-
-	if x.Signbit() {
-		// 1 / (e ** -x)
-		return z.Quo(one, z.Exp(z.Neg(x)))
-	}
-	// TODO: this allocates a bit. Try and reduce some allocs.
-	g := expg{
-		recv: z,
-		z:    x,
-		pow:  new(Big).Mul(x, x),
-		m:    -1,
-		mv:   new(Big),
-		t:    Term{A: new(Big), B: new(Big)},
-		am:   new(Big),
-	}
-	return z.Set(Lentz(&g, z.Context().Precision()))
-}
-
 // Format implements the fmt.Formatter interface.
 // func (z *Big) Format(s fmt.State, r rune) {
 // 	switch r {
@@ -481,13 +469,20 @@ func (x *Big) IsBig() bool {
 	if x.form != finite {
 		return false
 	}
-	return (x.isCompact() && (x.scale < -19 || x.scale > 19)) ||
-		(x.unscaled.Cmp(c.MinInt64) < 0 || x.unscaled.Cmp(c.MaxInt64) >= 0)
+	if x.scale < -19 || x.scale > 19 {
+		return true
+	}
+	return !x.isCompact() ||
+		(x.unscaled.Cmp(c.MinInt64) <= 0 || x.unscaled.Cmp(c.MaxInt64) > 0)
 }
 
 // Int returns x as a big.Int, truncating the fractional portion, if any. If
 // x is an infinity the result is undefined.
 func (x *Big) Int() *big.Int {
+	if x.form != finite {
+		return big.NewInt(0)
+	}
+
 	var b big.Int
 	if x.isCompact() {
 		b.SetInt64(x.compact)
@@ -507,6 +502,10 @@ func (x *Big) Int() *big.Int {
 // Int64 returns x as an int64, truncating the fractional portion, if any. If
 // x is an infinity the result is undefined.
 func (x *Big) Int64() int64 {
+	if x.form != finite {
+		return 0
+	}
+
 	var b int64
 	if x.isCompact() {
 		b = x.compact
@@ -537,9 +536,12 @@ func (x *Big) IsFinite() bool {
 	return x.form == finite
 }
 
-// IsInf returns true if x is an infinity.
-func (x *Big) IsInf() bool {
-	return x.form&inf != 0
+// IsInf returns true if x is an infinity according to sign.
+// If sign > 0, IsInf reports whether x is positive infinity.
+// If sign < 0, IsInf reports whether x is negative infinity.
+// If sign == 0, IsInf reports whether x is either infinity.
+func (x *Big) IsInf(sign int) bool {
+	return sign >= 0 && x.form&pinf == pinf || sign <= 0 && x.form == ninf
 }
 
 // IsInt reports whether x is an integer. Inf values are not integers.
@@ -609,7 +611,7 @@ func (z *Big) Mul(x, y *Big) *Big {
 	if x.form&inf != 0 || y.form&inf != 0 {
 		// ±Inf * y
 		// x * ±Inf
-		if (z.form&ninf|y.form)&ninf != 0 {
+		if x.Sign() != y.Sign() {
 			z.form = ninf
 		} else {
 			z.form = pinf
@@ -694,6 +696,14 @@ func (z *Big) mulBig(x, y *Big) *Big {
 
 // Neg sets z to -x and returns z.
 func (z *Big) Neg(x *Big) *Big {
+	if x.form&inf != 0 {
+		// x.form is either 110 or 101
+		//
+		// 110 ⊕ 011 = 101
+		// 101 ⊕ 011 = 110
+		z.form ^= (pinf | ninf) ^ inf
+		return z
+	}
 	if x.isCompact() {
 		z.compact = -x.compact
 	} else {
@@ -706,7 +716,8 @@ func (z *Big) Neg(x *Big) *Big {
 }
 
 // Prec returns the precision of x. That is, it returns the number of digits
-// in the unscaled form of x. 0 has a precision of 1.
+// in the unscaled form of x. x == 0 has a precision of 1. The result is
+// undefined if x is an infinity.
 func (x *Big) Prec() int {
 	if x.form&inf != 0 {
 		return 0
@@ -995,14 +1006,25 @@ func (z *Big) quoBigAndRound(x, y *big.Int) *Big {
 	return z.Round(z.Context().Precision())
 }
 
+// Raw directly returns x's raw compact and unscaled values. Caveat emptor:
+// Neither are guaranteed to be valid. Raw is intended to support missing
+// functionality outside this package and generally should be avoided.
+// Additionally, Raw is the only part of this package's API which is not
+// guaranteed to remain stable. This means the function could change or
+// disappear at any time, even across minor version numbers.
+func Raw(x *Big) (int64, *big.Int) {
+	return x.compact, &x.unscaled
+}
+
 // Round rounds z down to n digits of precision and returns z. The result is
-// undefined if n is less than zero. No rounding will occur if n is zero.
+// undefined if n < 0 or z is an infinity. No rounding will occur if n == 0.
 // The result of Round will always be within the interval [⌊z⌋, z].
 func (z *Big) Round(n int32) *Big {
 	zp := z.Prec()
-	if n <= 0 || int(n) < zp-int(z.scale) || z.form != finite {
+	if n <= 0 || int(n) >= zp || z.form != finite {
 		return z
 	}
+	z.SetPrecision(n)
 
 	shift, ok := checked.Sub(int64(zp), int64(n))
 	if !ok {
@@ -1073,7 +1095,7 @@ func (z *Big) SetContext(ctx Context) *Big {
 
 // SetFloat64 sets z to the provided float64.
 //
-// Remember floating-point to decimal conversions can be lossy. For example,
+// Remember, floating-point to decimal conversions can be lossy. For example,
 // the floating-point number `0.1' appears to simply be 0.1, but its actual
 // value is 0.1000000000000000055511151231257827021181583404541015625.
 //
@@ -1128,7 +1150,7 @@ func (z *Big) SetFloat64(value float64) *Big {
 	return z
 }
 
-// SetInf sets z to -Inf if signbit is set, +Inf is signbit is not set, and
+// SetInf sets z to -Inf if signbit is set or +Inf is signbit is not set, and
 // returns z.
 func (x *Big) SetInf(signbit bool) *Big {
 	if signbit {
@@ -1263,14 +1285,16 @@ func (x *Big) Sign() int {
 	if x.form == zero {
 		return 0
 	}
+
 	// x = +Inf
 	// x = -Inf
-	if x.form != finite {
-		if x.form&ninf != 0 {
+	if x.form&inf != 0 {
+		if x.form&(ninf^inf) != 0 {
 			return -1
 		}
 		return +1
 	}
+
 	// x is finite
 	if x.isCompact() {
 		// See: https://github.com/golang/go/issues/16203
@@ -1292,7 +1316,7 @@ func (x *Big) Sign() int {
 
 // Signbit returns true if x is negative or negative infinity.
 func (x *Big) Signbit() bool {
-	if x.form&ninf != 0 {
+	if x.form == ninf {
 		return true
 	}
 	if x.isCompact() {
@@ -1321,11 +1345,11 @@ func (x *Big) format(sci bool, opts byte) []byte {
 	if x == nil {
 		return []byte("<nil>")
 	}
-	if x.IsInf() {
-		if x.Signbit() {
-			return []byte("-Inf")
+	if x.IsInf(0) {
+		if x.IsInf(+1) {
+			return []byte("+Inf")
 		}
-		return []byte("+Inf")
+		return []byte("-Inf")
 	}
 
 	// Keep from allocating if x == 0.
@@ -1486,102 +1510,6 @@ func trim(b []byte) []byte {
 		}
 	}
 	return b[s : e+1]
-}
-
-// Sqrt sets z to the square root of x and returns z.
-// The precision of Sqrt is determined by z's Context.
-// Sqrt will panic on negative values since Big cannot
-// represent imaginary numbers.
-func (z *Big) Sqrt(x *Big) *Big {
-	if x.Signbit() {
-		panic(ErrNaN{"square root of negative number"})
-	}
-
-	switch {
-	// x = +Inf
-	case x.form&inf != 0:
-		z.form = pinf
-		return z
-	case x.form == zero:
-		z.form = zero
-		return z
-	}
-
-	// First fast path—check if x is a perfect square. If it is, we can avoid
-	// having to inflate x and can possibly use can use the hardware SQRT.
-	// Note that we can only catch perfect squares that aren't big.Ints.
-	if sq, ok := perfectSquare(x); ok {
-		return z.SetMantScale(sq, 0)
-	}
-
-	zp := z.Context().Precision()
-
-	// Temporary inflation. Should be enough to accurately determine the sqrt
-	// with at least zp digits after the radix.
-	zpadj := int(zp) << 1
-
-	tmp := alias(z, x).Set(x)
-
-	if !shiftRadixRight(tmp, zpadj) {
-		if tmp.Signbit() {
-			z.form = ninf
-		} else {
-			z.form = pinf
-		}
-		return z
-	}
-
-	// Second fast path. Check to see if we can calculate the square root
-	// without using big.Int
-	if !x.IsBig() && zpadj <= 19 {
-		n := tmp.Int64()
-		ix := n >> uint((arith.BitLen(n)+1)>>1)
-		var p int64
-		for {
-			p = ix
-			ix += n / ix
-			ix >>= 1
-			if ix == p {
-				return z.SetMantScale(ix, zp)
-			}
-		}
-	}
-
-	// x isn't a perfect square or x is a big.Int
-
-	n := tmp.Int()
-	ix := new(big.Int).Rsh(n, uint((n.BitLen()+1)>>1))
-
-	var a, p big.Int
-	for {
-		p.Set(ix)
-		ix.Add(ix, a.Quo(n, ix)).Rsh(ix, 1)
-		if ix.Cmp(&p) == 0 {
-			return z.SetBigMantScale(ix, zp)
-		}
-	}
-}
-
-// perfectSquare algorithm slightly partially borrowed from
-// https://stackoverflow.com/a/295678/2967113
-func perfectSquare(x *Big) (square int64, ok bool) {
-	if x.IsBig() || !x.IsInt() {
-		return 0, false
-	}
-	xc := x.Int64()
-	h := xc & 0xF
-	if h > 9 {
-		return 0, false
-	}
-	switch h {
-	case 2, 3, 5, 6, 7, 8:
-		// "Show that floating point sqrt(x*x) >= x for all long x."
-		// https://math.stackexchange.com/a/238885/153292
-		tst := int64(math.Sqrt(float64(xc)))
-		return tst, tst*tst == xc
-	default:
-		return 0, false
-	}
 }
 
 // Sub sets z to x - y and returns z.

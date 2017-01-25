@@ -69,8 +69,8 @@ var (
 	Context128 = Context{precision: 34, mode: ToNearestEven}
 )
 
-// RoundingMode determines how a Decimal will be rounded
-// if the exact result cannot accurately be represented.
+// RoundingMode determines how a decimal will be rounded if the exact result
+// cannot accurately be represented.
 type RoundingMode byte
 
 // The following rounding modes are supported.
@@ -82,9 +82,9 @@ const (
 	ToNegativeInf                     // == IEEE 754-2008 roundTowardNegative
 	ToPositiveInf                     // == IEEE 754-2008 roundTowardPositive
 
-	// Unneeded means finite decimal expansion. Will panic if this
-	// RoundingMode is provided and the lossy operation does not have a finite
-	// decimal expansion.
+	// Unneeded means finite decimal expansion. Lossy routines will panic if
+	// this RoundingMode is provided and the lossy operation does not have a
+	// finite decimal expansion.
 	Unneeded
 )
 

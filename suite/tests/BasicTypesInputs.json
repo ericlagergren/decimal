@@ -71610,6 +71610,32 @@
           "Mode": 0,
           "Trap": 0,
           "Inputs": [
+              "+inf",
+              "+0e-398"
+          ],
+          "Output": "+inf",
+          "Excep": 16
+      },
+      {
+          "Prefix": "d",
+          "Prec": 64,
+          "Op": 3,
+          "Mode": 0,
+          "Trap": 0,
+          "Inputs": [
+              "-inf",
+              "+0e-398"
+          ],
+          "Output": "-inf",
+          "Excep": 16
+      },
+      {
+          "Prefix": "d",
+          "Prec": 64,
+          "Op": 3,
+          "Mode": 0,
+          "Trap": 0,
+          "Inputs": [
               "Q",
               "+0e-398"
           ],
@@ -71952,7 +71978,7 @@
               "-0e-398"
           ],
           "Output": "-inf",
-          "Excep": 0
+          "Excep": 16
       },
       {
           "Prefix": "d",
@@ -71965,7 +71991,7 @@
               "-0e-398"
           ],
           "Output": "+inf",
-          "Excep": 0
+          "Excep": 16
       },
       {
           "Prefix": "d",
@@ -72316,7 +72342,7 @@
               "+0e-55"
           ],
           "Output": "+inf",
-          "Excep": 0
+          "Excep": 16
       },
       {
           "Prefix": "d",
@@ -72329,7 +72355,7 @@
               "+0e-325"
           ],
           "Output": "-inf",
-          "Excep": 0
+          "Excep": 16
       },
       {
           "Prefix": "d",
@@ -72680,7 +72706,7 @@
               "-0e-395"
           ],
           "Output": "-inf",
-          "Excep": 0
+          "Excep": 16
       },
       {
           "Prefix": "d",
@@ -72693,7 +72719,7 @@
               "-0e-395"
           ],
           "Output": "+inf",
-          "Excep": 0
+          "Excep": 16
       },
       {
           "Prefix": "d",
@@ -73044,7 +73070,7 @@
               "+0e369"
           ],
           "Output": "+inf",
-          "Excep": 0
+          "Excep": 16
       },
       {
           "Prefix": "d",
@@ -73057,7 +73083,7 @@
               "+0e369"
           ],
           "Output": "-inf",
-          "Excep": 0
+          "Excep": 16
       },
       {
           "Prefix": "d",
@@ -73408,7 +73434,7 @@
               "-0e369"
           ],
           "Output": "-inf",
-          "Excep": 0
+          "Excep": 16
       },
       {
           "Prefix": "d",
@@ -73421,7 +73447,7 @@
               "-0e369"
           ],
           "Output": "+inf",
-          "Excep": 0
+          "Excep": 16
       },
       {
           "Prefix": "d",
@@ -153124,7 +153150,7 @@
               "+0e-6176"
           ],
           "Output": "+inf",
-          "Excep": 0
+          "Excep": 16
       },
       {
           "Prefix": "d",
@@ -153137,7 +153163,7 @@
               "+0e-6176"
           ],
           "Output": "-inf",
-          "Excep": 0
+          "Excep": 16
       },
       {
           "Prefix": "d",
@@ -153488,7 +153514,7 @@
               "-0e-6176"
           ],
           "Output": "-inf",
-          "Excep": 0
+          "Excep": 16
       },
       {
           "Prefix": "d",
@@ -153501,7 +153527,7 @@
               "-0e-6176"
           ],
           "Output": "+inf",
-          "Excep": 0
+          "Excep": 16
       },
       {
           "Prefix": "d",
@@ -153852,7 +153878,7 @@
               "+0e-1855"
           ],
           "Output": "+inf",
-          "Excep": 0
+          "Excep": 16
       },
       {
           "Prefix": "d",
@@ -153865,7 +153891,7 @@
               "+0e-4263"
           ],
           "Output": "-inf",
-          "Excep": 0
+          "Excep": 16
       },
       {
           "Prefix": "d",
@@ -154216,7 +154242,7 @@
               "-0e-3377"
           ],
           "Output": "-inf",
-          "Excep": 0
+          "Excep": 16
       },
       {
           "Prefix": "d",
@@ -154229,7 +154255,7 @@
               "-0e2407"
           ],
           "Output": "+inf",
-          "Excep": 0
+          "Excep": 16
       },
       {
           "Prefix": "d",
@@ -154580,7 +154606,7 @@
               "+0e6111"
           ],
           "Output": "+inf",
-          "Excep": 0
+          "Excep": 16
       },
       {
           "Prefix": "d",
@@ -154593,7 +154619,7 @@
               "+0e6111"
           ],
           "Output": "-inf",
-          "Excep": 0
+          "Excep": 16
       },
       {
           "Prefix": "d",
@@ -154944,7 +154970,7 @@
               "-0e6111"
           ],
           "Output": "-inf",
-          "Excep": 0
+          "Excep": 16
       },
       {
           "Prefix": "d",
@@ -154957,7 +154983,7 @@
               "-0e6111"
           ],
           "Output": "+inf",
-          "Excep": 0
+          "Excep": 16
       },
       {
           "Prefix": "d",

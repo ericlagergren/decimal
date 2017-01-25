@@ -1,55 +1,47 @@
-package decimal
+package math
 
 import (
 	"math/big"
 
+	"github.com/ericlagergren/decimal"
 	"github.com/ericlagergren/decimal/internal/arith/pow"
 )
 
 // Modf decomposes x into its integral and fractional parts such that int +
 // frac == x, sets z to the integral part (such that z aliases int) and returns
 // both parts.
-func (z *Big) Modf(x *Big) (int *Big, frac *Big) {
-	int = z
-	frac = new(Big)
-
-	if x.form == zero {
-		z.form = zero
-		frac.form = zero
-		return z, frac
+func Modf(z, x *decimal.Big) (int *decimal.Big, frac *decimal.Big) {
+	if x.Sign() == 0 {
+		return z.SetMantScale(0, 0), decimal.New(0, 0)
 	}
 
-	if x.form == inf {
-		z.form = inf
-		frac.form = inf
-		return z, frac
+	if x.IsInf(0) {
+		z.SetInf(x.IsInf(+1))
+		panic(decimal.ErrNaN{"modf of an infinity"})
 	}
-
-	ctx := x.ctx
-	scale := x.scale
 
 	// x is an integer—we can just set z to x.
 	if x.IsInt() {
-		frac.form = zero
-		return z.Set(x), frac
+		return z.Set(x), decimal.New(0, 0)
 	}
 
-	if x.isCompact() {
-		i, f, ok := mod(x.compact, scale)
+	ctx := x.Context()
+	scale := x.Scale()
+
+	int = z.SetContext(ctx)
+	frac = new(decimal.Big).SetContext(ctx)
+
+	xc, xu := decimal.Raw(x)
+	if !x.IsBig() {
+		i, f, ok := mod(xc, scale)
 		if ok {
-			return z.SetMantScale(i, 0).SetContext(ctx),
-				frac.SetMantScale(f, scale).SetContext(ctx)
+			return z.SetMantScale(i, 0), frac.SetMantScale(f, scale)
 		}
+		// Fallthrough.
+		xu = big.NewInt(xc)
 	}
-
-	m := &x.unscaled
-	// Possible fallthrough from 'ok'.
-	if x.isCompact() {
-		m = big.NewInt(x.compact)
-	}
-	i, f := modbig(m, scale)
-	return z.SetBigMantScale(i, 0).SetContext(ctx),
-		frac.SetBigMantScale(f, scale).SetContext(ctx)
+	i, f := modbig(xu, scale)
+	return z.SetBigMantScale(i, 0), frac.SetBigMantScale(f, scale)
 }
 
 // mod splits fr, a scaled decimal, into its integeral and fractional parts.
