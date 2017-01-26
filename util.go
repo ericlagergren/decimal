@@ -6,6 +6,7 @@ import (
 
 	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/arith/checked"
+	"github.com/ericlagergren/decimal/internal/arith/pow"
 	"github.com/ericlagergren/decimal/internal/c"
 )
 
@@ -123,4 +124,21 @@ func bigIntFromFloat(f float64) *big.Int {
 	var a big.Int
 	a.SetUint64(mantissa)
 	return a.Lsh(&a, uint(shift))
+}
+
+// scalex adjusts x by scale. If scale < 0, x = x * 10^-scale, otherwise
+// x = x / 10^scale.
+func scalex(x int64, scale int32) (int64, bool) {
+	if scale < 0 {
+		x, ok := checked.MulPow10(x, -scale)
+		if !ok {
+			return 0, false
+		}
+		return x, true
+	}
+	p, ok := pow.Ten64(int64(scale))
+	if !ok {
+		return 0, false
+	}
+	return x / p, true
 }

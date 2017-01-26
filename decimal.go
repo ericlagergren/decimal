@@ -466,14 +466,33 @@ func (z *Big) Copy(x *Big) *Big {
 // IsBig returns true if x, with its fractional part truncated, cannot fit
 // inside an int64. If x is an infinity the result is undefined.
 func (x *Big) IsBig() bool {
+	// x.form != finite == 0 or infinity
 	if x.form != finite {
 		return false
 	}
-	if x.scale < -19 || x.scale > 19 {
+	// x.scale <= -19 is too large for an int64.
+	if x.scale <= -19 {
 		return true
 	}
-	return !x.isCompact() ||
-		(x.unscaled.Cmp(c.MinInt64) <= 0 || x.unscaled.Cmp(c.MaxInt64) > 0)
+
+	var v int64
+	if x.isCompact() {
+		if x.scale == 0 {
+			return false
+		}
+		v = x.compact
+	} else {
+		if x.unscaled.Cmp(c.MinInt64) <= 0 || x.unscaled.Cmp(c.MaxInt64) > 0 {
+			return false
+		}
+		// Repeat this line twice so we don't have to call x.unscaled.Int64.
+		if x.scale == 0 {
+			return false
+		}
+		v = x.unscaled.Int64()
+	}
+	_, ok := scalex(v, x.scale)
+	return !ok
 }
 
 // Int returns x as a big.Int, truncating the fractional portion, if any. If
@@ -499,8 +518,9 @@ func (x *Big) Int() *big.Int {
 	return b.Div(&b, &p)
 }
 
-// Int64 returns x as an int64, truncating the fractional portion, if any. If
-// x is an infinity the result is undefined.
+// Int64 returns x as an int64, truncating the fractional portion, if any. The
+// result is undefined if x is an infinity or if x does not fit inside an
+// int64.
 func (x *Big) Int64() int64 {
 	if x.form != finite {
 		return 0
@@ -515,20 +535,11 @@ func (x *Big) Int64() int64 {
 	if x.scale == 0 {
 		return b
 	}
-	if x.scale < 0 {
-		// Undefined. checked.MulPow10 returns 0 when ok is false.
-		// IMO, 0 is a better choice than 1 << 64 - 1 because it could cause a
-		// division by zero panic which would be a clear indication something
-		// is incorrect.
-		b, _ = checked.MulPow10(b, -x.scale)
-		return b
-	}
-	p, ok := pow.Ten64(int64(x.scale))
-	// See above comment.
+	b, ok := scalex(b, x.scale)
 	if !ok {
 		return 0
 	}
-	return b / p
+	return b
 }
 
 // IsFinite returns true if x is finite.

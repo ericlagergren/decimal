@@ -124,114 +124,40 @@ func Cos(z, x *decimal.Big) *decimal.Big {
 	return z.Quo(one, K)
 }
 
-type tancotg struct {
-	Term              // Initialize A with -z*z, B with -1.
-	two  *decimal.Big // ±2
+type tang struct {
+	t Term // Initialize A with -z*z, B with -1.
 }
 
-func (t *tancotg) Next() Term {
+func (t *tang) Next() Term {
 	// tan(z) can be represented as
 	//
 	//         ∞
 	//     z / K   (-(z^2) / (2m - 1)), z ∈ ℂ
 	//         m=1
 	//
-	// cot(z) can be represented as
-	//
-	//            ∞
-	//            K   (-(z^2) / 1+2m), z/π ∉ ℤ
-	//      1     m=1
-	//     --- + -------------------
-	//      z             z
-	//
-
-	t.B.Add(t.B, t.two)
-	return t.Term
+	t.t.B.Add(t.t.B, two)
+	return t.t
 }
 
 // Tan sets z to the tangent of the radian argument x.
 func Tan(z, x *decimal.Big) *decimal.Big {
 	nx := new(decimal.Big).Neg(x)
-	g := tancotg{Term{A: new(decimal.Big).Mul(nx, x), B: decimal.New(-1, 0)}}
+	g := tang{t: Term{A: new(decimal.Big).Mul(nx, x), B: decimal.New(-1, 0)}}
 	return z.Quo(x, Lentz(&g, z.Context().Precision()))
 }
 
 // Cot sets z to the cotangent of the radian argument x.
 func Cot(z, x *decimal.Big) *decimal.Big {
-	g := tancotg{}
-	K := Lentz(&g, z.Context().Precision())
-	// A little more work than normal since
-	//
-	//    cot(z) = 1/z + K/z
-	//
-	// where K is the converged fraction.
-
-	// 1 / z
-	z.Quo(one, x)
-
-	// K / z
-	Kv := new(decimal.Big).Quo(K, x)
-
-	// 1/2 + K/z
-	return z.Add(z, Kv)
+	s := Sin(new(decimal.Big), x)
+	return z.Quo(Cos(z, x), s)
 }
 
 // Sec sets z to the secand of the radian argument x.
 func Sec(z, x *decimal.Big) *decimal.Big {
-	panic("not implemented")
+	return z.Quo(one, Cos(z, x))
 }
 
 // Csc sets z to the cosecant of the radian argument x.
 func Csc(z, x *decimal.Big) *decimal.Big {
-	panic("not implemented")
-}
-
-// Exs sets z to the exsecant of the radian argument x.
-func Exs(z, x *decimal.Big) *decimal.Big {
-	panic("not implemented")
-}
-
-// Exc sets z to the exosecant of the radian argument x.
-func Exc(z, x *decimal.Big) *decimal.Big {
-	panic("not implemented")
-}
-
-// Ver sets z to the versed sine of the radian argument x.
-func Ver(z, x *decimal.Big) *decimal.Big {
-	panic("not implemented")
-}
-
-// Vcs sets z to the versed cosine of the radian argument x.
-func Vcs(z, x *decimal.Big) *decimal.Big {
-	panic("not implemented")
-}
-
-// Cvs sets z to the coversed sine sine of the radian argument x.
-func Cvs(z, x *decimal.Big) *decimal.Big {
-	panic("not implemented")
-}
-
-// Cvc sets z to the coversed cosine sine of the radian argument x.
-func Cvc(z, x *decimal.Big) *decimal.Big {
-	panic("not implemented")
-}
-
-// Hvs sets z to the haversed sine sine of the radian argument x.
-func Hvs(z, x *decimal.Big) *decimal.Big {
-	panic("not implemented")
-}
-
-// Hvc sets z to the haversed cosine of the radian argument x.
-func Hvc(z, x *decimal.Big) *decimal.Big {
-	panic("not implemented")
-}
-
-// Hcv sets z to the hacoversed sine of the radian argument x.
-func Hcv(z, x *decimal.Big) *decimal.Big {
-	panic("not implemented")
-}
-
-// Hcc sets z to the hacoversed cosine of the radian argument x.
-func Hcc(z, x *decimal.Big) *decimal.Big {
-	panic("not implemented")
+	return z.Quo(one, Sin(z, x))
 }

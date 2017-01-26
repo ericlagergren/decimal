@@ -9,6 +9,7 @@ var (
 	two     = decimal.New(2, 0)
 	four    = decimal.New(4, 0)
 	six     = decimal.New(6, 0)
+	ten     = decimal.New(10, 0)
 	sixteen = decimal.New(16, 0)
 )
 
