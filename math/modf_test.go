@@ -92,7 +92,7 @@ func TestBig_Modf(t *testing.T) {
 // testFormZero verifies that if z == 0, z.form == zero.
 func testFormZero(t *testing.T, z *decimal.Big, name string) {
 	iszero := z.Cmp(zero) == 0
-	if iszero && z.Sign() == 0 {
+	if iszero && z.Sign() != 0 {
 		t.Fatalf("%s: z == 0, but form not marked zero: %+v", name, z)
 	}
 	if !iszero && z.Sign() == 0 {

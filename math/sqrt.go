@@ -1,31 +1,55 @@
 package math
 
 import (
-	"fmt"
 	"math"
 	"math/big"
 
 	"github.com/ericlagergren/decimal"
-	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/arith/checked"
 )
 
 // Hypot sets z to Sqrt(p*p + q*q) and returns z.
 func Hypot(z, p, q *decimal.Big) *decimal.Big {
-	p0 := new(decimal.Big).Set(p)
+	// ±Inf*±Inf + q*q
+	// p*p + ±Inf*±Inf
+	if p.IsInf(0) || q.IsInf(0) {
+		return z.SetInf(true)
+	}
+
+	p0 := alias(z, p).Set(p)
 	q0 := new(decimal.Big).Set(q)
+
+	// Two routes: either we can compute hypot(p, q) the safe way or we can
+	// simply compute sqrt(p*p, q*q). Try the latter first.
+
+	_, okp := checked.Add32(p.Scale(), p.Scale())
+	_, okq := checked.Add32(q0.Scale(), q0.Scale())
+	if okp && okq {
+		p0.Mul(p0, p0)
+		q0.Mul(q0, q0)
+		// Store p*p+q*q in p0
+		p0.Add(p0, q0)
+		return Sqrt(z, p0)
+	}
+
 	if p0.Sign() <= 0 {
 		p0.Neg(p0)
 	}
 	if q0.Sign() <= 0 {
 		q0.Neg(q0)
 	}
+	if p0.Cmp(q0) < 0 {
+		p0, q0 = q0, p0
+	}
 	if p0.Sign() == 0 {
 		return z.SetMantScale(0, 0)
 	}
-	p0.Mul(p0, p0)
+	zp := z.Context().Precision()
+	q0.SetPrecision(zp)
+	q0.Quo(q0, p0)
 	q0.Mul(q0, q0)
-	return Sqrt(z, p0.Add(p0, q0))
+	q0.Add(q0, one)
+	return z.Mul(p0, Sqrt(q0, q0)).Round(zp)
 }
 
 // Sqrt sets z to the square root of x and returns z. Sqrt will panic on
@@ -46,9 +70,13 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 		return z.SetInf(true)
 	}
 
-	// First fast path—check if x is a perfect square. If it is, we can avoid
-	// having to inflate x and can possibly use can use the hardware SQRT.
-	// Note that we can only catch perfect squares that aren't big.Ints.
+	// Tests are on macOS with an 2.9 GHz Intel Core i5, Go 1.7.3
+
+	// First fast path. Check if x is a perfect square. If it is, we can avoid
+	// having to inflate x and can just use the hardware SQRT. Note that we can
+	// only catch perfect squares that aren't big.Ints.
+	//
+	// Tests show this path takes ~50 ns/op.
 	if sq, ok := perfectSquare(x); ok {
 		return z.SetMantScale(sq, 0)
 	}
@@ -56,33 +84,33 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 	zp := z.Context().Precision()
 
 	// Temporary inflation. Should be enough to accurately determine the sqrt
-	// with at least zp digits after the radix.
+	// with zp precision.
 	zpadj := int(zp) << 1
 
-	tmp := alias(z, x).Set(x)
+	tmp := alias(z, x).Copy(x)
 
 	if !shiftRadixRight(tmp, zpadj) {
 		return z.SetInf(tmp.Signbit())
 	}
 
-	// Second fast path. Check to see if we can calculate the square root
-	// without using big.Int
-	if !x.IsBig() && zpadj <= 19 {
-		n := tmp.Int64()
-		ix := n >> uint((arith.BitLen(n)+1)>>1)
-		var p int64
-		for {
-			p = ix
-			ix += n / ix
-			ix >>= 1
-			fmt.Println(ix)
-			if ix == p {
-				return z.SetMantScale(ix, zp)
-			}
+	// Second fast path. We had to inflate x, so whether it's a perfect square
+	// is irrelevant to us now. Since sqrt(x*x) >= x for all 64-bit x (see the
+	// perfectSquare routine for proof), check to see if x is <= 64 bits and
+	// use the hardware SQRT.
+	//
+	// Tests show this path takes ~170 ns/op.
+	if !tmp.IsBig() && zpadj <= 19 {
+		sqrt := int64(math.Sqrt(float64(tmp.Int64())))
+		scl := (zpadj + 1) / 2
+		if zpadj < 0 || zpadj%2 != 0 {
+			scl--
 		}
+		return z.SetMantScale(sqrt, int32(scl)).Round(zp)
 	}
 
-	// x isn't a perfect square or x is a big.Int
+	// General case. Use Newton's method with big.Int.
+	//
+	// Tests show this path takes ~4,000 ns/op.
 
 	n := tmp.Int()
 	ix := new(big.Int).Rsh(n, uint((n.BitLen()+1)>>1))
@@ -92,7 +120,7 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 		p.Set(ix)
 		ix.Add(ix, a.Quo(n, ix)).Rsh(ix, 1)
 		if ix.Cmp(&p) == 0 {
-			return z.SetBigMantScale(ix, zp)
+			return z.SetBigMantScale(ix, zp).Round(zp)
 		}
 	}
 }
@@ -109,7 +137,7 @@ func perfectSquare(x *decimal.Big) (square int64, ok bool) {
 		return 0, false
 	}
 	switch h {
-	case 2, 3, 5, 6, 7, 8:
+	case 0, 1, 4, 9:
 		// "Show that floating point sqrt(x*x) >= x for all long x."
 		// https://math.stackexchange.com/a/238885/153292
 		tst := int64(math.Sqrt(float64(xc)))
