@@ -147,6 +147,7 @@ func TestBig_Cmp(t *testing.T) {
 		2: {New(0, 0), New(0, 0), equal},
 		// Fractional
 		3: {New(9876, 3), New(1234, 0), lesser},
+		// zl > 0, xl < 0
 		4: {New(1234, 3), New(50, 25), greater},
 		// Same pointers
 		5: {samePtr, samePtr, equal},
@@ -161,11 +162,10 @@ func TestBig_Cmp(t *testing.T) {
 		11: {new(Big).Set(large).Neg(large), large, lesser},
 		12: {new(Big).Quo(new(Big).Set(large), New(314156, 5)), large, lesser},
 		13: {New(1234, 3), newbig(t, "1000000000000000000000000000000.234"), lesser},
-
-		// Broken tests
-		// Cmp does not compare non-compact numbers of different scale correctly.
 		14: {newbig(t, "10000000000000000000"),
 			newbig(t, "100000000000000000000").SetScale(1), equal},
+		// zl < 0, xl < 0
+		15: {New(2, c.BadScale-1), New(2, c.BadScale-2), greater},
 	} {
 		r := test.a.Cmp(test.b)
 		if test.v != r {
