@@ -25,24 +25,26 @@ func Add32(x, y int32) (sum int32, ok bool) {
 	return sum, (sum^x)&(sum^y) >= 0
 }
 
-// Mul returns x * y and a bool indicating whether the addition was successful.
+// Mul returns x * y and a bool indicating whether the multiplication was
+// successful.
 func Mul(x, y int64) (prod int64, ok bool) {
 	prod = x * y
 	return prod, ((arith.Abs(x)|arith.Abs(y))>>31 == 0 || prod/y == x)
 }
 
-// Mul returns x * y and a bool indicating whether the addition as successful.
+// Mul returns x * y and a bool indicating whether the multiplication was
+// successful.
 func Mul32(x, y int32) (prod int32, ok bool) {
 	p, ok := Mul(int64(x), int64(y))
 	return int32(p), ok && int64(int32(p)) == p
 }
 
-// Sub returns x - y and a bool indicating whether the addition was successful.
+// Sub returns x - y and a bool indicating whether the subtraction was successful.
 func Sub(x, y int64) (diff int64, ok bool) {
 	return Add(x, -y)
 }
 
-// Sub32 returns x - y and a bool indicating whether the addition was
+// Sub32 returns x - y and a bool indicating whether the subtraction was
 // successful.
 func Sub32(x, y int32) (diff int32, ok bool) {
 	return Add32(x, -y)

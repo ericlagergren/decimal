@@ -374,7 +374,6 @@ func (z *Big) Cmp(x *Big) int {
 	// integral parts; if they differ in length one number is larger.
 	// E.g., 1234.01
 	//        123.011
-
 	zl := z.Prec() - int(z.scale)
 	xl := x.Prec() - int(x.scale)
 	if zl > xl {
@@ -384,50 +383,61 @@ func (z *Big) Cmp(x *Big) int {
 		return -1
 	}
 
-	// We have to inflate one of the numbrers.
+	// We have to inflate one of the numbrers. Designate z as hi and x as lo.
+	var (
+		// hi
+		hi = z.scale
+		zm = &z.unscaled
+		zc = z.compact
 
-	zc := z.compact // hi
-	xc := x.compact // lo
+		// lo
+		lo = x.scale
+		xm = &x.unscaled
+		xc = x.compact
+	)
 
-	var swap bool
-
-	hi, lo := z, x
-	if hi.scale < lo.scale {
-		hi, lo = lo, hi
+	swap := hi < lo
+	if swap {
+		// z is now lo
 		zc, xc = xc, zc
-		swap = true // d is lo
+		zm, xm = xm, zm
+		hi, lo = lo, hi
 	}
 
-	diff := hi.scale - lo.scale
-	if diff <= c.BadScale {
-		var ok bool
-		xc, ok = checked.MulPow10(xc, diff)
-		if !ok || zc == c.Inflated {
-			// z is lo
-			if swap {
-				zm := new(big.Int).Set(&z.unscaled)
-				return checked.MulBigPow10(zm, diff).Cmp(&x.unscaled)
-			}
-			// x is lo
-			xm := new(big.Int).Set(&x.unscaled)
-			return z.unscaled.Cmp(checked.MulBigPow10(xm, diff))
+	diff, ok := checked.Sub32(hi, lo)
+	if !ok {
+		panic("!ok")
+	}
+
+	// Inflate lo.
+	if xc != c.Inflated {
+		nx, ok := checked.MulPow10(xc, diff)
+		if !ok {
+			// Can't fit in an int64, use big.Int.
+			xm = checked.MulBigPow10(big.NewInt(xc), diff)
+			xc = c.Inflated
+		} else {
+			xc = nx
 		}
+	} else {
+		xm = checked.MulBigPow10(xm, diff)
 	}
 
 	if swap {
 		zc, xc = xc, zc
+		zm, xm = xm, zm
 	}
 
 	if zc != c.Inflated {
 		if xc != c.Inflated {
 			return arith.AbsCmp(zc, xc)
 		}
-		return big.NewInt(zc).Cmp(&x.unscaled)
+		return big.NewInt(zc).Cmp(xm)
 	}
 	if xc != c.Inflated {
 		return z.unscaled.Cmp(big.NewInt(xc))
 	}
-	return z.unscaled.Cmp(&x.unscaled)
+	return z.unscaled.Cmp(xm)
 }
 
 // Context returns x's Context.
@@ -483,7 +493,7 @@ func (x *Big) IsBig() bool {
 		v = x.compact
 	} else {
 		if x.unscaled.Cmp(c.MinInt64) <= 0 || x.unscaled.Cmp(c.MaxInt64) > 0 {
-			return false
+			return true
 		}
 		// Repeat this line twice so we don't have to call x.unscaled.Int64.
 		if x.scale == 0 {

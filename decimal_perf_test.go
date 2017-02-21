@@ -45,7 +45,7 @@ var zeroPool = sync.Pool{
 }
 
 var getInt = func(x int64) *big.Int {
-	return intPool.Get().(*big.Int).SetInt(x)
+	return intPool.Get().(*big.Int).SetInt64(x)
 }
 
 var putInt = func(x *big.Int) {

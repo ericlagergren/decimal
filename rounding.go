@@ -30,8 +30,9 @@ func (r RoundingMode) needsInc(c int, pos, odd bool) bool {
 			return odd
 		}
 		return true
+	default:
+		panic("unknown RoundingMode")
 	}
-	panic("unknown RoundingMode")
 }
 
 func (z *Big) needsInc(x, r int64, pos, odd bool) bool {

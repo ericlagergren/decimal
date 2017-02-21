@@ -12,6 +12,10 @@ import (
 )
 
 func TestSuiteCases(t *testing.T) {
+	if testing.Short() {
+		return
+	}
+
 	testdir := filepath.Join("suite", "tests")
 	dir, err := os.Open(testdir)
 	if err != nil {
