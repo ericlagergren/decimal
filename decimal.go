@@ -374,13 +374,22 @@ func (z *Big) Cmp(x *Big) int {
 	// integral parts; if they differ in length one number is larger.
 	// E.g., 1234.01
 	//        123.011
-	zl := z.Prec() - int(z.scale)
-	xl := x.Prec() - int(x.scale)
-	if zl > xl {
-		return +1
-	}
-	if zl < xl {
-		return -1
+	zl := int64(z.Prec() - int(z.scale))
+	xl := int64(x.Prec() - int(x.scale))
+	// zl and xl could be any combination of negative and positive. If the
+	// signs differ compare zl and xl directly. If they don't, compare |zl|
+	// and |xl|.
+	if (zl <= 0) == (xl <= 0) {
+		if abs := arith.AbsCmp(zl, xl); abs != 0 {
+			return abs
+		}
+	} else {
+		if zl > xl {
+			return +1
+		}
+		if zl < xl {
+			return -1
+		}
 	}
 
 	// We have to inflate one of the numbrers. Designate z as hi and x as lo.
@@ -406,7 +415,8 @@ func (z *Big) Cmp(x *Big) int {
 
 	diff, ok := checked.Sub32(hi, lo)
 	if !ok {
-		panic("!ok")
+		// TODO: I'm like 99% positive this can't be reached.
+		panic("should not be reached")
 	}
 
 	// Inflate lo.
@@ -1188,6 +1198,9 @@ func (z *Big) SetMantScale(value int64, scale int32) *Big {
 		z.form = zero
 		return z
 	}
+	if scale == c.BadScale {
+		return z.SetInf(value >= 0)
+	}
 	z.scale = scale
 	if value == c.Inflated {
 		z.unscaled.SetInt64(value)
@@ -1230,8 +1243,7 @@ func (z *Big) SetScale(scale int32) *Big {
 // 	+Inf
 // 	-Inf
 //
-// Inf values are not required to be case-sensitive and no distinction is made
-// between +Inf and Inf.
+// Inf values are not required to be case-sensitive.
 func (z *Big) SetString(s string) (*Big, bool) {
 	// Inf, +Inf, or -Inf.
 	if strings.EqualFold(s, "Inf") || strings.EqualFold(s, "+Inf") {
@@ -1264,6 +1276,10 @@ func (z *Big) SetString(s string) (*Big, bool) {
 		scale += int32(len(s) - i)
 	default:
 		return nil, false
+	}
+
+	if scale == c.BadScale {
+		return z.SetInf(s[0] != '-'), true
 	}
 
 	var err error
