@@ -2,9 +2,12 @@ package decimal
 
 import (
 	"math"
+	"math/big"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/ericlagergren/decimal/internal/c"
 )
 
 func didPanic(f func()) (ok bool) {
@@ -153,7 +156,7 @@ func TestBig_Cmp(t *testing.T) {
 		8: {New(4, 0), New(4, 0), equal},
 		9: {New(4, 0), new(Big).Quo(New(12, 0), New(3, 0)), equal},
 		// z.scale < 0
-		10: {large, new(Big).Set(large), equal},
+		10: {large, new(Big).Copy(large), equal},
 		// Differing signs
 		11: {new(Big).Set(large).Neg(large), large, lesser},
 		12: {new(Big).Quo(new(Big).Set(large), New(314156, 5)), large, lesser},
@@ -168,6 +171,25 @@ func TestBig_Cmp(t *testing.T) {
 		if test.v != r {
 			t.Fatalf("#%d: wanted %d, got %d", i, test.v, r)
 		}
+	}
+}
+
+func TestBig_Issue15(t *testing.T) {
+	b1 := &Big{
+		compact:  c.Inflated,
+		scale:    5,
+		ctx:      Context{precision: 0, mode: 0},
+		form:     finite,
+		unscaled: *new(big.Int).SetInt64(181050000),
+	}
+	b2 := &Big{
+		compact: 18105,
+		scale:   1,
+		ctx:     Context{precision: 0, mode: 0},
+		form:    finite,
+	}
+	if b1.Cmp(b2) != 0 {
+		t.Errorf("failed comparing %v with %v: %v", b1, b2, b1.Cmp(b2))
 	}
 }
 

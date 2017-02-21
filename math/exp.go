@@ -1,6 +1,10 @@
 package math
 
-import "github.com/ericlagergren/decimal"
+import (
+	"fmt"
+
+	"github.com/ericlagergren/decimal"
+)
 
 // expg is a Generator that computes exp(z).
 type expg struct {
@@ -11,12 +15,14 @@ type expg struct {
 	t    Term         // Term storage. Does not need to be manually set.
 }
 
+var P int32 = 16
+
 func (e *expg) Lentz() (f, pf, Δ, C, D *decimal.Big) {
 	return e.recv, // f
 		new(decimal.Big), // pf
 		new(decimal.Big), // Δ
-		new(decimal.Big).SetPrecision(16), // C
-		new(decimal.Big).SetPrecision(500) // D
+		new(decimal.Big), // C
+		new(decimal.Big).SetPrecision(P) // D
 }
 
 func (e *expg) Next() Term {
@@ -76,7 +82,7 @@ func (e *expg) Next() Term {
 		return e.t
 	// [z^2/6, 1]
 	case 2:
-		e.t.A.SetPrecision(500)
+		e.t.A.SetPrecision(P)
 		e.t.A.Quo(e.pow, six)
 		e.t.B.SetMantScale(1, 0)
 		return e.t
@@ -129,13 +135,13 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 
 	sgn := x.Sign()
 	if sgn == 0 {
-		// e ** 0 == 1
+		// e ** 0 = 1
 		return z.SetMantScale(1, 0)
 	}
 
-	// Since exp({z > 0}) is transcedental, we *have* to round it.
+	// Since exp({z > 0: ∈ ℝ}) is transcedental, we *have* to round it.
 	if z.Mode() == decimal.Unneeded {
-		panic("Exp is transcedental; Unneeded is an invalid rounding mode")
+		panic("exponential function is transcedental; Unneeded is an invalid rounding mode")
 	}
 
 	if sgn < 0 {
@@ -151,5 +157,10 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 		m:    -1,
 		t:    Term{A: new(decimal.Big), B: new(decimal.Big)},
 	}
-	return z.Set(Lentz(&g, z.Context().Precision()))
+	fmt.Println(z.Context().Precision())
+	K := Lentz(&g, z.Context().Precision())
+	fmt.Println(z.Context().Precision())
+	z.Set(K)
+	fmt.Println(z.Context().Precision())
+	return z
 }

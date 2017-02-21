@@ -138,7 +138,7 @@ func Lentz(g Generator, prec int32) *decimal.Big {
 		Δ.Mul(C, D)
 
 		// Set f_j = f{_j-1}*Δ_j
-		f.Mul(prevf, Δ).Round(prec)
+		f.Mul(prevf, Δ).Round(prec + 2)
 
 		//dump(f, prevf, Δ, D, C)
 
@@ -149,9 +149,9 @@ func Lentz(g Generator, prec int32) *decimal.Big {
 			// Odd numbers means we've swapped, even means they're back to
 			// the way they originally were.
 			if i%2 == 0 {
-				return f
+				return f.Round(prec)
 			}
-			return prevf
+			return prevf.Round(prec)
 		}
 
 		// We can swap f and prevf then reset f instead of setting prevf to f
