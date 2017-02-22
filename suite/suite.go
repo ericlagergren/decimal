@@ -7,100 +7,29 @@ package suite
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"io"
 	"math/big"
-	"strconv"
 	"strings"
 )
 
-// ParseCases returns a slice of test cases read from r.
+// ParseCases returns a slice of test cases in .fptest form read from r.
 func ParseCases(r io.Reader) (cases []Case, err error) {
 	s := bufio.NewScanner(r)
 	s.Split(bufio.ScanLines)
 
-	var c Case
-	var line []byte
 	for s.Scan() {
-		line = s.Bytes()
-
-		c.Prefix = string(line[0])
-		line = line[1:]
-
-		for i, v := range line {
-			if v < '0' || v > '9' {
-				c.Prec, err = strconv.Atoi(string(line[:i]))
-				if err != nil {
-					return nil, err
-				}
-				line = line[i:]
-				break
-			}
+		p := s.Bytes()
+		// Skip empty lines and comments.
+		if len(p) == 0 || p[0] == '#' {
+			continue
 		}
 
-		i := bytes.IndexByte(line, ' ')
-		if i < 0 {
-			return nil, fmt.Errorf("invalid line pre-op: %s", line)
-		}
-
-		var ok bool
-		c.Op, ok = valToOp[string(line[:i])]
-		if !ok {
-			return nil, fmt.Errorf("invalid op: %s", line[:i])
-		}
-		line = line[i+1:]
-
-		i = bytes.IndexByte(line, ' ')
-		if i < 0 {
-			return nil, fmt.Errorf("invalid line pre-mode: %s", line)
-		}
-
-		c.Mode, ok = valToMode[string(line[:i])]
-		if !ok {
-			return nil, fmt.Errorf("invalid mode: %s", line[:i])
-		}
-		line = line[i+1:]
-
-		i = bytes.IndexByte(line, ' ')
-		if i < 0 {
-			return nil, fmt.Errorf("invalid line pre-trap: %s", line)
-		}
-
-		c.Trap, ok = valToException[string(line[:i])]
-		if !ok {
-			c.Trap = None
-		}
-		line = line[i+1:]
-
-		i = bytes.Index(line, []byte{'-', '>'})
-		if i < 0 {
-			return nil, fmt.Errorf("invalid line pre-inputs: %s", line)
-		}
-
-		for _, p := range bytes.Split(line[:i], []byte{' '}) {
-			if len(p) == 0 {
-				continue
-			}
-			c.Inputs = append(c.Inputs, Data(p))
-		}
-		line = line[i+2+1:]
-
-		i = bytes.IndexByte(line, ' ')
-		if i < 0 {
-			return nil, fmt.Errorf("invalid line pre-exception: %s", line)
-		}
-		c.Output = Data(line[:i])
-		line = line[i+1:]
-
-		c.Excep, ok = valToException[string(line)]
-		if !ok && len(line) != 0 {
-			return nil, fmt.Errorf("invalid resulting exception: %s", line)
+		c, err := parseCase(p)
+		if err != nil {
+			return nil, err
 		}
 		cases = append(cases, c)
-		// Reset the inputs otherwise we end up with a *ton* of inputs that's
-		// 1) incorrect, and 2) makes 500MB+ files.
-		c.Inputs = c.Inputs[0:0]
 	}
 	return cases, s.Err()
 }
@@ -109,6 +38,21 @@ func ParseCases(r io.Reader) (cases []Case, err error) {
 // https://www.research.ibm.com/haifa/projects/verification/fpgen/papers/ieee-test-suite-v2.pdf
 
 // Case represents a specific test case.
+//
+// Here's a nice ascii chart:
+//
+//     prec   trap             excep
+//     |      |                |
+//     |\     |                |
+//     vv     v                v
+//    d64+ =0 i 100 200 -> 300 i
+//    ^  ^ ^^   ^^^ ^^^  ^ ^^^
+//    |  | \|   \|/ \|/  | \|/
+//    |  |  |    |   |   |  |
+//    |  |  mode  \ /    |  output
+//    |  op        |     output delim
+//    prefix       inputs
+//
 type Case struct {
 	Prefix string
 	Prec   int
@@ -120,8 +64,39 @@ type Case struct {
 	Excep  Exception
 }
 
+func (c Case) String() string {
+	return fmt.Sprintf("%s%d [%s, %s]: %s(%s) = %s %s",
+		c.Prefix, c.Prec, c.Trap, c.Mode, c.Op,
+		join(c.Inputs, ", "), c.Output, c.Excep)
+}
+
+func join(a []Data, sep Data) Data {
+	if len(a) == 0 {
+		return ""
+	}
+	if len(a) == 1 {
+		return a[0]
+	}
+	n := len(sep) * (len(a) - 1)
+	for i := 0; i < len(a); i++ {
+		n += len(a[i])
+	}
+
+	b := make([]byte, n)
+	bp := copy(b, a[0])
+	for _, s := range a[1:] {
+		bp += copy(b[bp:], sep)
+		bp += copy(b[bp:], s)
+	}
+	return Data(b)
+}
+
 // Data is input or output from a test case.
 type Data string
+
+// NoData is output when the operation throws some sort of exception and does
+// not "return" any data.
+const NoData Data = "#"
 
 // IsNaN returns two booleans indicating whether the data is a NaN value
 // and whether it's signaling or not.
@@ -150,29 +125,48 @@ type Exception uint8
 // These values are a bitmask corresponding to specific exceptions. For
 // example, an Exception is allowed to be both Inexact and an Overflow.
 const (
-	None Exception = 1 << iota
-	Inexact
+	None    Exception = 0
+	Inexact Exception = 1 << iota
 	Underflow
 	Overflow
 	DivByZero
 	Invalid
 )
 
-const maxExceptionLen = 1
-
-var valToException = map[string]Exception{
-	"x":  Inexact,
-	"u":  Underflow, // tininess and "extraordinary" error
-	"v":  Underflow, // tininess and inexactness after rounding
-	"w":  Underflow, // tininess and inexactness prior to rounding
-	"o":  Overflow,
-	"z":  DivByZero,
-	"i":  Invalid,
-	"xo": Inexact | Overflow,
-	"xu": Inexact | Underflow,
+var exceptions = [...]struct {
+	e Exception
+	s string
+}{
+	{Inexact, "Inexact"},
+	{Underflow, "Underflow"},
+	{Overflow, "Overflow"},
+	{DivByZero, "DivByZero"},
+	{Invalid, "Invalid"},
 }
 
-const maxModeLen = 2
+func (e Exception) String() string {
+	if e == None {
+		return "None"
+	}
+
+	var res string
+	for _, x := range exceptions {
+		if e&x.e != 0 {
+			res += x.s + " | "
+		}
+	}
+	return strings.TrimSuffix(res, " | ")
+}
+
+var valToException = map[string]Exception{
+	"x": Inexact,
+	"u": Underflow, // tininess and "extraordinary" error
+	"v": Underflow, // tininess and inexactness after rounding
+	"w": Underflow, // tininess and inexactness prior to rounding
+	"o": Overflow,
+	"z": DivByZero,
+	"i": Invalid,
+}
 
 var valToMode = map[string]big.RoundingMode{
 	">":  big.ToPositiveInf,
@@ -278,3 +272,5 @@ var valToOp = map[string]Op{
 	"Nd":     NextDown,
 	"eq":     Equiv,
 }
+
+//go:generate stringer -type=Op

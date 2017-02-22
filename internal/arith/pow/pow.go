@@ -36,11 +36,10 @@ func BigTen(n int64) (p big.Int) {
 		return p
 	}
 
-	// If we don't have a constraint on the length of the big powers table
-	// we could very well end up trying to eat up 32 bits of
-	// space (because our scale is that big).
-	// To keep from making silly mistkes like that, keep the slice's
-	// size at something reasonable.
+	// If we don't have a constraint on the length of the big powers table we
+	// could very well end up trying to eat up 32 bits of space (because our
+	// scale 32 bits). To keep from making silly mistkes like that, cap the
+	// slice's size at something reasonable.
 	if n > 1e5 {
 		p.Exp(c.TenInt, big.NewInt(n), nil)
 		bigPow10Tab.RUnlock()
