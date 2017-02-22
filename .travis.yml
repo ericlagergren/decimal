@@ -2,9 +2,10 @@ language: go
 
 go:
   - 1.6
+  - 1.7
   - tip
 
 install:
   - go build .
 
-script: go test -short -v ./...
+script: go test -short -v
