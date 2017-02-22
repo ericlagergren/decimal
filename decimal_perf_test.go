@@ -1,6 +1,10 @@
 package decimal
 
-import "testing"
+import (
+	"math/big"
+	"sync"
+	"testing"
+)
 
 var x Big
 
@@ -32,26 +36,18 @@ func BenchmarkMul(b *testing.B) {
 	}
 }
 
-func BenchmarkSqrt_PerfectSquare(b *testing.B) {
-	bench(b.N, []*Big{
-		newbig(nil, "1"), newbig(nil, "4"), newbig(nil, "9"), newbig(nil, "16"), newbig(nil, "36"),
-		newbig(nil, "49"), newbig(nil, "64"), newbig(nil, "81"), newbig(nil, "100"), newbig(nil, "121"),
-	}, 0)
+var intPool = sync.Pool{
+	New: func() interface{} { return new(big.Int) },
 }
 
-func BenchmarkSqrt_FastPath(b *testing.B)    { bench(b.N, cs, 8) }
-func BenchmarkSqrt_DefaultPath(b *testing.B) { bench(b.N, cs, 25) }
-
-var cs = []*Big{
-	newbig(nil, "75"), newbig(nil, "57"), newbig(nil, "23"), newbig(nil, "250"), newbig(nil, "111"),
-	newbig(nil, "3.1"), newbig(nil, "69"), newbig(nil, "4.12e-1"),
+var zeroPool = sync.Pool{
+	New: func() interface{} { return new(big.Int) },
 }
 
-var b Big
+var getInt = func(x int64) *big.Int {
+	return intPool.Get().(*big.Int).SetInt64(x)
+}
 
-func bench(n int, cs []*Big, prec int32) {
-	b.SetPrec(prec)
-	for i := 0; i < n; i++ {
-		b.Sqrt(cs[i%len(cs)])
-	}
+var putInt = func(x *big.Int) {
+	intPool.Put(x)
 }

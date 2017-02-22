@@ -39,3 +39,9 @@ old/
 tags
 out.txt
 test.go
+algos/
+j/
+*.txt
+[a-z].go
+math/x.py
+math/t.bash

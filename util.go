@@ -6,6 +6,7 @@ import (
 
 	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/arith/checked"
+	"github.com/ericlagergren/decimal/internal/arith/pow"
 	"github.com/ericlagergren/decimal/internal/c"
 )
 
@@ -13,41 +14,16 @@ const debug = true
 
 // alias returns a if a != b, otherwise it returns a newly-allocated Big. It
 // should be used if a *might* be able to be used for storage, but only if it
-// doesn't b.
+// doesn't b. The returned Big will have a's Context.
 func alias(a, b *Big) *Big {
 	if a != b {
 		return a
 	}
-	return new(Big)
+	return new(Big).SetContext(a.Context())
 }
 
-// ez returns true if z == 0.
-func (z *Big) ez() bool {
-	return z.Sign() == 0
-}
-
-// ltz returns true if z < 0
-func (z *Big) ltz() bool {
-	return z.Sign() < 0
-}
-
-// ltez returns true if z <= 0
-func (z *Big) ltez() bool {
-	return z.Sign() <= 0
-}
-
-// gtz returns true if z > 0
-func (z *Big) gtz() bool {
-	return z.Sign() > 0
-}
-
-// gtez returns true if z >= 0
-func (z *Big) gtez() bool {
-	return z.Sign() >= 0
-}
-
-// cmpNorm compares x and y in the range [0.1, 0.999...] and
-// returns true if x > y.
+// cmpNorm compares x and y in the range [0.1, 0.999...] and returns true if x
+// > y.
 func cmpNorm(x int64, xs int32, y int64, ys int32) (ok bool) {
 	if debug && (x == 0 || y == 0) {
 		panic("x and/or y cannot be zero")
@@ -68,8 +44,8 @@ func cmpNorm(x int64, xs int32, y int64, ys int32) (ok bool) {
 	return true
 }
 
-// cmpNormBig compares x and y in the range [0.1, 0.999...] and
-// returns true if x > y.
+// cmpNormBig compares x and y in the range [0.1, 0.999...] and returns true if
+// x > y.
 func cmpNormBig(x *big.Int, xs int32, y *big.Int, ys int32) (ok bool) {
 	diff := xs - ys
 	if diff < 0 {
@@ -90,9 +66,10 @@ func findScale(f float64) (precision int32) {
 	}
 
 	e := float64(1)
-	for cmp := round(f*e) / e; !math.IsNaN(cmp) &&
-		cmp != f; cmp = round(f*e) / e {
+	cmp := round(f*e) / e
+	for !math.IsNaN(cmp) && cmp != f {
 		e *= 10
+		cmp = round(f*e) / e
 	}
 	return int32(math.Ceil(math.Log10(e)))
 }
@@ -149,11 +126,19 @@ func bigIntFromFloat(f float64) *big.Int {
 	return a.Lsh(&a, uint(shift))
 }
 
-func shiftRadixRight(x *Big, n int) bool {
-	ns, ok := checked.Sub32(x.Scale(), int32(n))
-	if !ok {
-		return false
+// scalex adjusts x by scale. If scale < 0, x = x * 10^-scale, otherwise
+// x = x / 10^scale.
+func scalex(x int64, scale int32) (int64, bool) {
+	if scale < 0 {
+		x, ok := checked.MulPow10(x, -scale)
+		if !ok {
+			return 0, false
+		}
+		return x, true
 	}
-	x.SetScale(ns)
-	return true
+	p, ok := pow.Ten64(int64(scale))
+	if !ok {
+		return 0, false
+	}
+	return x / p, true
 }
