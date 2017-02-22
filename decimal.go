@@ -376,20 +376,12 @@ func (z *Big) Cmp(x *Big) int {
 	//        123.011
 	zl := int64(z.Prec() - int(z.scale))
 	xl := int64(x.Prec() - int(x.scale))
-	// zl and xl could be any combination of negative and positive. If the
-	// signs differ compare zl and xl directly. If they don't, compare |zl|
-	// and |xl|.
-	if (zl <= 0) == (xl <= 0) {
-		if abs := arith.AbsCmp(zl, xl); abs != 0 {
-			return abs
-		}
-	} else {
-		if zl > xl {
-			return +1
-		}
-		if zl < xl {
-			return -1
-		}
+
+	if zl < xl {
+		return -zs
+	}
+	if zl > xl {
+		return zs
 	}
 
 	// We have to inflate one of the numbrers. Designate z as hi and x as lo.

@@ -165,7 +165,8 @@ func TestBig_Cmp(t *testing.T) {
 		14: {newbig(t, "10000000000000000000"),
 			newbig(t, "100000000000000000000").SetScale(1), equal},
 		// zl < 0, xl < 0
-		15: {New(2, c.BadScale-1), New(2, c.BadScale-2), greater},
+		15: {New(2, c.BadScale-1), New(2, c.BadScale-2), lesser},
+		16: {New(1000000000000000, 16), New(16666666666666666, 18), greater},
 	} {
 		r := test.a.Cmp(test.b)
 		if test.v != r {
