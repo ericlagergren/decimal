@@ -432,7 +432,13 @@ func (z *Big) Cmp(x *Big) int {
 
 	if zc != c.Inflated {
 		if xc != c.Inflated {
-			return arith.AbsCmp(zc, xc)
+			if zc > xc {
+				return +1
+			}
+			if zc < xc {
+				return -1
+			}
+			return 0
 		}
 		return big.NewInt(zc).Cmp(xm)
 	}
