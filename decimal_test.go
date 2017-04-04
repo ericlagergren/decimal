@@ -583,3 +583,11 @@ func TestBig_Sub(t *testing.T) {
 		}
 	}
 }
+
+func TestBig_CmpUnscale(t *testing.T) {
+	b1 := &Big{compact: 9223372036854775807, scale: 5, ctx: Context{precision: 0, mode: RoundingMode(0)}, form: 1, unscaled: *new(big.Int).SetInt64(181050000)}
+	b2 := &Big{compact: 18105, scale: 1, ctx: Context{precision: 0, mode: RoundingMode(0)}, form: 1, unscaled: *new(big.Int).SetInt64(0)}
+	if b1.Cmp(b2) != 0 {
+		t.Errorf("failed comparing %v with %v: %v", b1, b2, b1.Cmp(b2))
+	}
+}
