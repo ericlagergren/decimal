@@ -96,7 +96,7 @@ func testCase(fname string, i int, c suite.Case, t *testing.T) {
 	}
 
 	z := new(Big)
-	z.Context.SetMode(RoundingMode(c.Mode))
+	z.Context.RoundingMode = RoundingMode(c.Mode)
 	z.Context.SetPrecision(50)
 
 	// We need to expect an exception if:

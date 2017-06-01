@@ -40,11 +40,11 @@ func (z *Big) needsInc(x, r int64, pos, odd bool) bool {
 	if r > math.MinInt64/2 || r <= math.MaxInt64/2 {
 		m = arith.AbsCmp(r<<1, x)
 	}
-	return z.Context.rmode.needsInc(m, pos, odd)
+	return z.Context.RoundingMode.needsInc(m, pos, odd)
 }
 
 func (z *Big) needsIncBig(x, r *big.Int, pos, odd bool) bool {
 	var x0 big.Int
 	m := arith.BigAbsCmp(*x0.Mul(r, twoInt), *x)
-	return z.Context.rmode.needsInc(m, pos, odd)
+	return z.Context.RoundingMode.needsInc(m, pos, odd)
 }
