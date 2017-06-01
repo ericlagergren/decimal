@@ -63,7 +63,7 @@ func roundString(b []byte, mode RoundingMode, pos bool, prec int) []byte {
 	// We had to carry.
 	b[i] = '0'
 
-	for i := i - 1; i >= 0; i-- {
+	for i--; i >= 0; i-- {
 		if b[i] != '9' {
 			b[i]++
 			break
@@ -132,14 +132,15 @@ type formatter struct {
 	n     int64 // cumulative number of bytes written to w
 }
 
-func (f *formatter) WriteByte(c byte) {
+func (f *formatter) WriteByte(c byte) error {
 	f.n++
-	f.w.WriteByte(c)
+	return f.w.WriteByte(c)
 }
 
-func (f *formatter) WriteString(s string) {
-	m, _ := f.w.WriteString(s)
+func (f *formatter) WriteString(s string) (int, error) {
+	m, err := f.w.WriteString(s)
 	f.n += int64(m)
+	return m, err
 }
 
 func (f *formatter) Write(p []byte) (n int, err error) {
@@ -171,9 +172,9 @@ func (f *formatter) format(format, e byte) {
 				io.CopyN(f, zeroReader{}, int64(f.width))
 			}
 		case pinf:
-			f.WriteString(infs[x.Context.omode].pinf)
+			f.WriteString(infs[x.Context.OperatingMode].pinf)
 		case ninf:
-			f.WriteString(infs[x.Context.omode].ninf)
+			f.WriteString(infs[x.Context.OperatingMode].ninf)
 		case snan:
 			f.WriteString("sNaN")
 		case qnan:
@@ -197,7 +198,7 @@ func (f *formatter) format(format, e byte) {
 	}
 
 	if f.prec > 0 {
-		b = roundString(b, x.Context.RoundingMode(), !neg, f.prec)
+		b = roundString(b, x.Context.RoundingMode, !neg, f.prec)
 	}
 
 	if format == plain {
@@ -254,7 +255,7 @@ func (f *formatter) formatSci(b []byte, adj int, e byte) {
 		if adj > 0 {
 			f.WriteByte('+')
 		}
-		f.WriteString(strconv.FormatInt(int64(adj), 10))
+		f.WriteString(strconv.Itoa(adj))
 	}
 }
 

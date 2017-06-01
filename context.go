@@ -24,30 +24,29 @@ const noPrecision = -1
 // using new.
 const DefaultTraps = ^(Inexact | Rounded | Subnormal)
 
-const noTraps Condition = 1 << 0
+const noTraps Condition = 1
 
-// Context instructs lossy arithmetic operations how and to what precision they
-// should round, as well as determining what "mode" the decimal operates in.
-//
-// Some division operations have an infinite (repeating) decimal expansion
-// (digits following the radix) and thus need to be terminated at an arbitrary
-// position. The precision instructs where to terminate the expansion and the
-// mode instructs how the result should be rounded.
-//
-// Decimals have different OperatingModes, which are distinct from a
-// RoundingModes. These modes dictate how the decimal operates. For example,
-// the Decimal Arithmetic Specification (version 1.70) requires that if the
-// decimal is an infinity, the "String" (or equivalent) method must return the
-// string "Infinity." This, however, differs from other Go types like float64
-// and big.Float that return "+Inf" or "-Inf." To compensate, Context provides
-// multiple modes that so the client can choose a preferred mode.
+// Context is a per-decimal contextual object that governs specific operations
+// such as how lossy operations (e.g. division) round.
 type Context struct {
-	precision int32
-	rmode     RoundingMode
-	omode     OperatingMode
-	traps     Condition
-	condition Condition
-	err       error
+	// OperatingMode which dictates how the
+	// decimal operates. For example, the Decimal Arithmetic Specification
+	// (version 1.70) requires that if a decimal is an infinity, the "String"
+	// (or equivalent) method must return the string "Infinity." This, however,
+	// differs from other Go types like float64 and big.Float that return
+	// "+Inf" or "-Inf." To compensate, Context provides multiple modes that so
+	// the client can choose a preferred mode.
+	OperatingMode OperatingMode
+
+	precision  int32
+	traps      Condition
+	conditions Condition
+	err        error
+
+	// RoundingMode instructs how an infinite (repeating) decimal expansion
+	// (digits following the radix) should be rounded. This can occur during
+	// "lossy" operations like division.
+	RoundingMode RoundingMode
 }
 
 // Precision returns the Context's precision.
@@ -60,16 +59,6 @@ func (c Context) Precision() int32 {
 	default:
 		return c.precision
 	}
-}
-
-// RoundingMode returns c's RoundingMode.
-func (c *Context) RoundingMode() RoundingMode {
-	return c.rmode
-}
-
-// SetMode sets c's RoundingMode to mode.
-func (c *Context) SetMode(mode RoundingMode) {
-	c.rmode = mode
 }
 
 // SetPrecision sets c's precision.
@@ -112,26 +101,26 @@ func (c Context) Traps() Condition {
 var (
 	// Context32 is the IEEE 754R Decimal32 format.
 	Context32 = Context{
-		precision: 7,
-		rmode:     ToNearestEven,
-		omode:     GDA,
-		traps:     DefaultTraps,
+		precision:     7,
+		RoundingMode:  ToNearestEven,
+		OperatingMode: GDA,
+		traps:         DefaultTraps,
 	}
 
 	// Context64 is the IEEE 754R Decimal64 format.
 	Context64 = Context{
-		precision: 16,
-		rmode:     ToNearestEven,
-		omode:     GDA,
-		traps:     DefaultTraps,
+		precision:     16,
+		RoundingMode:  ToNearestEven,
+		OperatingMode: GDA,
+		traps:         DefaultTraps,
 	}
 
 	// Context128 is the IEEE 754R Decimal128 format.
 	Context128 = Context{
-		precision: 34,
-		rmode:     ToNearestEven,
-		omode:     GDA,
-		traps:     DefaultTraps,
+		precision:     34,
+		RoundingMode:  ToNearestEven,
+		OperatingMode: GDA,
+		traps:         DefaultTraps,
 	}
 )
 
@@ -171,9 +160,9 @@ const (
 
 //go:generate stringer -type OperatingMode
 
-// Conditions are raised after or during specific operations. For example,
-// dividing by zero is undefined so a DivisionByZero Condition flag will be
-// set in the decimal's Context.
+// Condition is a bitmask value raised after or during specific operations. For
+// example, dividing by zero is undefined so a DivisionByZero Condition flag
+// will be set in the decimal's Context.
 type Condition uint32
 
 const (
@@ -239,13 +228,7 @@ const (
 //go:generate stringer -type Condition
 
 var (
-	zerob = New(0, 0) // 'b' suffix because 'zero' is a form const.
-	one   = New(1, 0)
-	two   = New(2, 0)
-	three = New(3, 0)
-	four  = New(4, 0)
-	six   = New(6, 0)
-	max64 = New(math.MaxInt64, 0)
+	one = New(1, 0)
 
 	oneInt = big.NewInt(1)
 	twoInt = big.NewInt(2)

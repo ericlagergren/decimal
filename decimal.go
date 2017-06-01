@@ -64,13 +64,15 @@ type Big struct {
 	// digits this field will be used.
 	compact int64
 
+	Context Context
+	form    form
+
 	// scale is the number of digits following the radix. If scale is negative
 	// the inflation is implied; neither the compact nor unscaled fields are
 	// actually inflated.
 	scale int32
 
-	Context  Context
-	form     form
+	// unscaled is only used if the decimal is too large to fit in compact.
 	unscaled big.Int
 }
 
@@ -117,30 +119,12 @@ func (e ErrNaN) Error() string {
 
 // These methods are here to prevent typos.
 
-func (x *Big) isInflated() bool {
-	return x.compact == c.Inflated
-}
-
 func (x *Big) isCompact() bool {
 	return x.compact != c.Inflated
 }
 
-func (x *Big) isEvenInt() bool {
-	return x.IsInt() &&
-		(x.isCompact() && x.compact&1 == 0) ||
-		(x.isInflated() && x.unscaled.And(&x.unscaled, oneInt).Sign() == 0)
-}
-
-// New creates a new Big decimal with the given value and scale. For example:
-//
-//  	New(1234, 3) // 1.234
-//  	New(42, 0)   // 42
-//  	New(4321, 5) // 0.04321
-//  	New(-1, 0)   // -1
-//  	New(3, -10)  // 30,000,000,000
-//
-func New(value int64, scale int32) *Big {
-	return new(Big).SetMantScale(value, scale)
+func (x *Big) isInflated() bool {
+	return !x.isCompact()
 }
 
 // Abs sets z to the absolute value of x if x is finite and returns z.
@@ -158,6 +142,8 @@ func (z *Big) Abs(x *Big) *Big {
 	return z
 }
 
+// checkNaNs checks if either x or y is NaN. If so, it sets z's form to either
+// qnan or snan and returns the peoper Condition along with ErrNaN.
 func (z *Big) checkNaNs(x, y *Big, op string) (Condition, error) {
 	f := (x.form | y.form) & nan
 	if f == 0 {
@@ -472,6 +458,12 @@ func (z *Big) Cmp(x *Big) int {
 	return z.unscaled.Cmp(xm)
 }
 
+// Conditions returns any Conditions that occurred in the most recent
+// operation.
+func (x *Big) Conditions() Condition {
+	return x.Context.conditions
+}
+
 // Copy sets z to a copy of x and returns z.
 func (z *Big) Copy(x *Big) *Big {
 	if z != x {
@@ -486,6 +478,11 @@ func (z *Big) Copy(x *Big) *Big {
 		}
 	}
 	return z
+}
+
+// Err returns any errors that occured in the most recent operation.
+func (x *Big) Err() error {
+	return x.Context.err
 }
 
 // Format implements the fmt.Formatter interface. The following verbs are
@@ -596,9 +593,9 @@ func (x *Big) Format(s fmt.State, c rune) {
 		// recursive. At least the fields are checked at compile time.
 		type Big struct {
 			compact  int64
-			scale    int32
 			Context  Context
 			form     form
+			scale    int32
 			unscaled big.Int
 		}
 		format := [...]byte{'%', 'v', 'v', 'v'}
@@ -932,6 +929,18 @@ func (z *Big) Neg(x *Big) *Big {
 	return z
 }
 
+// New creates a new Big decimal with the given value and scale. For example:
+//
+//  	New(1234, 3) // 1.234
+//  	New(42, 0)   // 42
+//  	New(4321, 5) // 0.04321
+//  	New(-1, 0)   // -1
+//  	New(3, -10)  // 30,000,000,000
+//
+func New(value int64, scale int32) *Big {
+	return new(Big).SetMantScale(value, scale)
+}
+
 // Precision returns the precision of x. That is, it returns the number of
 // digits in the unscaled form of x. x == 0 has a precision of 1. The result is
 // undefined if x is an infinity.
@@ -1028,7 +1037,7 @@ func (z *Big) quoAndRound(x, y int64) *Big {
 	z.compact = x / y
 
 	// ToZero means we can ignore remainder.
-	if z.Context.rmode == ToZero {
+	if z.Context.RoundingMode == ToZero {
 		return z
 	}
 
@@ -1218,7 +1227,7 @@ func (z *Big) quoBigAndRound(x, y *big.Int) *Big {
 	// TODO: perhaps use a pool for the allocated big.Int?
 	q, r := z.unscaled.QuoRem(x, y, new(big.Int))
 
-	if z.Context.rmode == ToZero {
+	if z.Context.RoundingMode == ToZero {
 		return z
 	}
 
@@ -1262,7 +1271,7 @@ func (z *Big) Round(n int32) *Big {
 		} else {
 			z.form = ninf
 		}
-		err, cond, panic := z.xflow(zp < 0, z.Signbit())
+		cond, panic, err := z.xflow(zp < 0, z.Signbit())
 		if panic {
 			return z.signal(cond, err)
 		}
@@ -1406,14 +1415,14 @@ var (
 	errUnderflow = errors.New("scale is too small")
 )
 
-func (z *Big) xflow(over, neg bool) (err error, c Condition, panic bool) {
+func (z *Big) xflow(over, neg bool) (c Condition, panic bool, err error) {
 	if over {
-		err, c = errOverflow, Overflow|Inexact|Rounded
+		c, err = Overflow|Inexact|Rounded, errOverflow
 	} else {
-		err, c = errUnderflow, Underflow|Inexact|Rounded|Subnormal
+		c, err = Underflow|Inexact|Rounded|Subnormal, errUnderflow
 	}
 
-	switch z.Context.RoundingMode() {
+	switch z.Context.RoundingMode {
 	case ToNearestEven, ToNearestAway:
 		if neg {
 			z.form = ninf
@@ -1432,7 +1441,7 @@ func (z *Big) xflow(over, neg bool) (err error, c Condition, panic bool) {
 			z.form = ninf
 		}
 	}
-	return err, c, panic
+	return c, panic, err
 }
 
 // SetString sets z to the value of s, returning z and a bool indicating
@@ -1475,7 +1484,7 @@ func (z *Big) SetString(s string) (*Big, bool) {
 			}
 
 			// strconv.ErrRange.
-			err, cond, panic := z.xflow(eint < 0, s[0] == '-')
+			cond, panic, err := z.xflow(eint < 0, s[0] == '-')
 			if panic {
 				return z.signal(cond, err), false
 			}
@@ -1494,7 +1503,7 @@ func (z *Big) SetString(s string) (*Big, bool) {
 		if !ok {
 			// It's impossible for the scale to underflow here since the rhs will
 			// always be [0, len(s)]
-			err, cond, _ := z.xflow(true, s[0] == '-')
+			cond, _, err := z.xflow(true, s[0] == '-')
 			return z.signal(cond, err), false
 		}
 		scale = sc
@@ -1580,7 +1589,7 @@ func (x *Big) Sign() int {
 }
 
 func (x *Big) signal(c Condition, err error) *Big {
-	switch ctx := &x.Context; ctx.omode {
+	switch ctx := &x.Context; ctx.OperatingMode {
 	case Go:
 		// Go mode always panics on NaNs.
 		_, ok := err.(ErrNaN)
@@ -1590,7 +1599,7 @@ func (x *Big) signal(c Condition, err error) *Big {
 	case GDA:
 		if ctx.traps&c != 0 {
 			ctx.err = err
-			ctx.condition = c
+			ctx.conditions = c
 		}
 	}
 	return x
