@@ -2,7 +2,6 @@ package decimal
 
 import (
 	"math"
-	"math/big"
 	"strconv"
 	"strings"
 	"testing"
@@ -73,7 +72,7 @@ func TestBig_Add(t *testing.T) {
 		5:  {a: "0", b: "1.001", res: "1.001"},
 		6:  {a: "123456789123456789.12345", b: "123456789123456789.12345", res: "246913578246913578.2469"},
 		7:  {a: ".999999999", b: ".00000000000000000000000000000001", res: "0.99999999900000000000000000000001"},
-		8:  {"+Inf", "-Inf", "0", true},
+		8:  {"+Inf", "-Inf", "NaN", true},
 		9:  {"+Inf", "+Inf", "+Inf", false},
 		10: {"0", "0", "0", false},
 	}
@@ -172,25 +171,6 @@ func TestBig_Cmp(t *testing.T) {
 		if test.v != r {
 			t.Fatalf("#%d: wanted %d, got %d", i, test.v, r)
 		}
-	}
-}
-
-func TestBig_Issue15(t *testing.T) {
-	b1 := &Big{
-		compact:  c.Inflated,
-		scale:    5,
-		ctx:      Context{precision: 0, mode: 0},
-		form:     finite,
-		unscaled: *new(big.Int).SetInt64(181050000),
-	}
-	b2 := &Big{
-		compact: 18105,
-		scale:   1,
-		ctx:     Context{precision: 0, mode: 0},
-		form:    finite,
-	}
-	if b1.Cmp(b2) != 0 {
-		t.Errorf("failed comparing %v with %v: %v", b1, b2, b1.Cmp(b2))
 	}
 }
 
@@ -393,9 +373,9 @@ func TestBig_Quo(t *testing.T) {
 	}
 	for i, v := range tests {
 		if v.p != 0 {
-			v.a.SetPrecision(v.p)
+			v.a.Context.SetPrecision(v.p)
 		} else {
-			v.a.SetPrecision(DefaultPrec)
+			v.a.Context.SetPrecision(DefaultPrecision)
 		}
 		q := v.a.Quo(v.a, v.b)
 		if qs := q.String(); qs != v.r {
@@ -534,6 +514,8 @@ func TestBig_String(t *testing.T) {
 		3: {a: New(-1e5, 0), b: strconv.Itoa(-1e5)}, // Large number
 		4: {a: New(0, -50), b: "0"},                 // "0"
 		5: {a: x.Mul(x, x), b: "85070591730234615847396907784232501249"},
+		6: {a: newbig(t, "-1.4e-52"), b: "-1.4e-52"},
+		7: {a: newbig(t, "-500.444312301"), b: "-500.444312301"},
 	}
 	for i, s := range tests {
 		str := s.a.String()
@@ -561,7 +543,7 @@ func TestBig_Sub(t *testing.T) {
 		8:  {a: "1.001", b: "0", r: "1.001"},
 		9:  {a: "2.3", b: ".3", r: "2"},
 		10: {"+Inf", "-Inf", "+Inf", false},
-		11: {"+Inf", "+Inf", "0", true},
+		11: {"+Inf", "+Inf", "NaN", true},
 		12: {"0", "0", "0", false},
 	}
 
