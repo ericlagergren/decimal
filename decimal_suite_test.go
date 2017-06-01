@@ -96,8 +96,8 @@ func testCase(fname string, i int, c suite.Case, t *testing.T) {
 	}
 
 	z := new(Big)
-	z.SetMode(RoundingMode(c.Mode))
-	z.SetPrecision(50)
+	z.Context.SetMode(RoundingMode(c.Mode))
+	z.Context.SetPrecision(50)
 
 	// We need to expect an exception if:
 	//
@@ -120,7 +120,7 @@ func testCase(fname string, i int, c suite.Case, t *testing.T) {
 
 		want, _ := new(Big).SetString(string(c.Output))
 		want.Round(precision(c.Output))
-		z.Round(int32(want.Prec()))
+		z.Round(int32(want.Precision()))
 		if want.Cmp(z) != 0 {
 			if testing.Verbose() {
 				t.Log(precision(c.Output), ":", c.Output)

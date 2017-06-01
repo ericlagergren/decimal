@@ -1,6 +1,7 @@
 package decimal
 
 import (
+	"fmt"
 	"math"
 	"math/big"
 
@@ -12,6 +13,11 @@ import (
 
 const debug = true
 
+var (
+	_ fmt.Stringer  = (*Big)(nil)
+	_ fmt.Formatter = (*Big)(nil)
+)
+
 // alias returns a if a != b, otherwise it returns a newly-allocated Big. It
 // should be used if a *might* be able to be used for storage, but only if it
 // doesn't b. The returned Big will have a's Context.
@@ -19,7 +25,9 @@ func alias(a, b *Big) *Big {
 	if a != b {
 		return a
 	}
-	return new(Big).SetContext(a.Context())
+	z := new(Big)
+	z.Context = a.Context
+	return z
 }
 
 // cmpNorm compares x and y in the range [0.1, 0.999...] and returns true if x
@@ -66,12 +74,16 @@ func findScale(f float64) (precision int32) {
 	}
 
 	e := float64(1)
-	cmp := round(f*e) / e
-	for !math.IsNaN(cmp) && cmp != f {
+	p := int32(0)
+	for {
 		e *= 10
-		cmp = round(f*e) / e
+		p++
+		cmp := round(f*e) / e
+		if math.IsNaN(cmp) || cmp == f {
+			break
+		}
 	}
-	return int32(math.Ceil(math.Log10(e)))
+	return p
 }
 
 // The default rounding should be unbiased rounding.
@@ -85,7 +97,7 @@ func findScale(f float64) (precision int32) {
 // But returns more accurate results.
 func round(f float64) float64 {
 	d, frac := math.Modf(f)
-	if f > 0.0 && (frac > 0.5 || (frac == 0.5 && uint64(d)%2 != 0)) {
+	if f > 0.0 && (frac > +0.5 || (frac == 0.5 && uint64(d)%2 != 0)) {
 		return d + 1.0
 	}
 	if f < 0.0 && (frac < -0.5 || (frac == -0.5 && uint64(d)%2 != 0)) {
