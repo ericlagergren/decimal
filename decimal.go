@@ -47,7 +47,7 @@ import (
 	"github.com/ericlagergren/decimal/internal/c"
 )
 
-// Note: For +/-inf/nan checks: https://play.golang.org/p/RtH3UCt5IH
+// NOTE: For +/-inf/nan checks: https://play.golang.org/p/RtH3UCt5IH
 
 // Big is a fixed-point, arbitrary-precision decimal number.
 //
@@ -56,14 +56,13 @@ import (
 // number * 10 ^ -scale.
 type Big struct {
 	// Big is laid out like this so it takes up as little memory as possible.
-	// On 64-bit systems it takes up 42 bytes.
-	// On 32-bit systems it takes up 32 bytes.
-	//
+
 	// compact is use if the value fits into an int64. The scale does not
 	// affect whether this field is used; typically, if a decimal has <= 19
 	// digits this field will be used.
 	compact int64
 
+	// Context is the decimal's unique contextual object.
 	Context Context
 	form    form
 
@@ -908,8 +907,22 @@ func (z *Big) mulBig(x, y *Big) *Big {
 	return z
 }
 
-// Neg sets z to -x and returns z.
+// Neg sets z to -x and returns z. If x is positive infinity, z will be set to
+// negative infinity and visa versa. If x == 0, z will be set to zero as well.
+// NaN has no negative representation, and will result in an error.
 func (z *Big) Neg(x *Big) *Big {
+	if x.form == finite {
+		if x.isCompact() {
+			z.compact = -x.compact
+		} else {
+			z.unscaled.Neg(&x.unscaled)
+			z.compact = c.Inflated
+		}
+		z.scale = x.scale
+		z.form = x.form
+		return z
+	}
+
 	if x.form&inf != 0 {
 		// x.form is either 110 or 101
 		//
@@ -918,14 +931,13 @@ func (z *Big) Neg(x *Big) *Big {
 		z.form ^= (pinf | ninf) ^ inf
 		return z
 	}
-	if x.isCompact() {
-		z.compact = -x.compact
-	} else {
-		z.unscaled.Neg(&x.unscaled)
-		z.compact = c.Inflated
+
+	if x.form&nan != 0 {
+		z.form = qnan
+		return z.special(InvalidOperation, ErrNaN{"negation of NaN"})
 	}
-	z.scale = x.scale
-	z.form = x.form
+
+	z.form = zero
 	return z
 }
 
@@ -1616,9 +1628,9 @@ func (x *Big) Signbit() bool {
 	return x.unscaled.Sign() < 0
 }
 
-// String returns the scientific string representation of x.
-// The exact representation depends on Context, but typically the special cases
-// will be:
+// String returns the string representation of x. It's equivalent to the %s
+// verb discussed in the Format method's documentation. Special cases depend on
+// the OperatingMode, the defaults are:
 //
 //  "<nil>" if x == nil
 //  "+Inf"  if x.IsInf(1)
