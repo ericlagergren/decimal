@@ -10,21 +10,24 @@ const (
 	MaxScale = math.MaxInt32 // largest allowed scale.
 	MinScale = math.MinInt32 // smallest allowed scale.
 
-	MaxPrec = math.MaxInt32 // largest allowed context precision.
-	MinPrec = 0             // smallest allowed context precision.
+	MaxPrecision = math.MaxInt32 // largest allowed Context precision.
+	MinPrecision = 1             // smallest allowed Context precision.
 )
 
-// DefaultPrecision is the default precision used for decimals created as
-// literals or using new.
-const DefaultPrecision = 16
+const (
+	// DefaultPrecision is the default precision used for decimals created as
+	// literals or using new.
+	DefaultPrecision = 16
 
-const noPrecision = -1
+	// DefaultTraps is the default traps used for decimals created as literals
+	// or using new.
+	DefaultTraps = ^(Inexact | Rounded | Subnormal)
+)
 
-// DefaultTraps is the default traps used for decimals created as literals or
-// using new.
-const DefaultTraps = ^(Inexact | Rounded | Subnormal)
-
-const noTraps Condition = 1
+const (
+	noPrecision           = -1
+	noTraps     Condition = 1
+)
 
 // Context is a per-decimal contextual object that governs specific operations
 // such as how lossy operations (e.g. division) round.
