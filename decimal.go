@@ -934,7 +934,7 @@ func (z *Big) Neg(x *Big) *Big {
 
 	if x.form&nan != 0 {
 		z.form = qnan
-		return z.special(InvalidOperation, ErrNaN{"negation of NaN"})
+		return z.signal(InvalidOperation, ErrNaN{"negation of NaN"})
 	}
 
 	z.form = zero
