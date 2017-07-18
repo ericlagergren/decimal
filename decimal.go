@@ -331,7 +331,7 @@ func (x *Big) BitLen() int {
 //    0 if z == x
 //   +1 if z >  x
 //
-// It does not modify d or x.
+// It does not modify z or x.
 func (z *Big) Cmp(x *Big) int {
 	// Check for same pointers.
 	if z == x {
@@ -393,7 +393,7 @@ func (z *Big) Cmp(x *Big) int {
 		return zs
 	}
 
-	// We have to inflate one of the numbrers. Designate z as hi and x as lo.
+	// We have to inflate one of the numbers. Designate z as hi and x as lo.
 	var (
 		// hi
 		hi = z.scale
@@ -417,13 +417,12 @@ func (z *Big) Cmp(x *Big) int {
 	diff, ok := checked.Sub32(hi, lo)
 	if debug && !ok {
 		// TODO: I'm like 99% positive this can't be reached.
-		panic("bug: should not be reached")
+		panic("should not be reached")
 	}
 
 	// Inflate lo.
 	if xc != c.Inflated {
-		nx, ok := checked.MulPow10(xc, diff)
-		if !ok {
+		if nx, ok := checked.MulPow10(xc, diff); !ok {
 			// Can't fit in an int64, use big.Int.
 			xm = checked.MulBigPow10(big.NewInt(xc), diff)
 			xc = c.Inflated
@@ -431,9 +430,11 @@ func (z *Big) Cmp(x *Big) int {
 			xc = nx
 		}
 	} else {
-		xm = checked.MulBigPow10(xm, diff)
+		tmp := new(big.Int).Set(xm)
+		xm = checked.MulBigPow10(tmp, diff)
 	}
 
+	// Swap back to original.
 	if swap {
 		zc, xc = xc, zc
 		zm, xm = xm, zm
@@ -452,9 +453,9 @@ func (z *Big) Cmp(x *Big) int {
 		return big.NewInt(zc).Cmp(xm)
 	}
 	if xc != c.Inflated {
-		return z.unscaled.Cmp(big.NewInt(xc))
+		return zm.Cmp(big.NewInt(xc))
 	}
-	return z.unscaled.Cmp(xm)
+	return zm.Cmp(xm)
 }
 
 // Conditions returns any Conditions that occurred in the most recent
@@ -597,26 +598,20 @@ func (x *Big) Format(s fmt.State, c rune) {
 			scale    int32
 			unscaled big.Int
 		}
-		format := [...]byte{'%', 'v', 'v', 'v'}
-		i := 1
+		specs := ""
 		if dash {
-			format[i] = '-'
-			i++
+			specs += "-"
 		} else if lpZero {
-			format[i] = '0'
-			i++
+			specs += "0"
 		}
 		if hash {
-			format[i] = '#'
-			i++
+			specs += "#"
 		} else if plus {
-			format[i] = '+'
-			i++
+			specs += "+"
 		} else if space {
-			format[i] = ' '
-			i++
+			specs += " "
 		}
-		fmt.Fprintf(s, string(format[:i+1]), (*Big)(x))
+		fmt.Fprintf(s, "%"+specs+"v", (*Big)(x))
 		return
 	default:
 		fmt.Fprintf(s, "%%!%c(*decimal.Big=%s)", c, x.String())
@@ -1496,8 +1491,7 @@ func (z *Big) SetString(s string) (*Big, bool) {
 			}
 
 			// strconv.ErrRange.
-			cond, panic, err := z.xflow(eint < 0, s[0] == '-')
-			if panic {
+			if cond, panic, err := z.xflow(eint < 0, s[0] == '-'); panic {
 				return z.signal(cond, err), false
 			}
 		}
@@ -1604,8 +1598,7 @@ func (x *Big) signal(c Condition, err error) *Big {
 	switch ctx := &x.Context; ctx.OperatingMode {
 	case Go:
 		// Go mode always panics on NaNs.
-		_, ok := err.(ErrNaN)
-		if ok {
+		if _, ok := err.(ErrNaN); ok {
 			panic(err)
 		}
 	case GDA:
@@ -1690,8 +1683,7 @@ func (z *Big) Sub(x, y *Big) *Big {
 
 // UnmarshalText implements encoding/TextUnmarshaler.
 func (z *Big) UnmarshalText(data []byte) error {
-	_, ok := z.SetString(string(data))
-	if !ok {
+	if _, ok := z.SetString(string(data)); !ok {
 		return errors.New("Big.UnmarshalText: invalid decimal format")
 	}
 	return nil

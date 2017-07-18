@@ -161,8 +161,10 @@ func TestBig_Cmp(t *testing.T) {
 		11: {new(Big).Set(large).Neg(large), large, lesser},
 		12: {new(Big).Quo(new(Big).Set(large), New(314156, 5)), large, lesser},
 		13: {New(1234, 3), newbig(t, "1000000000000000000000000000000.234"), lesser},
-		14: {newbig(t, "10000000000000000000"),
-			newbig(t, "100000000000000000000").SetScale(1), equal},
+		14: {
+			newbig(t, "10000000000000000000"),
+			newbig(t, "100000000000000000000").SetScale(1), equal,
+		},
 		// zl < 0, xl < 0
 		15: {New(2, c.BadScale-1), New(2, c.BadScale-2), lesser},
 		16: {New(1000000000000000, 16), New(16666666666666666, 18), greater},
@@ -455,6 +457,25 @@ func TestBig_SetFloat64(t *testing.T) {
 	// 2.3%.
 	if err >= 0.05*float64(len(testTable)) {
 		t.Fatalf("wanted error rate to be < 0.05%% of table, got %.f", err)
+	}
+}
+
+func TestBig_SetString(t *testing.T) {
+	tests := []struct {
+		dec string
+		s   string
+	}{
+		0: {"0", "0"},
+		1: {"00000000000000000000", "0"},
+	}
+	for i, v := range tests {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			dec := newbig(t, v.dec)
+			s := dec.String()
+			if v.s != s {
+				t.Fatalf("wanted %s, got %s", v.s, s)
+			}
+		})
 	}
 }
 
