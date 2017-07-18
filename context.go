@@ -32,13 +32,12 @@ const (
 // Context is a per-decimal contextual object that governs specific operations
 // such as how lossy operations (e.g. division) round.
 type Context struct {
-	// OperatingMode which dictates how the
-	// decimal operates. For example, the Decimal Arithmetic Specification
-	// (version 1.70) requires that if a decimal is an infinity, the "String"
-	// (or equivalent) method must return the string "Infinity." This, however,
-	// differs from other Go types like float64 and big.Float that return
-	// "+Inf" or "-Inf." To compensate, Context provides multiple modes that so
-	// the client can choose a preferred mode.
+	// OperatingMode which dictates how the decimal operates. For example, the
+	// Decimal Arithmetic Specification (version 1.70) requires an infinity
+	// decimal, to return "Infinity" from its "String" (or equivalent) method.
+	// This, however, differs from other Go types like float64 and big.Float
+	// that return "+Inf" or "-Inf." To compensate, Context provides multiple
+	// modes that so the client can choose a preferred mode.
 	OperatingMode OperatingMode
 
 	precision  int32
