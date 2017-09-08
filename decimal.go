@@ -57,22 +57,23 @@ import (
 type Big struct {
 	// Big is laid out like this so it takes up as little memory as possible.
 
+	// Context is the decimal's unique contextual object.
+	Context Context
+
+	// unscaled is only used if the decimal is too large to fit in compact.
+	unscaled big.Int
+
 	// compact is use if the value fits into an int64. The scale does not
 	// affect whether this field is used; typically, if a decimal has <= 19
 	// digits this field will be used.
 	compact int64
-
-	// Context is the decimal's unique contextual object.
-	Context Context
-	form    form
 
 	// scale is the number of digits following the radix. If scale is negative
 	// the inflation is implied; neither the compact nor unscaled fields are
 	// actually inflated.
 	scale int32
 
-	// unscaled is only used if the decimal is too large to fit in compact.
-	unscaled big.Int
+	form form
 }
 
 // form represents whether the Big decimal is normal, infinite, sNaN, or qNaN.
@@ -592,11 +593,11 @@ func (x *Big) Format(s fmt.State, c rune) {
 		// even though it's declared inside a function. Go thinks it's
 		// recursive. At least the fields are checked at compile time.
 		type Big struct {
-			compact  int64
 			Context  Context
-			form     form
-			scale    int32
 			unscaled big.Int
+			compact  int64
+			scale    int32
+			form     form
 		}
 		specs := ""
 		if dash {
