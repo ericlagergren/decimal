@@ -47,7 +47,7 @@ import (
 	"github.com/ericlagergren/decimal/internal/c"
 )
 
-// NOTE: For +/-inf/nan checks: https://play.golang.org/p/RtH3UCt5IH
+// NOTE(eric): For +/-inf/nan checks: https://play.golang.org/p/RtH3UCt5IH
 
 // Big is a fixed-point, arbitrary-precision decimal number.
 //
@@ -76,7 +76,8 @@ type Big struct {
 	form form
 }
 
-// form represents whether the Big decimal is normal, infinite, sNaN, or qNaN.
+// form represents whether the Big decimal is zero, normal, infinite, or a
+// not-a-number value.
 type form uint8
 
 const (
@@ -93,23 +94,40 @@ const (
 	zero   form = 0 // this constant must remain 0.
 	finite form = 1
 
-	// *Never* assign nan, only snan and qnan.
+	// *Never* assign nan, *only* snan and qnan.
 	nan  form = 1 << 2
-	snan form = nan | 1<<3
-	qnan form = nan | 1<<4
+	snan form = 1<<3 | nan
+	qnan form = 1<<4 | nan
 
-	// *Never* assign inf, only pinf and ninf.
+	// *Never* assign inf, *only* pinf and ninf.
 	inf  form = 1 << 5
-	pinf form = inf | 1<<6
-	ninf form = inf | 1<<7
+	pinf form = 1<<6 | inf
+	ninf form = 1<<7 | inf
 )
 
-//go:generate stringer -type=form
+func (f form) String() string {
+	switch f {
+	case zero:
+		return "zero"
+	case finite:
+		return "finite"
+	case snan:
+		return "sNaN"
+	case qnan:
+		return "qNaN"
+	case pinf:
+		return "+Inf"
+	case ninf:
+		return "-Inf"
+	default:
+		return fmt.Sprintf("unknown(%d)", f)
+	}
+}
 
 // An ErrNaN panic is raised by a decimal operation that would lead to a NaN
 // under IEEE-754 rules. An ErrNaN implements the error interface.
 type ErrNaN struct {
-	// TODO: Perhaps use math/big.ErrNaN if possible in the future?
+	// TODO(eric): Perhaps use math/big.ErrNaN if possible in the future?
 	Msg string
 }
 
@@ -150,6 +168,8 @@ func (z *Big) checkNaNs(x, y *Big, op string) (Condition, error) {
 		return 0, nil
 	}
 
+	fmt.Println(x, y, f)
+
 	msg := op + " with NaN as an operand"
 	if f&snan != 0 {
 		z.form = snan
@@ -178,8 +198,7 @@ func (z *Big) Add(x, y *Big) *Big {
 	// NaN + NaN
 	// NaN + y
 	// x + NaN
-	c, err := z.checkNaNs(x, y, "addition")
-	if err != nil {
+	if c, err := z.checkNaNs(x, y, "addition"); err != nil {
 		return z.signal(c, err)
 	}
 
@@ -417,7 +436,7 @@ func (z *Big) Cmp(x *Big) int {
 
 	diff, ok := checked.Sub32(hi, lo)
 	if debug && !ok {
-		// TODO: I'm like 99% positive this can't be reached.
+		// TODO(eric): I'm like 99% positive this can't be reached.
 		panic("should not be reached")
 	}
 
@@ -583,7 +602,7 @@ func (x *Big) Format(s fmt.State, c rune) {
 	// Make sure we return from the following two cases.
 	case 'v':
 		// %v == %s
-		// TODO: make this neater.
+		// TODO(eric): make this neater.
 		if !hash && !plus {
 			f.format(normal, 'e')
 			break
@@ -625,7 +644,7 @@ func (x *Big) Format(s fmt.State, c rune) {
 		needPad = false
 	}
 
-	// TODO: find a better way of doing this.
+	// TODO(eric): find a better way of doing this.
 	// If we had to write into a temp buffer, copy it over to the State.
 	if r, ok := f.w.(*bytes.Buffer); ok {
 		io.Copy(s, r)
@@ -751,7 +770,7 @@ func (x *Big) IsInt() bool {
 	// E.g., 0.1:  scale == 1, prec == 1
 	//       0.01: scale == 2, prec == 1
 	//
-	// TODO: avoid Cmp.
+	// TODO(eric): avoid Cmp.
 	return x.scale <= 0 || (x.Precision() <= int(x.scale) && x.Cmp(one) > 0)
 }
 
@@ -1088,7 +1107,7 @@ func (z *Big) quoCompact(x, y *Big) *Big {
 		// The wraparound from int32(int64(x)) where x ∉ {-1<<31, ..., 1<<31-1}
 		// will swap its sign.
 		//
-		// TODO: for some reason I am not 100% sure the above accurate.
+		// TODO(eric): for some reason I am not 100% sure the above accurate.
 		if scale > 0 {
 			z.form = ninf
 		} else {
@@ -1100,7 +1119,7 @@ func (z *Big) quoCompact(x, y *Big) *Big {
 
 	shift, ok := checked.SumSub(zp, yp, xp)
 	if !ok {
-		// TODO: See above comment about wraparound.
+		// TODO(eric): See above comment about wraparound.
 		if scale > 0 {
 			z.form = ninf
 		} else {
@@ -1179,7 +1198,7 @@ func (z *Big) quoBig(x, y *Big) *Big {
 		// The wraparound from int32(int64(x)) where x ∉ {-1<<31, ..., 1<<31-1}
 		// will swap its sign.
 		//
-		// TODO: for some reason I am not 100% sure the above accurate.
+		// TODO(eric): for some reason I am not 100% sure the above accurate.
 		if scale > 0 {
 			z.form = ninf
 		} else {
@@ -1191,7 +1210,7 @@ func (z *Big) quoBig(x, y *Big) *Big {
 
 	shift, ok := checked.SumSub(zp, yp, xp)
 	if !ok {
-		// TODO: See above comment about wraparound.
+		// TODO(eric): See above comment about wraparound.
 		if scale > 0 {
 			z.form = ninf
 		} else {
@@ -1232,7 +1251,7 @@ func (z *Big) quoBig(x, y *Big) *Big {
 func (z *Big) quoBigAndRound(x, y *big.Int) *Big {
 	z.compact = c.Inflated
 
-	// TODO: perhaps use a pool for the allocated big.Int?
+	// TODO(eric): perhaps use a pool for the allocated big.Int?
 	q, r := z.unscaled.QuoRem(x, y, new(big.Int))
 
 	if z.Context.RoundingMode == ToZero {
@@ -1288,6 +1307,7 @@ func (z *Big) Round(n int32) *Big {
 	if shift <= 0 {
 		return z
 	}
+	z.Context.conditions |= Rounded
 	z.scale -= int32(shift)
 
 	if z.isCompact() {
@@ -1419,8 +1439,8 @@ func (z *Big) SetScale(scale int32) *Big {
 }
 
 var (
-	errOverflow  = errors.New("scale is too large")
-	errUnderflow = errors.New("scale is too small")
+	errOverflow  = errors.New("decimal: overflow: scale is too large")
+	errUnderflow = errors.New("decimal: underflow: scale is too small")
 )
 
 func (z *Big) xflow(over, neg bool) (c Condition, panic bool, err error) {
@@ -1460,9 +1480,12 @@ func (z *Big) xflow(over, neg bool) (c Condition, panic bool, err error) {
 // 	1.234e+5
 // 	1.234E-5
 // 	0.000001234
-// 	Inf
+// 	Inf (implicit +Inf)
 // 	+Inf
 // 	-Inf
+// 	NaN (implicit qNaN)
+// 	sNaN
+// 	qNaN
 //
 // Inf values are not required to be case-sensitive.
 func (z *Big) SetString(s string) (*Big, bool) {
@@ -1470,13 +1493,39 @@ func (z *Big) SetString(s string) (*Big, bool) {
 		return z.signal(ConversionSyntax, errors.New(`SetString("")`)), false
 	}
 
-	// Inf, +Inf, or -Inf.
-	if strings.EqualFold(s, "Inf") || strings.EqualFold(s, "+Inf") {
-		z.form = pinf
-		return z, true
-	}
-	if strings.EqualFold(s, "-Inf") {
-		z.form = ninf
+	// http://speleotrove.com/decimal/daconvs.html#refnumsyn
+	//
+	//   sign           ::=  ’+’ | ’-’
+	//   digit          ::=  ’0’ | ’1’ | ’2’ | ’3’ | ’4’ | ’5’ | ’6’ | ’7’ |
+	//	  	                 ’8’ | ’9’
+	//	 indicator      ::=  ’e’ | ’E’
+	//   digits         ::=  digit [digit]...
+	//   decimal-part   ::=  digits ’.’ [digits] | [’.’] digits
+	//   exponent-part  ::=  indicator [sign] digits
+	//	 infinity       ::=  ’Infinity’ | ’Inf’
+	//   nan            ::=  ’NaN’ [digits] | ’sNaN’ [digits]
+	//	 numeric-value  ::=  decimal-part [exponent-part] | infinity
+	//   numeric-string ::=  [sign] numeric-value | [sign] nan
+	//
+	// We deviate a little by being a tad bit more forgiving.
+
+	// Eliminate overhead when searching for inf and nan values.
+	if s[len(s)-1] > '9' {
+		// TODO(eric): the more efficient (and lazy) way to do this would be a
+		// FSM.
+		switch s {
+		default:
+			return nil, false
+		case "NaN", "qNaN", "nan", "nan":
+			z.form = qnan
+		case "sNaN", "snan":
+			z.form = snan
+		case "Inf", "+Inf", "Infinity", "+Infinity",
+			"+inf", "+infinity", "inf", "+infinity":
+			z.form = pinf
+		case "-Inf", "-Infinity", "-inf", "-infinity":
+			z.form = ninf
+		}
 		return z, true
 	}
 
@@ -1542,7 +1591,7 @@ func (z *Big) SetString(s string) (*Big, bool) {
 		if !ok {
 			return z.signal(
 				ConversionSyntax,
-				// TODO: a better error message?
+				// TODO(eric): a better error message?
 				errors.New("SetString: bad syntax"),
 			), false
 		}
@@ -1576,8 +1625,9 @@ func (x *Big) Sign() int {
 		return +1
 	}
 
-	// x is finite
+	// x is finite.
 	if x.isCompact() {
+		// TODO(eric): remove this conditional when we drop support for Go 1.7.
 		// See: https://github.com/golang/go/issues/16203
 		if runtime.GOARCH == "amd64" {
 			// Hacker's Delight, page 21, section 2-8.
@@ -1603,7 +1653,8 @@ func (x *Big) signal(c Condition, err error) *Big {
 			panic(err)
 		}
 	case GDA:
-		if ctx.traps&c != 0 {
+		c &= ctx.Traps()
+		if c != 0 {
 			ctx.err = err
 			ctx.conditions = c
 		}
@@ -1631,7 +1682,7 @@ func (x *Big) Signbit() bool {
 //  "-Inf"  if x.IsInf(-1)
 //
 func (x *Big) String() string {
-	// TODO: use a pool?
+	// TODO(eric): use a pool?
 	var (
 		b bytes.Buffer
 		f = formatter{x: x, w: &b, prec: noPrec, width: noWidth}
@@ -1643,7 +1694,7 @@ func (x *Big) String() string {
 // Sub sets z to x - y and returns z.
 func (z *Big) Sub(x, y *Big) *Big {
 	if x.form == finite && y.form == finite {
-		// TODO: Write this without using Neg to save an allocation.
+		// TODO(eric): Write this without using Neg to save an allocation.
 		return z.Add(x, new(Big).Neg(y))
 	}
 
