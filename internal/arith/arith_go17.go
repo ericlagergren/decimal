@@ -30,3 +30,14 @@ func BitLen(x int64) (n int) {
 	}
 	return n
 }
+
+func Popcnt32(x uint32) int {
+	var count int
+	for x != 0 {
+		if x&1 == 1 {
+			count++
+		}
+		x >>= 1
+	}
+	return count
+}

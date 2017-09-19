@@ -1,8 +1,12 @@
 package decimal
 
 import (
+	"fmt"
 	"math"
 	"math/big"
+	"strings"
+
+	"github.com/ericlagergren/decimal/internal/arith"
 )
 
 // Precision and scale limits.
@@ -153,10 +157,10 @@ const (
 type OperatingMode uint8
 
 const (
-	// Go adheres to typical Go idioms
+	// Go adheres to typical Go idioms.
 	Go OperatingMode = iota
 	// GDA strictly adheres to the General Decimal Arithmetic Specification
-	// Version 1.70
+	// Version 1.70.
 	GDA
 )
 
@@ -170,7 +174,7 @@ type Condition uint32
 const (
 	// Clamped occurs if the scale has been modified to fit the constraints of
 	// the decimal representation.
-	Clamped Condition = 1 << (1 + iota)
+	Clamped Condition = 1 << iota
 	// ConversionSyntax occurs when a string is converted to a decimal and does
 	// not have a valid syntax.
 	ConversionSyntax
@@ -227,7 +231,47 @@ const (
 	Underflow
 )
 
-//go:generate stringer -type Condition
+func (c Condition) String() string {
+	if c == 0 {
+		return ""
+	}
+
+	a := make([]string, 0, arith.Popcnt32(uint32(c)))
+	for i := Condition(1); c != 0; i <<= 1 {
+		if c&i == 0 {
+			continue
+		}
+		switch c ^= i; i {
+		case Clamped:
+			a = append(a, "clamped")
+		case ConversionSyntax:
+			a = append(a, "conversion syntax")
+		case DivisionByZero:
+			a = append(a, "division by zero")
+		case DivisionImpossible:
+			a = append(a, "division impossible")
+		case Inexact:
+			a = append(a, "inexact")
+		case InsufficientStorage:
+			a = append(a, "insufficient storage")
+		case InvalidContext:
+			a = append(a, "invalid context")
+		case InvalidOperation:
+			a = append(a, "invalid operation")
+		case Overflow:
+			a = append(a, "overflow")
+		case Rounded:
+			a = append(a, "rounded")
+		case Subnormal:
+			a = append(a, "subnormal")
+		case Underflow:
+			a = append(a, "underflow")
+		default:
+			a = append(a, fmt.Sprintf("unknown(%d)", i))
+		}
+	}
+	return strings.Join(a, ", ")
+}
 
 var (
 	one = New(1, 0)

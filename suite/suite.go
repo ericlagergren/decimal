@@ -39,7 +39,7 @@ func ParseCases(r io.Reader) (cases []Case, err error) {
 
 // Case represents a specific test case.
 //
-// Here's a nice ascii chart:
+// Here's a nice ascii diagram:
 //
 //     prec   trap             excep
 //     |      |                |
