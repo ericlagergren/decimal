@@ -149,36 +149,45 @@ func (f *formatter) Write(p []byte) (n int, err error) {
 	return n, err
 }
 
-var infs = [...]struct{ pinf, ninf string }{
-	Go:  {pinf: "+Inf", ninf: "-Inf"},
-	GDA: {pinf: "Infinity", ninf: "-Infinity"},
+var stringForms = [...]struct{ snan, qnan, pinf, ninf string }{
+	Go:  {"NaN", "NaN", "+Inf", "-Inf"},
+	GDA: {"sNaN", "NaN", "Infinity", "-Infinity"},
 }
 
 func (f *formatter) format(format, e byte) {
+	x := f.x
+
 	// Special cases.
-	if f.x == nil {
+	if x == nil {
 		f.WriteString("<nil>")
 		return
 	}
 
-	x := f.x
-	if x.form != finite {
-		switch x.form {
-		case zero:
-			if f.width == noWidth {
-				f.WriteByte('0')
-			} else {
-				f.WriteString("0.")
-				io.CopyN(f, zeroReader{}, int64(f.width))
+	if m := x.form; m != finite {
+		switch o := x.Context.OperatingMode; o {
+		case Go, GDA:
+			switch m {
+			case nzero:
+				f.WriteByte('-')
+				fallthrough
+			case zero:
+				if f.width == noWidth {
+					f.WriteByte('0')
+				} else {
+					f.WriteString("0.")
+					io.CopyN(f, zeroReader{}, int64(f.width))
+				}
+			case snan:
+				f.WriteString(stringForms[o].snan)
+			case qnan:
+				f.WriteString(stringForms[o].qnan)
+			case pinf:
+				f.WriteString(stringForms[o].pinf)
+			case ninf:
+				f.WriteString(stringForms[o].ninf)
 			}
-		case pinf:
-			f.WriteString(infs[x.Context.OperatingMode].pinf)
-		case ninf:
-			f.WriteString(infs[x.Context.OperatingMode].ninf)
-		case snan:
-			f.WriteString("sNaN")
-		case qnan:
-			f.WriteString("NaN")
+		default:
+			f.x.signal(0, nil) // signal checks for InvalidContext
 		}
 		return
 	}
@@ -238,12 +247,17 @@ func (f *formatter) format(format, e byte) {
 // formatSci returns the scientific version of b.
 func (f *formatter) formatSci(b []byte, adj int, e byte) {
 	f.WriteByte(b[0])
+
 	if len(b) > 1 {
 		f.WriteByte('.')
 
 		b = b[1:]
 		if f.prec > len(b) {
 			f.prec = len(b)
+		}
+		i := trimIndex(b)
+		if i >= 0 && i < len(b) {
+			b = b[:i]
 		}
 		f.Write(b)
 	}

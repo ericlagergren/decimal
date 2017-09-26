@@ -278,4 +278,5 @@ var (
 
 	oneInt = big.NewInt(1)
 	twoInt = big.NewInt(2)
+	tenInt = big.NewInt(10)
 )

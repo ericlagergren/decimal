@@ -104,9 +104,9 @@ func (i Data) IsNaN() (nan, signal bool) {
 	return (i == "S" || i == "Q"), i == "S"
 }
 
-// Inf returns a boolean indicating whether the data is an Infinity and an
+// IsInf returns a boolean indicating whether the data is an Infinity and an
 // int indicating the signedness of the Infinity.
-func (i Data) Inf() (int, bool) {
+func (i Data) IsInf() (int, bool) {
 	if len(i) != 4 {
 		return 0, false
 	}

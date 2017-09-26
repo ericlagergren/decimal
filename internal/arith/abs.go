@@ -10,9 +10,7 @@ func Abs(x int64) int64 {
 
 // BigAbs returns |x|.
 func BigAbs(x *big.Int) *big.Int {
-	m := make([]big.Word, len(x.Bits()))
-	copy(m, x.Bits())
-	return new(big.Int).SetBits(m)
+	return new(big.Int).Abs(x)
 }
 
 // bigAbsAlias returns a big.Int set to |x| whose inner slices

@@ -46,3 +46,4 @@ j/
 math/x.py
 math/t.bash
 !_testdata/
+fuzz/

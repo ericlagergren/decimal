@@ -32,7 +32,7 @@ var bigZero = new(Big)
 // testFormZero verifies that if z == 0, z.form == zero.
 func testFormZero(t *testing.T, z *Big, name string) {
 	iszero := z.Cmp(bigZero) == 0
-	if iszero && z.form != zero {
+	if iszero && z.form > nzero {
 		t.Fatalf("%s: z == 0, but form not marked zero: %v", name, z.form)
 	}
 	if !iszero && z.form == zero {
