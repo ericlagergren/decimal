@@ -25,8 +25,7 @@
 // Compared to other decimal libraries, this package:
 //
 //     1. Has signals and traps, but only if you want them
-//     2. Does not make a distinction between 0 and -0
-//     3. Only has mutable decimals (for efficiency's sake)
+//     2. Only has mutable decimals (for efficiency's sake)
 //
 package decimal
 
@@ -37,6 +36,7 @@ import (
 	"io"
 	"math"
 	"math/big"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -45,6 +45,7 @@ import (
 	"github.com/ericlagergren/decimal/internal/arith/checked"
 	"github.com/ericlagergren/decimal/internal/arith/pow"
 	"github.com/ericlagergren/decimal/internal/c"
+	"github.com/ericlagergren/decimal/internal/parse"
 )
 
 // NOTE(eric): For +/-inf/nan checks: https://play.golang.org/p/RtH3UCt5IH
@@ -81,34 +82,38 @@ type Big struct {
 type form uint8
 
 const (
-	//    00000000 = Zero
-	//    10000000 = Finite
-	//    01000000 = Unused
-	//    00100000 = NaN
-	//    00110000 = sNaN
-	//    00101000 = qNaN
-	//    00000100 = Inf
-	//    00000110 = +Inf
-	//    00000101 = -Inf
+	// zero must stay == 0 so that decimals created as literals or with new will
+	// always have a value of 0.
+	zero form = 0
 
-	zero   form = 0 // this constant must remain 0.
-	finite form = 1
+	sign form = 1 // do not assign this; used to check for ninf and nzero.
 
-	// *Never* assign nan, *only* snan and qnan.
-	nan  form = 1 << 2
-	snan form = 1<<3 | nan
-	qnan form = 1<<4 | nan
+	// nzero == sign so v <= nzero == true for nzero and zero. An alternative
+	// way of thinking about it is nzero = zero | sign. Nothing assinable should
+	// be smaller than nzero.
+	nzero form = sign
 
-	// *Never* assign inf, *only* pinf and ninf.
-	inf  form = 1 << 5
-	pinf form = 1<<6 | inf
-	ninf form = 1<<7 | inf
+	finite form = 1 << 1
+
+	snan form = 1 << 2
+	qnan form = 1 << 3
+	nan  form = snan | qnan // do not assign this; used to check for either NaN.
+
+	pinf form = 1 << 4
+	ninf form = pinf | sign
+	inf  form = pinf // do not assign this; used to check for either infinity.
 )
 
+// String is for internal use only.
 func (f form) String() string {
+	if !debug {
+		return strconv.Itoa(int(f))
+	}
 	switch f {
 	case zero:
-		return "zero"
+		return "+zero"
+	case nzero:
+		return "-zero"
 	case finite:
 		return "finite"
 	case snan:
@@ -119,8 +124,10 @@ func (f form) String() string {
 		return "+Inf"
 	case ninf:
 		return "-Inf"
+	case nan:
+		return "bad form: nan"
 	default:
-		return fmt.Sprintf("unknown(%d)", f)
+		return fmt.Sprintf("unknown form: %d", f)
 	}
 }
 
@@ -137,17 +144,13 @@ func (e ErrNaN) Error() string {
 
 // These methods are here to prevent typos.
 
-func (x *Big) isCompact() bool {
-	return x.compact != c.Inflated
-}
-
-func (x *Big) isInflated() bool {
-	return !x.isCompact()
-}
+func (x *Big) isCompact() bool  { return x.compact != c.Inflated }
+func (x *Big) isInflated() bool { return !x.isCompact() }
 
 // Abs sets z to the absolute value of x if x is finite and returns z.
 func (z *Big) Abs(x *Big) *Big {
 	if x.form != finite {
+		x.form &= ^sign
 		return z
 	}
 	if x.isCompact() {
@@ -168,15 +171,12 @@ func (z *Big) checkNaNs(x, y *Big, op string) (Condition, error) {
 		return 0, nil
 	}
 
-	fmt.Println(x, y, f)
-
-	msg := op + " with NaN as an operand"
+	var cond Condition
 	if f&snan != 0 {
-		z.form = snan
-		return InvalidOperation, ErrNaN{msg}
+		cond = InvalidOperation
 	}
 	z.form = qnan
-	return 0, ErrNaN{msg}
+	return cond, ErrNaN{Msg: op + " with NaN as an operand"}
 }
 
 // Add sets z to x + y and returns z.
@@ -202,7 +202,7 @@ func (z *Big) Add(x, y *Big) *Big {
 		return z.signal(c, err)
 	}
 
-	if (x.form&y.form)&inf == inf && x.form&pinf != y.form&pinf {
+	if x.form&y.form == inf && x.form^y.form == sign {
 		// +Inf + -Inf
 		// -Inf + +Inf
 		z.form = qnan
@@ -212,13 +212,13 @@ func (z *Big) Add(x, y *Big) *Big {
 		)
 	}
 
-	if x.form == zero && y.form == zero {
+	if x.form <= nzero && y.form <= nzero {
 		// ±0 + ±0
-		z.form = zero
+		z.form = x.form & y.form
 		return z
 	}
 
-	if x.form&inf != 0 || y.form == zero {
+	if x.form&inf != 0 || y.form <= nzero {
 		// ±Inf + y
 		// x + ±0
 		return z.Set(x)
@@ -228,6 +228,8 @@ func (z *Big) Add(x, y *Big) *Big {
 	// x + ±Inf
 	return z.Set(y)
 }
+
+var Log func(args ...interface{})
 
 // addCompact sets z to x + y and returns z.
 func (z *Big) addCompact(x, y *Big) *Big {
@@ -746,23 +748,20 @@ func (x *Big) IsFinite() bool {
 // If sign < 0, IsInf reports whether x is negative infinity.
 // If sign == 0, IsInf reports whether x is either infinity.
 func (x *Big) IsInf(sign int) bool {
-	return sign >= 0 && x.form&pinf == pinf || sign <= 0 && x.form == ninf
+	return sign >= 0 && x.form == pinf || sign <= 0 && x.form == ninf
 }
 
 // IsNaN returns true if x is NaN.
 // If signal == true, IsNaN reports whether x is sNaN.
 // If signal == false, IsNaN reports whether x is qNaN.
 func (x *Big) IsNaN(signal bool) bool {
-	if signal {
-		return x.form&snan == snan
-	}
-	return x.form&qnan == qnan
+	return signal && x.form == snan || x.form == qnan
 }
 
 // IsInt reports whether x is an integer. Inf and NaN values are not integers.
 func (x *Big) IsInt() bool {
 	if x.form != finite {
-		return x.form == zero
+		return x.form <= nzero
 	}
 	// The x.Cmp(one) check is necessary because x might be a decimal *and*
 	// Prec <= 0 if x < 1.
@@ -826,7 +825,7 @@ func (z *Big) Mul(x, y *Big) *Big {
 		return z.signal(c, err)
 	}
 
-	if x.form == zero && y.form&inf != 0 || x.form&inf != 0 && y.form == 0 {
+	if x.form <= nzero && y.form&inf != 0 || x.form&inf != 0 && y.form <= nzero {
 		// 0 * ±Inf
 		// ±Inf * 0
 		z.form = qnan
@@ -938,21 +937,16 @@ func (z *Big) Neg(x *Big) *Big {
 		return z
 	}
 
-	if x.form&inf != 0 {
-		// x.form is either 110 or 101
-		//
-		// 110 ⊕ 011 = 101
-		// 101 ⊕ 011 = 110
-		z.form ^= (pinf | ninf) ^ inf
-		return z
-	}
-
+	// - qNaN
+	// - NaN
 	if x.form&nan != 0 {
 		z.form = qnan
 		return z.signal(InvalidOperation, ErrNaN{"negation of NaN"})
 	}
 
-	z.form = zero
+	// - ±Inf
+	// - ±0
+	z.form = x.form ^ sign
 	return z
 }
 
@@ -970,13 +964,13 @@ func New(value int64, scale int32) *Big {
 
 // Precision returns the precision of x. That is, it returns the number of
 // digits in the unscaled form of x. x == 0 has a precision of 1. The result is
-// undefined if x is an infinity.
+// undefined if x is an infinity or a not a number value.
 func (x *Big) Precision() int {
-	if x.form&inf != 0 {
+	if x.form != finite {
+		if x.form <= nzero {
+			return 1
+		}
 		return 0
-	}
-	if x.form == zero {
-		return 1
 	}
 	if x.isCompact() {
 		return arith.Length(x.compact)
@@ -1021,7 +1015,7 @@ func (z *Big) Quo(x, y *Big) *Big {
 		return z.signal(c, err)
 	}
 
-	if x.form^y.form == zero || x.form&y.form != 0 {
+	if x.form <= nzero && y.form <= nzero || (x.form&inf != 0 && y.form&inf != 0) {
 		// 0 / 0
 		// ±Inf / ±Inf
 		z.form = qnan
@@ -1031,32 +1025,28 @@ func (z *Big) Quo(x, y *Big) *Big {
 		)
 	}
 
-	if x.form == zero || y.form&inf != 0 {
+	if x.form <= nzero || y.form&inf != 0 {
 		// 0 / y
 		// x / ±Inf
 		z.form = zero
 		return z
 	}
 
-	if y.form == zero {
-		// x / 0
-		//
-		// The spec requires the resulting infinity's sign to match
-		// the  "exclusive or of the signs of the operands."
-		// http://speleotrove.com/decimal/daops.html#refdivide
-		//
-		// Since we do not have -0, y's sign is always 1.
-		if x.Signbit() {
-			z.form = ninf
-		} else {
-			z.form = pinf
-		}
-		return z.signal(DivisionByZero, errors.New("division by zero"))
+	// The spec requires the resulting infinity's sign to match
+	// the "exclusive or of the signs of the operands."
+	// http://speleotrove.com/decimal/daops.html#refdivide
+	if xs, ys := x.Signbit(), y.Signbit(); (xs != ys) && (xs || ys) {
+		z.form = ninf
+	} else {
+		z.form = pinf
 	}
 
-	// ±Inf / y
-	z.form = qnan
-	return z.signal(InvalidOperation, ErrNaN{"division of an infinity"})
+	if x.form&inf != 0 {
+		// ±Inf / y
+		return z
+	}
+	// x / 0
+	return z.signal(DivisionByZero, errors.New("division by zero"))
 }
 
 func (z *Big) quoAndRound(x, y int64) *Big {
@@ -1075,15 +1065,24 @@ func (z *Big) quoAndRound(x, y int64) *Big {
 	if (x < 0) != (y < 0) {
 		sign = -1
 	}
-	if r != 0 && z.needsInc(y, r, sign > 0, z.compact&1 != 0) {
-		z.compact += sign
+	if r != 0 {
+		if z.needsInc(y, r, sign > 0, z.compact&1 != 0) {
+			z.compact += sign
+		}
+		return z
 	}
-	return z.Round(z.Context.Precision())
+	if z.scale != z.Context.Precision() {
+		return z.simplify()
+	}
+	return z
 }
 
 func (z *Big) quoCompact(x, y *Big) *Big {
-	scale, ok := checked.Sub32(x.scale, y.scale)
+	sdiff, ok := checked.Sub32(x.scale, y.scale)
 	if !ok {
+		// TODO(eric): do this everywhere?
+		// return z.signal(z.xflow(z.scale < 0, true))
+		//
 		// -x - y ∈ {-1<<31, ..., 1<<31-1}
 		if x.scale < 0 {
 			z.form = pinf
@@ -1102,7 +1101,7 @@ func (z *Big) quoCompact(x, y *Big) *Big {
 		yp--
 	}
 
-	scale, ok = checked.Int32(int64(scale) + int64(yp) - int64(xp) + int64(zp))
+	scale, ok := checked.Int32(int64(sdiff) + int64(yp) - int64(xp) + int64(zp))
 	if !ok {
 		// The wraparound from int32(int64(x)) where x ∉ {-1<<31, ..., 1<<31-1}
 		// will swap its sign.
@@ -1264,10 +1263,52 @@ func (z *Big) quoBigAndRound(x, y *big.Int) *Big {
 	}
 	odd := new(big.Int).And(q, oneInt).Sign() != 0
 
-	if r.Sign() != 0 && z.needsIncBig(y, r, sign > 0, odd) {
-		z.unscaled.Add(&z.unscaled, big.NewInt(sign))
+	if r.Sign() != 0 {
+		if z.needsIncBig(y, r, sign > 0, odd) {
+			z.unscaled.Add(&z.unscaled, big.NewInt(sign))
+		}
+		return z
 	}
-	return z.Round(z.Context.Precision())
+	if z.scale != z.Context.Precision() {
+		return z.simplifyBig()
+	}
+	return z
+}
+
+func (x *Big) simplify() *Big {
+	ok := false
+	prec := x.Context.Precision()
+	for arith.Abs(x.compact) >= 10 && x.scale > prec {
+		if x.compact&1 != 0 || x.compact%10 != 0 {
+			break
+		}
+		x.compact /= 10
+		x.Context.conditions |= Rounded
+		if x.scale, ok = checked.Sub32(x.scale, 1); !ok {
+			return x.signal(x.xflow(false, x.compact < 0))
+		}
+	}
+	return x
+}
+
+func (x *Big) simplifyBig() *Big {
+	var (
+		ok   = false
+		prec = x.Context.Precision()
+		tmp  = new(big.Int)
+	)
+	for arith.BigAbs(&x.unscaled).Cmp(tenInt) >= 0 && x.scale > prec {
+		if tmp.And(&x.unscaled, oneInt).Cmp(oneInt) != 0 ||
+			tmp.Mod(&x.unscaled, tenInt).Sign() != 0 {
+			break
+		}
+		x.unscaled.Div(&x.unscaled, tenInt)
+		x.Context.conditions |= Rounded
+		if x.scale, ok = checked.Sub32(x.scale, 1); !ok {
+			return x.signal(x.xflow(false, x.Sign() < 0))
+		}
+	}
+	return x
 }
 
 // Raw directly returns x's raw compact and unscaled values. Caveat emptor:
@@ -1281,7 +1322,7 @@ func Raw(x *Big) (int64, *big.Int) {
 }
 
 // Round rounds z down to n digits of precision and returns z. The result is
-// undefined if n < 0 or z is an infinity. No rounding will occur if n == 0.
+// undefined if n < 0 or z is not finite. No rounding will occur if n == 0.
 // The result of Round will always be within the interval [⌊z⌋, z].
 func (z *Big) Round(n int32) *Big {
 	zp := z.Precision()
@@ -1292,21 +1333,12 @@ func (z *Big) Round(n int32) *Big {
 
 	shift, ok := checked.Sub(int64(zp), int64(n))
 	if !ok {
-		// -x - y ∈ {-1<<63, ..., 1<<63-1}
-		if zp < 0 {
-			z.form = pinf
-		} else {
-			z.form = ninf
-		}
-		cond, panic, err := z.xflow(zp < 0, z.Signbit())
-		if panic {
-			return z.signal(cond, err)
-		}
-		return z
+		return z.signal(z.xflow(zp < 0, z.Signbit()))
 	}
 	if shift <= 0 {
 		return z
 	}
+
 	z.Context.conditions |= Rounded
 	z.scale -= int32(shift)
 
@@ -1443,34 +1475,38 @@ var (
 	errUnderflow = errors.New("decimal: underflow: scale is too small")
 )
 
-func (z *Big) xflow(over, neg bool) (c Condition, panic bool, err error) {
+func (z *Big) xflow(over, neg bool) (c Condition, err error) {
 	if over {
-		c, err = Overflow|Inexact|Rounded, errOverflow
-	} else {
-		c, err = Underflow|Inexact|Rounded|Subnormal, errUnderflow
-	}
+		c = Overflow | Inexact | Rounded
+		err = errOverflow
 
-	switch z.Context.RoundingMode {
-	case ToNearestEven, ToNearestAway:
+		// NOTE(eric): in some situations, the decimal library tells us to set
+		// z to "the largest finite number that can be represented in the
+		// current precision..." This is unreasonable, since this is an
+		// _arbitrary_ precision library. Use signed Infinity instead.
+		//
+		// Because of the logic above, every rounding mode works out to the following.
 		if neg {
 			z.form = ninf
 		} else {
 			z.form = pinf
 		}
-		panic = true
-	case ToZero:
-		panic = true
-	case ToNegativeInf:
-		if panic = !neg; panic {
-			z.form = pinf
-		}
-	case ToPositiveInf:
-		if panic = neg; panic {
-			z.form = ninf
+	} else {
+		c = Underflow | Inexact | Rounded | Subnormal
+		err = errUnderflow
+		z.scale = MinScale
+		if neg {
+			z.form = nzero
+		} else {
+			z.form = zero
 		}
 	}
-	return c, panic, err
+	return c, err
 }
+
+// Regexp matches any valid string representing a decimal that can be pased to
+// SetString.
+var Regexp = regexp.MustCompile(`(?i)(((\+|-)?(\d+\.\d*|\.?\d+)([eE][+-]?\d+)?)|(inf(infinity)?))|((\+|-)?([sq]?nan))`)
 
 // SetString sets z to the value of s, returning z and a bool indicating
 // success. s must be a string in one of the following formats:
@@ -1507,24 +1543,25 @@ func (z *Big) SetString(s string) (*Big, bool) {
 	//	 numeric-value  ::=  decimal-part [exponent-part] | infinity
 	//   numeric-string ::=  [sign] numeric-value | [sign] nan
 	//
-	// We deviate a little by being a tad bit more forgiving.
+	// We deviate a little by being a tad bit more forgiving. For instance,
+	// we allow case-insensitive nan and infinity values.
 
 	// Eliminate overhead when searching for inf and nan values.
 	if s[len(s)-1] > '9' {
-		// TODO(eric): the more efficient (and lazy) way to do this would be a
-		// FSM.
-		switch s {
-		default:
-			return nil, false
-		case "NaN", "qNaN", "nan", "nan":
+		switch parse.ParseSpecial(s) {
+		case parse.QNaN:
 			z.form = qnan
-		case "sNaN", "snan":
+		case parse.SNaN:
 			z.form = snan
-		case "Inf", "+Inf", "Infinity", "+Infinity",
-			"+inf", "+infinity", "inf", "+infinity":
+		case parse.PInf:
 			z.form = pinf
-		case "-Inf", "-Infinity", "-inf", "-infinity":
+		case parse.NInf:
 			z.form = ninf
+		default:
+			return z.signal(
+				ConversionSyntax,
+				fmt.Errorf("SetString: invalid input: %q", s),
+			), false
 		}
 		return z, true
 	}
@@ -1539,11 +1576,8 @@ func (z *Big) SetString(s string) (*Big, bool) {
 				z.form = qnan
 				return z.signal(ConversionSyntax, err), false
 			}
-
 			// strconv.ErrRange.
-			if cond, panic, err := z.xflow(eint < 0, s[0] == '-'); panic {
-				return z.signal(cond, err), false
-			}
+			return z.signal(z.xflow(eint < 0, s[0] == '-')), false
 		}
 		s = s[:i]
 		scale = -int32(eint)
@@ -1559,8 +1593,7 @@ func (z *Big) SetString(s string) (*Big, bool) {
 		if !ok {
 			// It's impossible for the scale to underflow here since the rhs will
 			// always be [0, len(s)]
-			cond, _, err := z.xflow(true, s[0] == '-')
-			return z.signal(cond, err), false
+			return z.signal(z.xflow(true, s[0] == '-')), false
 		}
 		scale = sc
 	default:
@@ -1574,8 +1607,7 @@ func (z *Big) SetString(s string) (*Big, bool) {
 	z.form = finite
 	// Numbers == 19 can be out of range, but try the edge case anyway.
 	if len(s) <= 19 {
-		z.compact, err = strconv.ParseInt(s, 10, 64)
-		if err != nil {
+		if z.compact, err = strconv.ParseInt(s, 10, 64); err != nil {
 			nerr, ok := err.(*strconv.NumError)
 			if !ok || nerr.Err == strconv.ErrSyntax {
 				z.form = qnan
@@ -1583,21 +1615,31 @@ func (z *Big) SetString(s string) (*Big, bool) {
 			}
 			err = nerr.Err
 		} else if z.compact == 0 {
-			z.form = zero
+			if s[0] == '-' {
+				z.form = nzero
+			} else {
+				z.form = zero
+			}
+		}
+		if z.compact == c.Inflated {
+			z.unscaled.SetInt64(z.compact)
 		}
 	}
 	if (err == strconv.ErrRange && len(s) == 19) || len(s) > 19 {
-		_, ok := z.unscaled.SetString(s, 10)
-		if !ok {
+		if _, ok := z.unscaled.SetString(s, 10); !ok {
 			return z.signal(
 				ConversionSyntax,
 				// TODO(eric): a better error message?
-				errors.New("SetString: bad syntax"),
+				errors.New("SetString: invalid syntax"),
 			), false
 		}
 		z.compact = c.Inflated
 		if z.unscaled.Sign() == 0 {
-			z.form = zero
+			if s[0] == '-' {
+				z.form = nzero
+			} else {
+				z.form = zero
+			}
 		}
 	}
 	z.scale = scale
@@ -1611,18 +1653,15 @@ func (z *Big) SetString(s string) (*Big, bool) {
 //	+1 if x >  0
 //
 func (x *Big) Sign() int {
-	// x = 0
-	if x.form == zero {
-		return 0
-	}
-
-	// x = +Inf
-	// x = -Inf
-	if x.form&inf != 0 {
-		if x.form&(ninf^inf) != 0 {
+	if x.form != finite {
+		switch x.form {
+		case zero, nzero:
+			return 0
+		case ninf:
 			return -1
+		case pinf:
+			return +1
 		}
-		return +1
 	}
 
 	// x is finite.
@@ -1653,19 +1692,22 @@ func (x *Big) signal(c Condition, err error) *Big {
 			panic(err)
 		}
 	case GDA:
-		c &= ctx.Traps()
-		if c != 0 {
+		ctx.conditions = c
+		if c&ctx.Traps() != 0 {
 			ctx.err = err
-			ctx.conditions = c
 		}
+	default:
+		ctx.conditions = c | InvalidContext
+		ctx.err = fmt.Errorf("invalid OperatingMode: %d", ctx.OperatingMode)
+		x.form = qnan
 	}
 	return x
 }
 
-// Signbit returns true if x is negative or negative infinity.
+// Signbit returns true if x is negative, negative infinity, or negative zero.
 func (x *Big) Signbit() bool {
-	if x.form == ninf {
-		return true
+	if x.form != finite {
+		return x.form == ninf || x.form == nzero
 	}
 	if x.isCompact() {
 		return x.compact < 0
@@ -1716,13 +1758,13 @@ func (z *Big) Sub(x, y *Big) *Big {
 		)
 	}
 
-	if x.form == zero && y.form == zero {
+	if x.form <= nzero && y.form <= nzero {
 		// ±0 - ±0
 		z.form = zero
 		return z
 	}
 
-	if x.form&inf != 0 || y.form == zero {
+	if x.form&inf != 0 || y.form <= nzero {
 		// ±Inf - y
 		// x - ±0
 		return z.Set(x)
