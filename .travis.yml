@@ -9,4 +9,4 @@ go:
 install:
   - go build .
 
-script: go test -short -v
+script: go test -v
