@@ -2,7 +2,6 @@ package decimal
 
 import (
 	"math"
-	"math/big"
 	"strconv"
 	"strings"
 	"testing"
@@ -33,7 +32,7 @@ var bigZero = new(Big)
 // testFormZero verifies that if z == 0, z.form == zero.
 func testFormZero(t *testing.T, z *Big, name string) {
 	iszero := z.Cmp(bigZero) == 0
-	if iszero && z.form != zero {
+	if iszero && z.form > nzero {
 		t.Fatalf("%s: z == 0, but form not marked zero: %v", name, z.form)
 	}
 	if !iszero && z.form == zero {
@@ -73,7 +72,7 @@ func TestBig_Add(t *testing.T) {
 		5:  {a: "0", b: "1.001", res: "1.001"},
 		6:  {a: "123456789123456789.12345", b: "123456789123456789.12345", res: "246913578246913578.2469"},
 		7:  {a: ".999999999", b: ".00000000000000000000000000000001", res: "0.99999999900000000000000000000001"},
-		8:  {"+Inf", "-Inf", "0", true},
+		8:  {"+Inf", "-Inf", "NaN", true},
 		9:  {"+Inf", "+Inf", "+Inf", false},
 		10: {"0", "0", "0", false},
 	}
@@ -162,8 +161,10 @@ func TestBig_Cmp(t *testing.T) {
 		11: {new(Big).Set(large).Neg(large), large, lesser},
 		12: {new(Big).Quo(new(Big).Set(large), New(314156, 5)), large, lesser},
 		13: {New(1234, 3), newbig(t, "1000000000000000000000000000000.234"), lesser},
-		14: {newbig(t, "10000000000000000000"),
-			newbig(t, "100000000000000000000").SetScale(1), equal},
+		14: {
+			newbig(t, "10000000000000000000"),
+			newbig(t, "100000000000000000000").SetScale(1), equal,
+		},
 		// zl < 0, xl < 0
 		15: {New(2, c.BadScale-1), New(2, c.BadScale-2), lesser},
 		16: {New(1000000000000000, 16), New(16666666666666666, 18), greater},
@@ -172,25 +173,6 @@ func TestBig_Cmp(t *testing.T) {
 		if test.v != r {
 			t.Fatalf("#%d: wanted %d, got %d", i, test.v, r)
 		}
-	}
-}
-
-func TestBig_Issue15(t *testing.T) {
-	b1 := &Big{
-		compact:  c.Inflated,
-		scale:    5,
-		ctx:      Context{precision: 0, mode: 0},
-		form:     finite,
-		unscaled: *new(big.Int).SetInt64(181050000),
-	}
-	b2 := &Big{
-		compact: 18105,
-		scale:   1,
-		ctx:     Context{precision: 0, mode: 0},
-		form:    finite,
-	}
-	if b1.Cmp(b2) != 0 {
-		t.Errorf("failed comparing %v with %v: %v", b1, b2, b1.Cmp(b2))
 	}
 }
 
@@ -393,9 +375,9 @@ func TestBig_Quo(t *testing.T) {
 	}
 	for i, v := range tests {
 		if v.p != 0 {
-			v.a.SetPrecision(v.p)
+			v.a.Context.SetPrecision(v.p)
 		} else {
-			v.a.SetPrecision(DefaultPrec)
+			v.a.Context.SetPrecision(DefaultPrecision)
 		}
 		q := v.a.Quo(v.a, v.b)
 		if qs := q.String(); qs != v.r {
@@ -478,6 +460,25 @@ func TestBig_SetFloat64(t *testing.T) {
 	}
 }
 
+func TestBig_SetString(t *testing.T) {
+	tests := []struct {
+		dec string
+		s   string
+	}{
+		0: {"0", "0"},
+		1: {"00000000000000000000", "0"},
+	}
+	for i, v := range tests {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			dec := newbig(t, v.dec)
+			s := dec.String()
+			if v.s != s {
+				t.Fatalf("wanted %s, got %s", v.s, s)
+			}
+		})
+	}
+}
+
 func TestBig_Sign(t *testing.T) {
 	for i, test := range [...]struct {
 		x string
@@ -534,6 +535,8 @@ func TestBig_String(t *testing.T) {
 		3: {a: New(-1e5, 0), b: strconv.Itoa(-1e5)}, // Large number
 		4: {a: New(0, -50), b: "0"},                 // "0"
 		5: {a: x.Mul(x, x), b: "85070591730234615847396907784232501249"},
+		6: {a: newbig(t, "-1.4e-52"), b: "-1.4e-52"},
+		7: {a: newbig(t, "-500.444312301"), b: "-500.444312301"},
 	}
 	for i, s := range tests {
 		str := s.a.String()
@@ -561,7 +564,7 @@ func TestBig_Sub(t *testing.T) {
 		8:  {a: "1.001", b: "0", r: "1.001"},
 		9:  {a: "2.3", b: ".3", r: "2"},
 		10: {"+Inf", "-Inf", "+Inf", false},
-		11: {"+Inf", "+Inf", "0", true},
+		11: {"+Inf", "+Inf", "NaN", true},
 		12: {"0", "0", "0", false},
 	}
 

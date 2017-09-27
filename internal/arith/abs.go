@@ -10,9 +10,7 @@ func Abs(x int64) int64 {
 
 // BigAbs returns |x|.
 func BigAbs(x *big.Int) *big.Int {
-	m := make([]big.Word, len(x.Bits()))
-	copy(m, x.Bits())
-	return new(big.Int).SetBits(m)
+	return new(big.Int).Abs(x)
 }
 
 // bigAbsAlias returns a big.Int set to |x| whose inner slices
@@ -36,8 +34,8 @@ func AbsCmp(x, y int64) int {
 }
 
 func BigAbsCmp(x, y big.Int) int {
-	// SetBits sets to |v|, thus giving an absolute comparison.
 	var x0, y0 big.Int
+	// SetBits sets to |v|, thus giving an absolute comparison.
 	x0.SetBits(x.Bits())
 	y0.SetBits(y.Bits())
 	return x0.Cmp(&y0)

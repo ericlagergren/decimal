@@ -29,7 +29,7 @@ var urls = [...]string{
 }
 
 func main() {
-	const dir = "tests"
+	const dir = "_testdata"
 	err := os.MkdirAll(dir, 0755)
 	if err != nil {
 		log.Fatalln(err)

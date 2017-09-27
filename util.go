@@ -1,6 +1,7 @@
 package decimal
 
 import (
+	"fmt"
 	"math"
 	"math/big"
 
@@ -12,15 +13,10 @@ import (
 
 const debug = true
 
-// alias returns a if a != b, otherwise it returns a newly-allocated Big. It
-// should be used if a *might* be able to be used for storage, but only if it
-// doesn't b. The returned Big will have a's Context.
-func alias(a, b *Big) *Big {
-	if a != b {
-		return a
-	}
-	return new(Big).SetContext(a.Context())
-}
+var (
+	_ fmt.Stringer  = (*Big)(nil)
+	_ fmt.Formatter = (*Big)(nil)
+)
 
 // cmpNorm compares x and y in the range [0.1, 0.999...] and returns true if x
 // > y.
@@ -29,10 +25,11 @@ func cmpNorm(x int64, xs int32, y int64, ys int32) (ok bool) {
 		panic("x and/or y cannot be zero")
 	}
 	if diff := xs - ys; diff != 0 {
+		// TODO: should we check the bool result here?
 		if diff < 0 {
-			x, ok = checked.MulPow10(x, -diff)
+			x, _ = checked.MulPow10(x, -diff)
 		} else {
-			y, ok = checked.MulPow10(y, diff)
+			y, _ = checked.MulPow10(y, diff)
 		}
 	}
 	if x != c.Inflated {
@@ -66,12 +63,16 @@ func findScale(f float64) (precision int32) {
 	}
 
 	e := float64(1)
-	cmp := round(f*e) / e
-	for !math.IsNaN(cmp) && cmp != f {
+	p := int32(0)
+	for {
 		e *= 10
-		cmp = round(f*e) / e
+		p++
+		cmp := round(f*e) / e
+		if math.IsNaN(cmp) || cmp == f {
+			break
+		}
 	}
-	return int32(math.Ceil(math.Log10(e)))
+	return p
 }
 
 // The default rounding should be unbiased rounding.
@@ -85,7 +86,7 @@ func findScale(f float64) (precision int32) {
 // But returns more accurate results.
 func round(f float64) float64 {
 	d, frac := math.Modf(f)
-	if f > 0.0 && (frac > 0.5 || (frac == 0.5 && uint64(d)%2 != 0)) {
+	if f > 0.0 && (frac > +0.5 || (frac == 0.5 && uint64(d)%2 != 0)) {
 		return d + 1.0
 	}
 	if f < 0.0 && (frac < -0.5 || (frac == -0.5 && uint64(d)%2 != 0)) {
@@ -128,13 +129,13 @@ func bigIntFromFloat(f float64) *big.Int {
 
 // scalex adjusts x by scale. If scale < 0, x = x * 10^-scale, otherwise
 // x = x / 10^scale.
-func scalex(x int64, scale int32) (int64, bool) {
+func scalex(x int64, scale int32) (sx int64, ok bool) {
 	if scale < 0 {
-		x, ok := checked.MulPow10(x, -scale)
+		sx, ok = checked.MulPow10(x, -scale)
 		if !ok {
 			return 0, false
 		}
-		return x, true
+		return sx, true
 	}
 	p, ok := pow.Ten64(int64(scale))
 	if !ok {

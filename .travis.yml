@@ -1,11 +1,19 @@
 language: go
 
 go:
-  - 1.6
   - 1.7
-  - tip
+  - 1.8
+  - 1.9
+  - master
+
+matrix:
+  allow_failures:
+    - go: master
+  fast_finish: true
 
 install:
-  - go build .
+  -
 
-script: go test -short -v
+script:
+  - go build .
+  - go test -race ./{.,suite} && go test -short -v ./internal...

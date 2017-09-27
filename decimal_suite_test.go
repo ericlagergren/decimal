@@ -1,10 +1,13 @@
 package decimal
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"encoding/json"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"testing"
 
@@ -16,65 +19,48 @@ func TestSuiteCases(t *testing.T) {
 		return
 	}
 
-	testdir := filepath.Join("suite", "tests")
-	dir, err := os.Open(testdir)
+	file, err := os.Open(filepath.Join("suite", "_testdata", "json.tar.gz"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	names, err := dir.Readdirnames(-1)
+	defer file.Close()
+
+	gr, err := gzip.NewReader(file)
 	if err != nil {
 		t.Fatal(err)
 	}
-	sort.Strings(names)
+	defer gr.Close()
+
+	tr := tar.NewReader(gr)
 
 	sets := make(map[string][]suite.Case)
-	for _, name := range names {
-		if !strings.HasSuffix(name, ".json") {
-			continue
-		}
-
-		file, err := os.Open(filepath.Join(testdir, name))
+	var names []string
+	for {
+		h, err := tr.Next()
 		if err != nil {
+			if err == io.EOF {
+				break
+			}
 			t.Fatal(err)
 		}
-
 		var c []suite.Case
-		err = json.NewDecoder(file).Decode(&c)
-		if err != nil {
-			file.Close()
+		if err := json.NewDecoder(tr).Decode(&c); err != nil {
 			t.Fatal(err)
 		}
-		sets[name] = c
-		file.Close()
+		sets[h.Name] = c
+		names = append(names, h.Name)
 	}
 
-	// Loop over names instead of sets so our tests run in the same order.
-	// Makes debugging easier.
-	for _, name := range names {
-		t.Log(name)
-		for i, cs := range sets[name] {
-			// +1 makes debugging easier since file lines are 1-indexed.
-			testCase(name, i+1, cs, t)
+	for _, mode := range [...]OperatingMode{GDA, Go} {
+		// Loop over names instead of sets so our tests run in the same order.
+		// Makes debugging easier.
+		for _, name := range names {
+			for i, cs := range sets[name] {
+				// +1 makes debugging easier since file lines are 1-indexed.
+				testCase(name, i+1, cs, mode, t)
+			}
 		}
 	}
-}
-
-func badTest(c suite.Case) bool {
-	for _, v := range c.Inputs {
-		switch v {
-		// Don't test quiet and signaling NaNs since we do not allow
-		// decimals to be created as NaN.
-		case "Q", "S":
-			return true
-		}
-	}
-	switch c.Output {
-	// This means an exception probably happened.
-	// TODO: handle this later.
-	case "#":
-		return true
-	}
-	return false
 }
 
 func precision(s suite.Data) (p int32) {
@@ -90,86 +76,148 @@ func precision(s suite.Data) (p int32) {
 	return p
 }
 
-func testCase(fname string, i int, c suite.Case, t *testing.T) {
-	if badTest(c) {
+var convs = [...]struct {
+	e suite.Exception
+	c Condition
+}{
+	{suite.Inexact, Inexact},
+	{suite.Underflow, Underflow},
+	{suite.Overflow, Overflow},
+	{suite.DivByZero, DivisionByZero},
+	{suite.Invalid, InvalidOperation},
+}
+
+func convException(e suite.Exception) (c Condition) {
+	for _, pair := range convs {
+		if e&pair.e != 0 {
+			c |= pair.c
+		}
+	}
+	return c
+}
+
+func testCase(fname string, i int, c suite.Case, mode OperatingMode, t *testing.T) {
+	switch fname {
+	case "Underflow.json":
 		return
+	default:
 	}
 
 	z := new(Big)
-	z.SetMode(RoundingMode(c.Mode))
-	z.SetPrecision(50)
+	z.Context.RoundingMode = RoundingMode(c.Mode)
+	z.Context.SetPrecision(50)
+	z.Context.OperatingMode = mode
+	z.Context.SetTraps(convException(c.Trap))
 
-	// We need to expect an exception if:
-	//
-	// 1. The output from the test is NaN (Q, S)
-	// 2. The test expects to receive a DivByZero or Invalid exception
-	//
-	nan, _ := c.Output.IsNaN()
-	except := nan ||
-		(c.Excep == suite.DivByZero || c.Excep == suite.Invalid)
-
-	// Some tests trap an exception.
-	trap := c.Trap == suite.DivByZero || c.Trap == suite.Invalid
-
-	compare := func() {
-		// If nan is true then the test output Q or S. Skip it since our
-		// results are undefined in those cases.
-		if nan {
-			return
-		}
-
-		want, _ := new(Big).SetString(string(c.Output))
-		want.Round(precision(c.Output))
-		z.Round(int32(want.Prec()))
-		if want.Cmp(z) != 0 {
-			if testing.Verbose() {
-				t.Log(precision(c.Output), ":", c.Output)
-				t.Logf(`%s#%d: %s
-wanted: %s
-got   : %s
-`, fname, i, c, want, z)
-			}
-		}
+	var (
+		cond Condition
+		err  error
+		args = make([]*Big, len(c.Inputs))
+	)
+	for i, data := range c.Inputs {
+		args[i] = dataToBig(data)
 	}
 
-	if except || trap {
+	func() {
 		defer func() {
-			_, ok := recover().(error)
-			// We panicked but did not want to. Sometimes the test
-			// files will trap an exception. We don't honor traps,
-			// meaning we'll always panic.
-			if ok && !except && !trap {
-				t.Fatal("shouldn't have panicked")
+			if e, ok := recover().(error); ok {
+				err = e
+			} else {
+				err = z.Err()
 			}
-			// We didn't panic but wanted to.
-			if !ok && except {
-				t.Fatal("wanted to panic but didn't")
-			}
-			// We correctly caught a panic. Still, compare the output since
-			// we need to correctly set the receiver's form.
-			compare()
+			cond = z.Conditions()
 		}()
+		switch c.Op {
+		case suite.Add:
+			z.Add(args[0], args[1])
+		case suite.Sub:
+			z.Sub(args[0], args[1])
+		case suite.Mul:
+			z.Mul(args[0], args[1])
+		case suite.Div:
+			z.Quo(args[0], args[1])
+		case suite.Neg:
+			z.Neg(args[0])
+		}
+	}()
+
+	if testing.Verbose() {
+		t.Logf("%s: %s => [%e, %q, %v]", mode, c, z, cond, err)
 	}
 
-	switch c.Op {
-	case suite.Add:
-		binaryBig(z.Add, c.Inputs[0], c.Inputs[1])
-	case suite.Sub:
-		binaryBig(z.Sub, c.Inputs[0], c.Inputs[1])
-	case suite.Mul:
-		binaryBig(z.Mul, c.Inputs[0], c.Inputs[1])
-	case suite.Div:
-		binaryBig(z.Quo, c.Inputs[0], c.Inputs[1])
-	case suite.Neg:
+	want := dataToBig(c.Output)
+	if want != nil {
+		z.Round(int32(want.Precision()))
 	}
 
-	if !except {
-		compare()
+	// fpgen doesn't test for Rounded.
+	cond &= ^Rounded
+
+	wantConds := convException(c.Excep)
+	if wantConds != cond {
+		// Since we can accept decimals of arbitrary size, we can handle larger
+		// decimals than the fpgen test suite. These need to be manually checked
+		// if they're division. Arbitrary precision decimals aren't lossy for
+		// add, sub, etc.
+		msg := fmt.Sprintf("%s#%d: wanted %q, got %q", fname, i, wantConds, cond)
+		if (Inexact|Overflow)&wantConds != 0 {
+			if c.Op == suite.Div {
+				t.Logf("CHECK: %s", msg)
+			}
+		} else if mode != Go {
+			t.Fatalf(msg)
+		}
+	}
+
+	nan, snan := c.Output.IsNaN()
+	errNaN := snan || (mode == Go && nan) || c.Output == suite.NoData
+	if _, ok := err.(ErrNaN); ok != errNaN {
+		t.Fatalf("%s#%d: wanted %t, got %t", fname, i, errNaN, ok)
+	}
+
+	if want.Cmp(z) != 0 {
+		msg := fmt.Sprintf(`%s#%d: %s
+wanted: "%e"
+got   : "%e"
+`, fname, i, c, want, z)
+
+		badInexact := Inexact&wantConds != 0
+		if badInexact {
+			if _, badInexact = c.Output.IsInf(); !badInexact {
+				badInexact = want.Cmp(testZero) == 0
+			}
+		}
+
+		if want.Signbit() == z.Signbit() &&
+			(badInexact || wantConds&(Overflow|Underflow) != 0) {
+			t.Logf("CHECK: %s", msg)
+		} else {
+			t.Fatal(msg)
+		}
 	}
 }
 
-func binaryBig(fn func(x, y *Big) *Big, arg1, arg2 suite.Data) {
-	x, _ := new(Big).SetString(string(arg1))
-	y, _ := new(Big).SetString(string(arg2))
-	fn(x, y)
+var testZero = New(0, 0)
+
+func makeNaN(signal bool) *Big {
+	z := new(Big)
+	if signal {
+		z.SetString("snan")
+	} else {
+		z.SetString("qnan")
+	}
+	return z
+}
+
+func dataToBig(s suite.Data) *Big {
+	switch s {
+	case "Q", "S", suite.NoData:
+		return makeNaN(s == "S" || s == suite.NoData)
+	default:
+		x, ok := new(Big).SetString(string(s))
+		if !ok {
+			panic(fmt.Sprintf("couldn't SetString(%q)", s))
+		}
+		return x
+	}
 }
