@@ -16,4 +16,4 @@ install:
 
 script:
   - go build .
-  - go test -race ./{.,suite,internal...}
+  - go test -race ./{.,suite} && go test -short -v ./internal...
