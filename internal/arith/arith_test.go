@@ -17,21 +17,6 @@ func TestCLZ(t *testing.T) {
 	}
 }
 
-func TestCTZ(t *testing.T) {
-	if n := CTZ(0); n != 0 {
-		t.Errorf("got CTZ(0) = %d; want 0", n)
-	}
-
-	x := int64(1)
-	for i := int64(0); i < _W; i++ {
-		n := CTZ(x)
-		if int64(n) != i {
-			t.Errorf("got CTZ(%#x) = %d; want %d", x, n, i)
-		}
-		x <<= 1
-	}
-}
-
 func TestBitLen(t *testing.T) {
 	for i := 0; i < _W; i++ {
 		x := uint64(1) << uint64(i-1)

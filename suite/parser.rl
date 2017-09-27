@@ -19,23 +19,20 @@ func parseCase(data []byte) (c Case, err error) {
 
         action mark { mark = fpc }
         action set_prefix { c.Prefix = string(data[mark:fpc]) }
-        action set_prec {
-            c.Prec, err = strconv.Atoi(string(data[mark:fpc]))
-            if err != nil {
+        action set_prec   {
+            if c.Prec, err = strconv.Atoi(string(data[mark:fpc])); err != nil {
                 return c, err
             }
         }
         action set_op {
-            c.Op, ok = valToOp[string(data[mark:fpc])]
-            if !ok {
+            if c.Op, ok = valToOp[string(data[mark:fpc])]; !ok {
                 return c, fmt.Errorf("invalid op: %q", data[mark:fpc])
             }
         }
         action set_mode {
-	    c.Mode, ok = valToMode[string(data[mark:fpc])]
-	    if !ok {
-		return c, fmt.Errorf("invalid mode: %q", data[mark:fpc])
-	    }
+	    	if c.Mode, ok = valToMode[string(data[mark:fpc])]; !ok {
+				return c, fmt.Errorf("invalid mode: %q", data[mark:fpc])
+	    	}
         }
         action set_trap {
 	    exc, ok = valToException[string(data[mark:fpc])]
@@ -44,13 +41,12 @@ func parseCase(data []byte) (c Case, err error) {
 	    }
             c.Trap |= exc
         }
-        action add_input { c.Inputs = append(c.Inputs, Data(data[mark:fpc])) }
+        action add_input  { c.Inputs = append(c.Inputs, Data(data[mark:fpc])) }
         action set_output { c.Output = Data(data[mark:fpc]) }
-        action set_excep {
-	    exc, ok = valToException[string(data[mark:fpc])]
-	    if !ok {
-		return c, fmt.Errorf("invalid result exception: %q", data[mark:fpc])
-	    }
+        action set_excep  {
+	    	if exc, ok = valToException[string(data[mark:fpc])]; !ok {
+				return c, fmt.Errorf("invalid result exception: %q", data[mark:fpc])
+	    	}
             c.Excep |= exc
         }
 

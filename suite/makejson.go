@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"io/ioutil"
 	"log"
 	"os"
@@ -13,19 +14,23 @@ import (
 	"github.com/ericlagergren/decimal/suite"
 )
 
+var indent = flag.Bool("indent", false, "output indented JSON")
+
 func main() {
-	const dir = "tests"
+	flag.Parse()
+
+	const dir = "_testdata"
 	infos, err := ioutil.ReadDir(dir)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
 	for _, info := range infos {
-		if strings.HasSuffix(info.Name(), ".json") {
+		name := info.Name()
+		if !strings.HasSuffix(name, ".fptest") {
 			continue
 		}
 		func() {
-			name := info.Name()
 			file, err := os.Open(filepath.Join(dir, name))
 			if err != nil {
 				log.Fatalln(err)
@@ -45,7 +50,9 @@ func main() {
 			defer out.Close()
 
 			enc := json.NewEncoder(out)
-			enc.SetIndent("  ", "    ")
+			if *indent {
+				enc.SetIndent("  ", "    ")
+			}
 			err = enc.Encode(cases)
 			if err != nil {
 				log.Fatalln(err)

@@ -45,3 +45,5 @@ j/
 [a-z].go
 math/x.py
 math/t.bash
+!_testdata/
+fuzz/
