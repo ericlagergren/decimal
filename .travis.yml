@@ -4,9 +4,16 @@ go:
   - 1.7
   - 1.8
   - 1.9
-  - tip
+  - master
+
+matrix:
+  allow_failures:
+    - go: master
+  fast_finish: true
 
 install:
-  - go build .
+  -
 
-script: go test ./{.,suite} && go test -v ./internal/...
+script:
+  - go build .
+  - go test -race ./{.,suite,internal...}
