@@ -9,4 +9,4 @@ go:
 install:
   - go build .
 
-script: go test ./{.,suite,internal/...}
+script: go test ./{.,suite} && go test -v internal/...
