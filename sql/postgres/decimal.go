@@ -1,3 +1,6 @@
+// Package postgres provides a simple wrapper around a decimal.Big type, allowing
+// it to be used in PostgreSQL queries. It ensures the decimal fits inside the
+// limits of the DECIMAL type.
 package postgres
 
 import (
@@ -9,8 +12,8 @@ import (
 )
 
 const (
-	MaxIntegralDigits   = 131072
-	MaxFractionalDigits = 16383
+	MaxIntegralDigits   = 131072 // max digits before the decimal point
+	MaxFractionalDigits = 16383  // max digits after the decimal point
 )
 
 // LengthError is returned from Decimal.Value when either its integral (digits
