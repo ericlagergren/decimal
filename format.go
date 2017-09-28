@@ -109,7 +109,7 @@ func formatUnscaled(unscaled *big.Int) []byte {
 const (
 	// noWidth indicates the width of a formatted number wasn't set.
 	noWidth = -1
-	// noPrec indicates the precision of a formatted number wasn't set.
+	// noPrec indicats the precision of a formatted number wasn't set.
 	noPrec = -1
 )
 
@@ -210,34 +210,27 @@ func (f *formatter) format(format, e byte) {
 		b = roundString(b, x.Context.RoundingMode, !neg, f.prec)
 	}
 
-	if format == plain {
-		f.formatPlain(b)
-		return
-	}
-
 	// "Next, the adjusted exponent is calculated; this is the exponent, plus
 	// the number of characters in the converted coefficient, less one. That
 	// is, exponent+(clength-1), where clength is the length of the coefficient
 	// in decimal digits.
 	adj := -int(x.scale) + (len(b) - 1)
-
-	if format == normal {
-		if x.scale <= 0 {
+	if format != sci {
+		if format == plain || x.scale >= 0 && adj >= -6 {
+			// "If the exponent is less than or equal to zero and the adjusted
+			// exponent is greater than or equal to -6 the number will be
+			// converted to a character form without using exponential notation."
+			//
+			// - http://speleotrove.com/decimal/daconvs.html#reftostr
+			f.formatPlain(b)
+			return
+		}
+		// No decimal places, write b and fill with zeros.
+		if x.scale == 0 {
 			f.Write(b)
 			if x.scale < 0 {
 				io.CopyN(f, zeroReader{}, -int64(x.scale))
 			}
-			return
-		}
-
-		// "If the exponent is less than or equal to zero and the
-		// adjusted exponent is greater than or equal to -6...
-		if x.scale >= 0 && adj >= -6 {
-			// "...the number will be converted to a character
-			// form without using exponential notation."
-			//
-			// - http://speleotrove.com/decimal/daconvs.html#reftostr
-			f.formatPlain(b)
 			return
 		}
 	}
@@ -264,7 +257,7 @@ func (f *formatter) formatSci(b []byte, adj int, e byte) {
 	if adj != 0 {
 		f.WriteByte(e)
 
-		// If negative the following strconv.Append call will add the minus
+		// If negative, the following call to strconv.Append will add the minus
 		// sign for us.
 		if adj > 0 {
 			f.WriteByte('+')
@@ -301,14 +294,14 @@ func (f *formatter) formatPlain(b []byte) {
 		io.CopyN(f, zeroReader{}, -int64(radix))
 
 		end := len(b)
-		if f.prec >= 0 && f.prec < end {
+		if f.prec > noPrec && f.prec < end {
 			end = f.prec
 		}
 		f.Write(b[:end])
 	}
 }
 
-// TODO: can we merge zeroReader and spaceReader into a "singleReader" or
+// TODO(eric): can we merge zeroReader and spaceReader into a "singleReader" or
 // something and still maintain the same performance?
 
 // zeroReader is an io.Reader that, when read from, only provides the character
