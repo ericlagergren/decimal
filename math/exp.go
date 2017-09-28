@@ -1,14 +1,12 @@
 package math
 
 import (
-	"fmt"
-
 	"github.com/ericlagergren/decimal"
 )
 
 // expg is a Generator that computes exp(z).
 type expg struct {
-	recv *decimal.Big // Receiver in Big.Exp, can be nil.
+	recv *decimal.Big // Receiver in Exp, can be nil.
 	z    *decimal.Big // Input value
 	pow  *decimal.Big // z*z
 	m    int64        // Term number
@@ -17,12 +15,12 @@ type expg struct {
 
 var P int32 = 16
 
-func (e *expg) Lentz() (f, pf, Δ, C, D *decimal.Big) {
+func (e *expg) Lentz() (f, Δ, C, D, eps *decimal.Big) {
 	return e.recv, // f
-		new(decimal.Big), // pf
 		new(decimal.Big), // Δ
-		new(decimal.Big), // C
-		new(decimal.Big).SetPrecision(P) // D
+		new(decimal.Big).SetPrecision(P), // C
+		new(decimal.Big).SetPrecision(P), // D
+		decimal.New(1, e.recv.Context().Precision()) // eps
 }
 
 func (e *expg) Next() Term {
@@ -82,7 +80,6 @@ func (e *expg) Next() Term {
 		return e.t
 	// [z^2/6, 1]
 	case 2:
-		e.t.A.SetPrecision(P)
 		e.t.A.Quo(e.pow, six)
 		e.t.B.SetMantScale(1, 0)
 		return e.t
@@ -90,7 +87,7 @@ func (e *expg) Next() Term {
 	default:
 		// maxM is the largest m value we can use to compute 4(2m - 3)(2m - 1)
 		// using integers.
-		// 4(2m - 3)(2m - 1) == 16(m-1)^2 - 4
+		// 4(2m - 3)(2m - 1) ≡ 16(m - 1)^2 - 4
 		const maxM = 759250125
 		if e.m <= maxM {
 			e.t.A.SetMantScale(16*((e.m-1)*(e.m-1))-4, 0)
@@ -122,6 +119,7 @@ func (e *expg) Next() Term {
 func Exp(z, x *decimal.Big) *decimal.Big {
 	// TODO: "pestle_: eric_lagergren, that is, exp(z+z0) = exp(z)*exp(z0) and
 	//                 exp(z) ~ 1+z for small enough z"
+
 	if x.IsInf(0) {
 		// e ** +Inf = +Inf
 		// e ** -Inf = 0
@@ -139,9 +137,17 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 		return z.SetMantScale(1, 0)
 	}
 
+	if x.Cmp(one) == 0 {
+		// e ** 1 = e
+		return z.Set(E).Round(z.Context().Precision())
+	}
+
 	// Since exp({z > 0: ∈ ℝ}) is transcedental, we *have* to round it.
 	if z.Mode() == decimal.Unneeded {
 		panic("exponential function is transcedental; Unneeded is an invalid rounding mode")
+	}
+
+	if x.Cmp(two) == 0 {
 	}
 
 	if sgn < 0 {
@@ -155,12 +161,10 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 		z:    x,
 		pow:  new(decimal.Big).Mul(x, x),
 		m:    -1,
-		t:    Term{A: new(decimal.Big), B: new(decimal.Big)},
+		t: Term{
+			A: new(decimal.Big).SetPrecision(P),
+			B: new(decimal.Big),
+		},
 	}
-	fmt.Println(z.Context().Precision())
-	K := Lentz(&g, z.Context().Precision())
-	fmt.Println(z.Context().Precision())
-	z.Set(K)
-	fmt.Println(z.Context().Precision())
-	return z
+	return z.Set(Lentz(&g, z.Context().Precision()))
 }
