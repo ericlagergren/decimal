@@ -20,5 +20,7 @@ func alias(a, b *decimal.Big) *decimal.Big {
 	if a != b {
 		return a
 	}
-	return new(decimal.Big).SetContext(a.Context())
+	z := new(Big)
+	z.Context = a.Context
+	return z
 }

@@ -2,6 +2,7 @@ package math
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/ericlagergren/decimal"
 )
@@ -26,23 +27,24 @@ type Generator interface {
 	Next() Term
 }
 
-// Lentzer, if implemented, will allow Generators to provide their own
-// backing storage for the Lentz function. f will be the value returned from
-// Lentz.
+// Lentzer, if implemented, will allow Generators to provide their own backing
+// storage for the Lentz function. f will be the value returned from Lentz.
 type Lentzer interface {
-	Lentz() (f, pf, Δ, C, D *decimal.Big)
+	Lentz() (f, Δ, C, D, eps *decimal.Big)
 }
 
 // lentzer implements the Lentzer interface.
 type lentzer struct{}
 
-func (l lentzer) Lentz() (f, pf, Δ, C, D *decimal.Big) {
+func (l lentzer) Lentz() (f, Δ, C, D, eps *decimal.Big) {
 	return new(decimal.Big), // f
-		new(decimal.Big), // pf
 		new(decimal.Big), // Δ
 		new(decimal.Big), // C
-		new(decimal.Big) // D
+		new(decimal.Big), // D
+		decimal.New(1, 15) // 1e-15
 }
+
+var defaultLentzer = lentzer{}
 
 var tiny = decimal.New(10, 30)
 
@@ -97,20 +99,19 @@ func Lentz(g Generator, prec int32) *decimal.Big {
 	// See if our Generator provides us with backing storage.
 	lz, ok := g.(Lentzer)
 	if !ok {
-		lz = lentzer{}
+		lz = defaultLentzer
 	}
 
-	f, prevf, Δ, C, D := lz.Lentz()
+	f, Δ, C, D, eps := lz.Lentz()
 	f.Set(t.B)
 	if f.Sign() == 0 {
 		f.Set(tiny)
 	}
-	C.Set(f).SetPrecision(75)
-	D.SetMantScale(0, 0).SetPrecision(75)
-	prevf.Set(f)
+	C.Set(f)
+	D.SetMantScale(0, 0)
 
 	// TODO: is there a better cutoff?
-	for i := 0; i < 1<<63-1; i++ {
+	for i := 0; i < math.MaxInt64; i++ {
 		t = g.Next()
 
 		// Set D_j = b_j + a_j*D{_j-1}
@@ -138,30 +139,22 @@ func Lentz(g Generator, prec int32) *decimal.Big {
 		Δ.Mul(C, D)
 
 		// Set f_j = f{_j-1}*Δ_j
-		f.Mul(prevf, Δ).Round(prec + 2)
+		f.Mul(f, Δ)
 
-		//dump(f, prevf, Δ, D, C)
+		fmt.Println(f)
 
-		// "The above algorithm assumes that you can terminate the evaluation
-		// of the continued fraction when |f_j − f{_j−1}| is sufficiently
-		// small."
-		if f.Cmp(prevf) == 0 {
-			// Odd numbers means we've swapped, even means they're back to
-			// the way they originally were.
-			if i%2 == 0 {
-				return f.Round(prec)
-			}
-			return prevf.Round(prec)
+		// If |Δ_j - 1| < eps then exit
+		if Δ.Sub(Δ, one).Abs(Δ).Cmp(eps) < 0 {
+			fmt.Println("iters", i, f)
+			return f.Round(prec)
 		}
 
-		// We can swap f and prevf then reset f instead of setting prevf to f
-		// which saves us an alloc per iteration.
-		f, prevf = prevf, f
-		f.SetMantScale(0, 0)
+		//dump(f, Δ, D, C, eps)
 	}
-	panic("Lentz ran too many loops > 1<<63-1")
+	panic("Lentz: too many iterations")
 }
 
-func dump(f, prevf, Δ, D, C *decimal.Big) {
-	fmt.Printf("f: %s, pf: %s, Δ: %s, D: %s, C: %s\n", f, prevf, Δ, D, C)
+func dump(f, Δ, D, C, eps *decimal.Big) {
+	fmt.Printf("f: %s, Δ: %s, D: %s, C: %s, eps: %s\n",
+		f, Δ, D, C, eps)
 }

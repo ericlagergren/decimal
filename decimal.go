@@ -244,7 +244,12 @@ func (z *Big) addCompact(x, y *Big) *Big {
 				z.form = zero
 			}
 		} else {
-			z.unscaled.Add(big.NewInt(x.compact), big.NewInt(y.compact))
+			xt := getInt64(x.compact)
+			yt := getInt64(y.compact)
+			z.unscaled.Add(xt, yt)
+			putInt(xt)
+			putInt(yt)
+
 			z.compact = c.Inflated
 			if z.unscaled.Sign() == 0 {
 				z.form = zero
@@ -272,8 +277,15 @@ func (z *Big) addCompact(x, y *Big) *Big {
 			return z
 		}
 	}
-	scaled := checked.MulBigPow10(big.NewInt(lo.compact), inc)
-	z.unscaled.Add(scaled, big.NewInt(hi.compact))
+
+	scaled := checked.MulBigPow10(getInt64(lo.compact), inc)
+
+	unscaled := getInt64(hi.compact)
+	z.unscaled.Add(scaled, unscaled)
+
+	putInt(scaled)
+	putInt(unscaled)
+
 	z.compact = c.Inflated
 	if z.unscaled.Sign() == 0 {
 		z.form = zero
@@ -288,7 +300,10 @@ func (z *Big) addMixed(comp, non *Big) *Big {
 		panic("decimal.Add (bug) comp.isInflated() == true")
 	}
 	if comp.scale == non.scale {
-		z.unscaled.Add(big.NewInt(comp.compact), &non.unscaled)
+		tmp := getInt64(comp.compact)
+		z.unscaled.Add(tmp, &non.unscaled)
+		putInt(tmp)
+
 		z.scale = comp.scale
 		z.compact = c.Inflated
 		if z.unscaled.Sign() == 0 {
@@ -311,9 +326,11 @@ func (z *Big) addBig(x, y *Big) *Big {
 	}
 
 	inc := hi.scale - lo.scale
-	tmp := new(big.Int).Set(&lo.unscaled)
-	scaled := checked.MulBigPow10(tmp, inc)
+
+	scaled := checked.MulBigPow10(getInt(&lo.unscaled), inc)
 	z.unscaled.Add(&hi.unscaled, scaled)
+	putInt(scaled)
+
 	z.compact = c.Inflated
 	z.scale = hi.scale
 	if z.unscaled.Sign() == 0 {
@@ -393,9 +410,11 @@ func (z *Big) Cmp(x *Big) int {
 			// certain that inflated > compact is an invariant.
 			zu, xu := &z.unscaled, &x.unscaled
 			if z.isCompact() {
-				zu = big.NewInt(z.compact)
+				zu = getInt64(z.compact)
+				defer putInt(zu)
 			} else {
-				xu = big.NewInt(x.compact)
+				xu = getInt64(x.compact)
+				defer putInt(xu)
 			}
 			return zu.Cmp(xu)
 		}
@@ -446,14 +465,15 @@ func (z *Big) Cmp(x *Big) int {
 	if xc != c.Inflated {
 		if nx, ok := checked.MulPow10(xc, diff); !ok {
 			// Can't fit in an int64, use big.Int.
-			xm = checked.MulBigPow10(big.NewInt(xc), diff)
+			xm = checked.MulBigPow10(getInt64(xc), diff)
+			defer putInt(xm)
 			xc = c.Inflated
 		} else {
 			xc = nx
 		}
 	} else {
-		tmp := new(big.Int).Set(xm)
-		xm = checked.MulBigPow10(tmp, diff)
+		xm = checked.MulBigPow10(getInt(xm), diff)
+		defer putInt(xm)
 	}
 
 	// Swap back to original.
@@ -472,10 +492,16 @@ func (z *Big) Cmp(x *Big) int {
 			}
 			return 0
 		}
-		return big.NewInt(zc).Cmp(xm)
+		tmp := getInt64(zc)
+		cmp := tmp.Cmp(xm)
+		putInt(tmp)
+		return cmp
 	}
 	if xc != c.Inflated {
-		return zm.Cmp(big.NewInt(xc))
+		tmp := getInt64(xc)
+		cmp := zm.Cmp(tmp)
+		putInt(tmp)
+		return cmp
 	}
 	return zm.Cmp(xm)
 }
@@ -868,7 +894,11 @@ func (z *Big) mulCompact(x, y *Big) *Big {
 	if ok {
 		z.compact = prod
 	} else {
-		z.unscaled.Mul(big.NewInt(x.compact), big.NewInt(y.compact))
+		xt := getInt64(x.compact)
+		yt := getInt64(y.compact)
+		z.unscaled.Mul(xt, yt)
+		putInt(xt)
+		putInt(yt)
 		z.compact = c.Inflated
 	}
 	z.scale = scale
@@ -891,7 +921,10 @@ func (z *Big) mulMixed(comp, non *Big) *Big {
 			}
 			return z
 		}
-		z.unscaled.Mul(big.NewInt(comp.compact), &non.unscaled)
+		tmp := getInt64(comp.compact)
+		z.unscaled.Mul(tmp, &non.unscaled)
+		putInt(tmp)
+
 		z.compact = c.Inflated
 		z.scale = scale
 		z.form = finite
@@ -1131,8 +1164,14 @@ func (z *Big) quoCompact(x, y *Big) *Big {
 	if shift > 0 {
 		xs, ok = checked.MulPow10(x.compact, shift)
 		if !ok {
-			x0 := checked.MulBigPow10(big.NewInt(x.compact), shift)
-			return z.quoBigAndRound(x0, big.NewInt(y.compact))
+			x0 := checked.MulBigPow10(getInt64(x.compact), shift)
+			y0 := getInt64(y.compact)
+
+			z = z.quoBigAndRound(x0, y0)
+
+			putInt(x0)
+			putInt(y0)
+			return z
 		}
 		return z.quoAndRound(xs, ys)
 	}
@@ -1165,8 +1204,15 @@ func (z *Big) quoCompact(x, y *Big) *Big {
 	}
 	ys, ok = checked.MulPow10(ys, shift)
 	if !ok {
-		y0 := checked.MulBigPow10(big.NewInt(y.compact), shift)
-		return z.quoBigAndRound(big.NewInt(x.compact), y0)
+		x0 := getInt64(x.compact)
+		y0 := checked.MulBigPow10(getInt64(y.compact), shift)
+
+		z = z.quoBigAndRound(x0, y0)
+
+		putInt(y0)
+		putInt(x0)
+
+		return z
 	}
 	return z.quoAndRound(xs, ys)
 }
@@ -1218,7 +1264,8 @@ func (z *Big) quoBig(x, y *Big) *Big {
 		return z
 	}
 	if shift > 0 {
-		xs := checked.MulBigPow10(new(big.Int).Set(&x.unscaled), shift)
+		xs := checked.MulBigPow10(getInt(&x.unscaled), shift)
+		defer putInt(xs)
 		return z.quoBigAndRound(xs, &y.unscaled)
 	}
 
@@ -1243,15 +1290,17 @@ func (z *Big) quoBig(x, y *Big) *Big {
 		}
 		return z
 	}
-	ys := checked.MulBigPow10(new(big.Int).Set(&y.unscaled), shift)
+	ys := checked.MulBigPow10(getInt(&y.unscaled), shift)
+	defer putInt(ys)
 	return z.quoBigAndRound(&x.unscaled, ys)
 }
 
 func (z *Big) quoBigAndRound(x, y *big.Int) *Big {
 	z.compact = c.Inflated
 
-	// TODO(eric): perhaps use a pool for the allocated big.Int?
-	q, r := z.unscaled.QuoRem(x, y, new(big.Int))
+	r := get()
+	defer putInt(r)
+	q, r := z.unscaled.QuoRem(x, y, r)
 
 	if z.Context.RoundingMode == ToZero {
 		return z
@@ -1261,11 +1310,14 @@ func (z *Big) quoBigAndRound(x, y *big.Int) *Big {
 	if (x.Sign() < 0) != (y.Sign() < 0) {
 		sign = -1
 	}
-	odd := new(big.Int).And(q, oneInt).Sign() != 0
+	tmp := get().And(q, oneInt)
+	odd := tmp.Sign() != 0
+	defer putInt(tmp)
 
 	if r.Sign() != 0 {
 		if z.needsIncBig(y, r, sign > 0, odd) {
-			z.unscaled.Add(&z.unscaled, big.NewInt(sign))
+			tmp.SetInt64(int64(sign))
+			z.unscaled.Add(&z.unscaled, tmp)
 		}
 		return z
 	}
@@ -1295,7 +1347,7 @@ func (x *Big) simplifyBig() *Big {
 	var (
 		ok   = false
 		prec = x.Context.Precision()
-		tmp  = new(big.Int)
+		tmp  = get()
 	)
 	for arith.BigAbs(&x.unscaled).Cmp(tenInt) >= 0 && x.scale > prec {
 		if tmp.And(&x.unscaled, oneInt).Cmp(oneInt) != 0 ||
@@ -1305,9 +1357,11 @@ func (x *Big) simplifyBig() *Big {
 		x.unscaled.Div(&x.unscaled, tenInt)
 		x.Context.conditions |= Rounded
 		if x.scale, ok = checked.Sub32(x.scale, 1); !ok {
+			putInt(tmp)
 			return x.signal(x.xflow(false, x.Sign() < 0))
 		}
 	}
+	putInt(tmp)
 	return x
 }
 
