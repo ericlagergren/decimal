@@ -323,7 +323,7 @@ func (z *Big) addBig(x, y *Big) *Big {
 }
 
 // BitLen returns the absolute value of x in bits. The result is undefined if
-// x is an infinity.
+// x is an infinity or not a number value.
 func (x *Big) BitLen() int {
 	if x.form != finite {
 		return 0
@@ -586,7 +586,10 @@ func (x *Big) Format(s fmt.State, c rune) {
 	case 'e', 'E':
 		f.format(sci, byte(c))
 	case 'f':
-		// %f means "number of digits after the radix"
+		if prec == noPrec {
+			prec = 0
+		}
+		// %f's precision means "number of digits after the radix"
 		if x.scale > 0 {
 			if trail := x.Precision() - int(x.scale); trail < f.prec {
 				f.prec += int(x.scale)
@@ -598,7 +601,7 @@ func (x *Big) Format(s fmt.State, c rune) {
 		}
 		f.format(plain, noE)
 	case 'g':
-		// %g means "number of significant digits"
+		// %g's precision means "number of significant digits"
 		f.format(plain, noE)
 
 	// Make sure we return from the following two cases.
@@ -1343,8 +1346,7 @@ func (z *Big) Round(n int32) *Big {
 	z.scale -= int32(shift)
 
 	if z.isCompact() {
-		val, ok := pow.Ten64(shift)
-		if ok {
+		if val, ok := pow.Ten64(shift); ok {
 			return z.quoAndRound(z.compact, val)
 		}
 		z.unscaled.SetInt64(z.compact)
