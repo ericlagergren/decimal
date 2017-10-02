@@ -20,7 +20,11 @@ var (
 func randInt(n *big.Int) string { return new(big.Int).Rand(r, n).String() }
 
 func TestDecimal_Value(t *testing.T) {
-	for i := 0; i < 100; i++ {
+	n := 100
+	if testing.Short() {
+		n = 10
+	}
+	for i := 0; i < n; i++ {
 		ip := randInt(maxInt)
 		fp := randInt(maxFrac)
 
@@ -28,7 +32,7 @@ func TestDecimal_Value(t *testing.T) {
 		if !ok {
 			t.Fatal(dec.Err())
 		}
-		d := Decimal{Big: dec, Round: i%2 == 0}
+		d := Decimal{V: dec, Round: i%2 == 0}
 
 		v, err := d.Value()
 		if err != nil {

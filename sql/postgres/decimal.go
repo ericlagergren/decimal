@@ -29,23 +29,32 @@ func (e LengthError) Error() string {
 	return fmt.Sprintf("%s (%d digits) is too long (%d max)", e.Part, e.N, e.max)
 }
 
-// Decimal is a PostgreSQL DECIMAL.
+// Decimal is a PostgreSQL DECIMAL. Its zero value is valid for use with both
+// Value and Scan.
 type Decimal struct {
-	*decimal.Big
+	V     *decimal.Big
 	Round bool // round if the decimal exceeds the bounds for DECIMAL
+	Zero  bool // return "0" if V == nil
 }
 
 // Value implements driver.Valuer.
 func (d *Decimal) Value() (driver.Value, error) {
-	if d.IsNaN(true) || d.IsNaN(false) {
+	if d.V == nil {
+		if d.Zero {
+			return "0", nil
+		}
+		return nil, nil
+	}
+	v := d.V
+	if v.IsNaN(true) || v.IsNaN(false) {
 		return "NaN", nil
 	}
-	if d.IsInf(0) {
+	if v.IsInf(0) {
 		return nil, errors.New("Decimal.Value: DECIMAL does not accept Infinities")
 	}
 
-	dl := d.Precision()  // length of d
-	sl := int(d.Scale()) // length of fractional part
+	dl := v.Precision()  // length of d
+	sl := int(v.Scale()) // length of fractional part
 
 	if il := dl - sl; il > MaxIntegralDigits {
 		if !d.Round {
@@ -53,24 +62,28 @@ func (d *Decimal) Value() (driver.Value, error) {
 		}
 		// Rounding down the integral part automatically chops off the fractional
 		// part.
-		return d.Big.Round(MaxIntegralDigits).String(), nil
+		return v.Round(MaxIntegralDigits).String(), nil
 	}
 	if sl > MaxFractionalDigits {
 		if !d.Round {
 			return nil, &LengthError{Part: "fractional", N: sl, max: MaxFractionalDigits}
 		}
-		d.Big.Round(int32(dl - (sl - MaxFractionalDigits)))
+		v.Round(int32(dl - (sl - MaxFractionalDigits)))
 	}
-	return d.String(), nil
+	return v.String(), nil
 }
 
 // Scan implements sql.Scanner.
 func (d *Decimal) Scan(val interface{}) error {
-	switch v := val.(type) {
-	case string:
-		d.SetString(v)
-	default:
+	str, ok := val.(string)
+	if !ok {
 		return fmt.Errorf("Decimal.Scan: unknown value: %#v", val)
+	}
+	if d.V == nil {
+		d.V = new(decimal.Big)
+	}
+	if _, ok := d.V.SetString(str); !ok {
+		return d.V.Err()
 	}
 	return nil
 }
