@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"sync"
 
 	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/arith/checked"
@@ -17,6 +18,15 @@ var (
 	_ fmt.Stringer  = (*Big)(nil)
 	_ fmt.Formatter = (*Big)(nil)
 )
+
+var intPool = sync.Pool{New: func() interface{} { return new(big.Int) }}
+
+func get() *big.Int { return intPool.Get().(*big.Int) }
+
+func getInt(x *big.Int) *big.Int { return get().Set(x) }
+func getInt64(x int64) *big.Int  { return get().SetInt64(x) }
+
+func putInt(b *big.Int) { intPool.Put(b) }
 
 // cmpNorm compares x and y in the range [0.1, 0.999...] and returns true if x
 // > y.
