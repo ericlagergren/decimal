@@ -1454,15 +1454,22 @@ func (z *Big) SetFloat64(value float64) *Big {
 
 	// If value is not an integer (has a fractional part) bump its value up
 	// and find the appropriate scale.
-	_, fr := math.Modf(value)
-	if fr != 0 {
+	if _, fr := math.Modf(value); fr != 0 {
 		scale = findScale(value)
 		value *= math.Pow10(int(scale))
 	}
 
-	if math.IsNaN(value) || math.IsInf(value, 0) {
+	if math.IsNaN(value) {
 		z.form = qnan
-		return z.signal(InvalidOperation, ErrNaN{"SetFloat64(NaN, Inf)"})
+		return z.signal(InvalidOperation, ErrNaN{"SetFloat64(Inf)"})
+	}
+	if math.IsInf(value, 0) {
+		if math.IsInf(value, 1) {
+			z.form = pinf
+		} else {
+			z.form = ninf
+		}
+		return z.signal(InvalidOperation, errors.New("SetFloat(Inf)"))
 	}
 
 	// Given float64(math.MaxInt64) == math.MaxInt64.
