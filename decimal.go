@@ -506,12 +506,6 @@ func (z *Big) Cmp(x *Big) int {
 	return zm.Cmp(xm)
 }
 
-// Conditions returns any Conditions that occurred in the most recent
-// operation.
-func (x *Big) Conditions() Condition {
-	return x.Context.conditions
-}
-
 // Copy sets z to a copy of x and returns z.
 func (z *Big) Copy(x *Big) *Big {
 	if z != x {
@@ -526,11 +520,6 @@ func (z *Big) Copy(x *Big) *Big {
 		}
 	}
 	return z
-}
-
-// Err returns any errors that occured in the most recent operation.
-func (x *Big) Err() error {
-	return x.Context.err
 }
 
 // Format implements the fmt.Formatter interface. The following verbs are
@@ -1338,7 +1327,7 @@ func (x *Big) simplify() *Big {
 			break
 		}
 		x.compact /= 10
-		x.Context.conditions |= Rounded
+		x.Context.Conditions |= Rounded
 		if x.scale, ok = checked.Sub32(x.scale, 1); !ok {
 			return x.signal(x.xflow(false, x.compact < 0))
 		}
@@ -1358,7 +1347,7 @@ func (x *Big) simplifyBig() *Big {
 			break
 		}
 		x.unscaled.Div(&x.unscaled, tenInt)
-		x.Context.conditions |= Rounded
+		x.Context.Conditions |= Rounded
 		if x.scale, ok = checked.Sub32(x.scale, 1); !ok {
 			putInt(tmp)
 			return x.signal(x.xflow(false, x.Sign() < 0))
@@ -1396,7 +1385,7 @@ func (z *Big) Round(n int32) *Big {
 		return z
 	}
 
-	z.Context.conditions |= Rounded
+	z.Context.Conditions |= Rounded
 	z.scale -= int32(shift)
 
 	if z.isCompact() {
@@ -1410,9 +1399,7 @@ func (z *Big) Round(n int32) *Big {
 }
 
 // Scale returns x's scale.
-func (x *Big) Scale() int32 {
-	return x.scale
-}
+func (x *Big) Scale() int32 { return x.scale }
 
 // Set sets z to x and returns z. The result might be rounded depending on z's
 // Context.
@@ -1748,13 +1735,13 @@ func (x *Big) signal(c Condition, err error) *Big {
 			panic(err)
 		}
 	case GDA:
-		ctx.conditions = c
-		if c&ctx.Traps() != 0 {
-			ctx.err = err
+		ctx.Conditions = c
+		if c&ctx.Traps != 0 {
+			ctx.Err = err
 		}
 	default:
-		ctx.conditions = c | InvalidContext
-		ctx.err = fmt.Errorf("invalid OperatingMode: %d", ctx.OperatingMode)
+		ctx.Conditions = c | InvalidContext
+		ctx.Err = fmt.Errorf("invalid OperatingMode: %d", ctx.OperatingMode)
 		x.form = qnan
 	}
 	return x
