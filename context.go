@@ -18,20 +18,11 @@ const (
 	MinPrecision = 1             // smallest allowed Context precision.
 )
 
-const (
-	// DefaultPrecision is the default precision used for decimals created as
-	// literals or using new.
-	DefaultPrecision = 16
+// DefaultPrecision is the default precision used for decimals created as
+// literals or using new.
+const DefaultPrecision = 16
 
-	// DefaultTraps is the default traps used for decimals created as literals
-	// or using new.
-	DefaultTraps = ^(Inexact | Rounded | Subnormal)
-)
-
-const (
-	noPrecision           = -1
-	noTraps     Condition = 1
-)
+const noPrecision = -1
 
 // Context is a per-decimal contextual object that governs specific operations
 // such as how lossy operations (e.g. division) round.
@@ -44,10 +35,17 @@ type Context struct {
 	// modes that so the client can choose a preferred mode.
 	OperatingMode OperatingMode
 
-	precision  int32
-	traps      Condition
-	conditions Condition
-	err        error
+	precision int32
+
+	// Traps are a set of exceptional conditions that should result in an error.
+	Traps Condition
+
+	// Conditions are a set of the most recent exceptional conditions to occur
+	// during an operation.
+	Conditions Condition
+
+	// Err is the most recent error to occur during an operation.
+	Err error
 
 	// RoundingMode instructs how an infinite (repeating) decimal expansion
 	// (digits following the radix) should be rounded. This can occur during
@@ -76,27 +74,6 @@ func (c *Context) SetPrecision(prec int32) {
 	}
 }
 
-// SetTraps sets c's traps conditions.
-func (c *Context) SetTraps(t Condition) {
-	if t == 0 {
-		c.traps = noTraps
-	} else {
-		c.traps = t
-	}
-}
-
-// Traps returns the Context's traps.
-func (c Context) Traps() Condition {
-	switch c.traps {
-	case 0:
-		return DefaultTraps
-	case noTraps:
-		return 0
-	default:
-		return c.traps
-	}
-}
-
 // The following are called ContextXX instead of DecimalXX
 // to reserve the DecimalXX namespace for future decimal types.
 
@@ -110,7 +87,7 @@ var (
 		precision:     7,
 		RoundingMode:  ToNearestEven,
 		OperatingMode: GDA,
-		traps:         DefaultTraps,
+		Traps:         ^(Inexact | Rounded | Subnormal),
 	}
 
 	// Context64 is the IEEE 754R Decimal64 format.
@@ -118,7 +95,7 @@ var (
 		precision:     16,
 		RoundingMode:  ToNearestEven,
 		OperatingMode: GDA,
-		traps:         DefaultTraps,
+		Traps:         ^(Inexact | Rounded | Subnormal),
 	}
 
 	// Context128 is the IEEE 754R Decimal128 format.
@@ -126,7 +103,7 @@ var (
 		precision:     34,
 		RoundingMode:  ToNearestEven,
 		OperatingMode: GDA,
-		traps:         DefaultTraps,
+		Traps:         ^(Inexact | Rounded | Subnormal),
 	}
 )
 

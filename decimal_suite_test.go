@@ -107,7 +107,7 @@ func testCase(fname string, i int, c suite.Case, mode OperatingMode, t *testing.
 	z.Context.RoundingMode = RoundingMode(c.Mode)
 	z.Context.SetPrecision(50)
 	z.Context.OperatingMode = mode
-	z.Context.SetTraps(convException(c.Trap))
+	z.Context.Traps = convException(c.Trap)
 
 	var (
 		cond Condition
@@ -123,9 +123,9 @@ func testCase(fname string, i int, c suite.Case, mode OperatingMode, t *testing.
 			if e, ok := recover().(error); ok {
 				err = e
 			} else {
-				err = z.Err()
+				err = z.Context.Err
 			}
-			cond = z.Conditions()
+			cond = z.Context.Conditions
 		}()
 		switch c.Op {
 		case suite.Add:
