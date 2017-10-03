@@ -13,20 +13,26 @@ func TestSqrt(t *testing.T) {
 		prec int32
 	}{
 		// special values
-		{"+inf", "+inf", 0}, {"0", "0", 0},
+		0: {"+inf", "+inf", 0}, 1: {"0", "0", 0},
 		// simple perfect squares
-		{"25", "5", 1}, {"100", "10", 2},
-		{"31415", "177.2427713", 10},
+		2: {"25", "5", 1}, 3: {"100", "10", 2},
+		4: {"123.456", "11.11107555", 1000},
 	} {
 		z := new(decimal.Big)
 		z.Context.SetPrecision(test.prec)
 
-		x, _ := new(decimal.Big).SetString(test.inp)
+		x, ok := new(decimal.Big).SetString(test.inp)
+		if !ok {
+			t.Fatal("SetString returned false")
+		}
 		x.Context.SetPrecision(test.prec)
 
 		Sqrt(z, x)
 
-		want, _ := new(decimal.Big).SetString(test.out)
+		want, ok := new(decimal.Big).SetString(test.out)
+		if !ok {
+			t.Fatal("SetString returned false")
+		}
 		if want.Cmp(z) != 0 {
 			t.Fatalf(`#%d:
 want: %q
