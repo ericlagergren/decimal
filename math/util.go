@@ -15,7 +15,7 @@ var (
 
 // alias returns a if a != b, otherwise it returns a newly-allocated Big. It
 // should be used if a *might* be able to be used for storage, but only if it
-// doesn't b. The returned Big will have a's Context.
+// doesn't alias b. The returned Big will have a's Context.
 func alias(a, b *decimal.Big) *decimal.Big {
 	if a != b {
 		return a

@@ -1,13 +1,12 @@
 package math
 
 import (
+	"errors"
 	"fmt"
 	"math"
-	"math/big"
 
 	"github.com/ericlagergren/checked"
 	"github.com/ericlagergren/decimal"
-	"github.com/ericlagergren/decimal/internal/arith"
 )
 
 // Hypot sets z to Sqrt(p*p + q*q) and returns z.
@@ -33,9 +32,13 @@ func Hypot(z, p, q *decimal.Big) *decimal.Big {
 func Sqrt(z, x *decimal.Big) *decimal.Big {
 	switch {
 	case x.Signbit():
-		panic("math.Sqrt: cannot take square root of negative number")
+		signal(
+			z,
+			decimal.InvalidOperation,
+			errors.New("math.Sqrt: cannot take square root of negative number"),
+		)
 	case x.IsNaN(true), x.IsNaN(false):
-		panic(decimal.ErrNaN{"square root of NaN"})
+		signal(z, decimal.InvalidOperation, decimal.ErrNaN{"square root of NaN"})
 	case x.IsInf(0):
 		return z.SetInf(false)
 	case x.Sign() == 0:
@@ -47,50 +50,61 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 	// Note that we can only catch perfect squares that aren't big.Ints.
 	if sq, ok := perfectSquare(x); ok {
 		z.SetMantScale(sq, 0)
-		z.Context = x.Context
 		return z
 	}
 
-	zp := z.Context.Precision()
+	f := new(decimal.Big).Set(x)
+	e := x.Scale()
 
-	// Temporary inflation. Should be enough to accurately determine the sqrt
-	// with at least zp digits after the radix.
-	zpadj := int(zp) << 1
-
-	tmp := alias(z, x).Set(x)
-	shiftRadixRight(tmp, zpadj)
-
-	// Second fast path. Check to see if we can calculate the square root without
-	// using big.Int
-	if !x.IsBig() && zpadj <= 19 {
-		n := tmp.Int64()
-		ix := n >> uint((arith.BitLen(n)+1)>>1)
-		var p int64
-		for {
-			p = ix
-			ix += n / ix
-			ix >>= 1
-			if ix == p {
-				return z.SetMantScale(ix, zp)
-			}
-		}
+	approx := alias(z, x)
+	if e&1 == 0 {
+		// approx := .259 + .819*f
+		approx.Add(approx1, new(decimal.Big).Mul(approx2, f))
+	} else {
+		// f := f/10
+		f.Quo(f, ten)
+		// e := e + 1
+		e++
+		// approx := .0819 + 2.59*f
+		approx.Add(approx3, new(decimal.Big).Mul(approx4, f))
 	}
 
-	// x isn't a perfect square or x is a big.Int
+	p := int32(3)
+	maxp := x.Context.Precision() + 2
 
-	n := tmp.Int()
-	ix := new(big.Int).Rsh(n, uint((n.BitLen()+1)>>1))
-
-	var a, p big.Int
+	var tmp decimal.Big
 	for {
-		p.Set(ix)
-		ix.Add(ix, a.Quo(n, ix)).Rsh(ix, 1)
-		if ix.Cmp(&p) == 0 {
-			fmt.Println(ix, zp)
-			return z.SetBigMantScale(ix, zp)
+		p = min(2*p-2, maxp)
+		//approx.Context.SetPrecision(int32(p))
+		// approx := .5*(approx + f/approx)
+		tmp.Quo(f, approx)
+		tmp.Add(approx, &tmp)
+		approx.Mul(ptFive, &tmp)
+		fmt.Println(approx)
+		if p == maxp {
+			break
 		}
 	}
+
+	p = x.Context.Precision()
+	approx.Context.SetPrecision(p + 2)
+	return z.Set(approx).SetScale(e / 2)
 }
+
+func min(x, y int32) int32 {
+	if x > y {
+		return y
+	}
+	return x
+}
+
+var (
+	approx1 = decimal.New(259, 3)
+	approx2 = decimal.New(819, 3)
+	approx3 = decimal.New(819, 4)
+	approx4 = decimal.New(259, 2)
+	ptFive  = decimal.New(5, 1)
+)
 
 // perfectSquare algorithm slightly partially borrowed from
 // https://stackoverflow.com/a/295678/2967113
@@ -104,13 +118,13 @@ func perfectSquare(x *decimal.Big) (square int64, ok bool) {
 		return 0, false
 	}
 	switch h {
-	case 2, 3, 5, 6, 7, 8:
-		return 0, false
-	default:
+	case 0, 1, 4, 9:
 		// "Show that floating point sqrt(x*x) >= x for all long x."
 		// https://math.stackexchange.com/a/238885/153292
 		tst := int64(math.Sqrt(float64(xc)))
 		return tst, tst*tst == xc
+	default:
+		return 0, false
 	}
 }
 
