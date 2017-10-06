@@ -19,9 +19,9 @@ www.bytereef.org/mpdecimal/benchmarks.html
 | float (Python 2.7.10)       | 0.59     | -           | -         | -          | -       |
 | dnum<sup>[3]</sup> (Go 1.9)               | 0.95     | -           | -         | -          | -       |
 
-[1]: github.com/ericlagergren/decimal
-[2]: github.com/cockroachdb/apd
-[3]: github.com/apmckinlay/gsuneido/util/dnum
-[4]: docs.oracle.com/javase/8/docs/api/java/math/BigDecimal.html
-[5]: docs.python.org/3.6/library/decimal.html
-[6]: docs.python.org/2/library/decimal.html
+[1]: https://github.com/ericlagergren/decimal
+[2]: https://github.com/cockroachdb/apd
+[3]: https://github.com/apmckinlay/gsuneido/util/dnum
+[4]: https://docs.oracle.com/javase/8/docs/api/java/math/BigDecimal.html
+[5]: https://docs.python.org/3.6/library/decimal.html
+[6]: https://docs.python.org/2/library/decimal.html

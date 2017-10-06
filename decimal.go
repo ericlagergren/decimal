@@ -522,6 +522,40 @@ func (z *Big) Copy(x *Big) *Big {
 	return z
 }
 
+// Float64 returns x as a float64.
+func (x *Big) Float64() float64 {
+	if x.form != finite {
+		switch x.form {
+		case pinf, ninf:
+			return math.Inf(int(x.form & sign))
+		case snan, qnan:
+			return math.NaN()
+		case nzero:
+			return math.Copysign(0, -1)
+		default: // zero
+			return 0
+		}
+	}
+	if x.isCompact() {
+		if x.scale == 0 {
+			return float64(x.compact)
+		}
+		const maxMantissa = 1 << 52
+		if arith.Abs(x.compact) < maxMantissa {
+			const maxPow10 = 22
+			if x.scale > 0 && x.scale < maxPow10 {
+				return float64(x.compact) / math.Pow10(int(x.scale))
+			}
+			if x.scale < 0 && x.scale < -maxPow10 {
+				return float64(x.compact) * math.Pow10(int(-x.scale))
+			}
+		}
+	}
+	// No other way of doing it.
+	f, _ := strconv.ParseFloat(x.String(), 64)
+	return f
+}
+
 // Format implements the fmt.Formatter interface. The following verbs are
 // supported:
 //
@@ -773,6 +807,7 @@ func (x *Big) IsInf(sign int) bool {
 // If signal == true, IsNaN reports whether x is sNaN.
 // If signal == false, IsNaN reports whether x is qNaN.
 func (x *Big) IsNaN(signal bool) bool {
+	// TODO(eric): should we use an int so we have 3 conditions: s, q, either?
 	return signal && x.form == snan || x.form == qnan
 }
 
@@ -1488,8 +1523,8 @@ func (z *Big) SetFloat64(value float64) *Big {
 	return z
 }
 
-// SetInf sets z to -Inf if signbit is set or +Inf is signbit is not set, and
-// returns z.
+// SetInf sets x to -Inf if signbit is set or +Inf is signbit is not set, and
+// returns x.
 func (x *Big) SetInf(signbit bool) *Big {
 	if signbit {
 		x.form = ninf
@@ -1512,6 +1547,17 @@ func (z *Big) SetMantScale(value int64, scale int32) *Big {
 	z.compact = value
 	z.form = finite
 	return z
+}
+
+// SetNaN sets x to a signaling NaN if signal is set or quiet NaN if signal is
+// not set and returns x.
+func (x *Big) SetNaN(signal bool) *Big {
+	if signal {
+		x.form = snan
+	} else {
+		x.form = qnan
+	}
+	return x
 }
 
 // SetScale sets z's scale to scale and returns z.
