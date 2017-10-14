@@ -96,9 +96,9 @@ func formatCompact(x int64) []byte {
 // formatUnscaled formats the unscaled (non-compact) decimal, unscaled, as an
 // unsigned integer.
 func formatUnscaled(unscaled *big.Int) []byte {
-	// math/big.MarshalText never returns an error, only nil, so there's no
-	// need to check for an error. Use MarshalText instead of Append because it
-	// limits us to one allocation.
+	// math/big.MarshalText never returns an error, only nil, so there's no need
+	// to check for an error. Use MarshalText instead of Append because it limits
+	// us to one allocation.
 	b, _ := unscaled.MarshalText()
 	if b[0] == '-' {
 		b = b[1:]
@@ -120,7 +120,6 @@ const (
 )
 
 type formatter struct {
-	x *Big
 	w interface {
 		io.Writer
 		io.ByteWriter
@@ -154,9 +153,7 @@ var stringForms = [...]struct{ snan, qnan, pinf, ninf string }{
 	GDA: {"sNaN", "NaN", "Infinity", "-Infinity"},
 }
 
-func (f *formatter) format(format, e byte) {
-	x := f.x
-
+func (f *formatter) format(x *Big, format, e byte) {
 	// Special cases.
 	if x == nil {
 		f.WriteString("<nil>")
@@ -187,7 +184,7 @@ func (f *formatter) format(format, e byte) {
 				f.WriteString(stringForms[o].ninf)
 			}
 		default:
-			f.x.signal(0, nil) // signal checks for InvalidContext
+			x.signal(0, nil) // signal checks for InvalidContext
 		}
 		return
 	}
@@ -206,31 +203,33 @@ func (f *formatter) format(format, e byte) {
 		b = formatCompact(x.compact)
 	}
 
+	scale := int(x.scale)
 	if f.prec > 0 {
+		orig := len(b)
 		b = roundString(b, x.Context.RoundingMode, !neg, f.prec)
+		scale -= orig - len(b)
 	}
 
 	// "Next, the adjusted exponent is calculated; this is the exponent, plus
 	// the number of characters in the converted coefficient, less one. That
 	// is, exponent+(clength-1), where clength is the length of the coefficient
 	// in decimal digits.
-	adj := -int(x.scale) + (len(b) - 1)
+	adj := -scale + (len(b) - 1)
 	if format != sci {
-		if format == plain || x.scale >= 0 && adj >= -6 {
+		if scale >= 0 && (format == plain || adj >= -6) {
 			// "If the exponent is less than or equal to zero and the adjusted
 			// exponent is greater than or equal to -6 the number will be
 			// converted to a character form without using exponential notation."
 			//
 			// - http://speleotrove.com/decimal/daconvs.html#reftostr
-			f.formatPlain(b)
+			f.formatPlain(b, scale)
 			return
 		}
+
 		// No decimal places, write b and fill with zeros.
-		if x.scale == 0 {
+		if format == plain && scale < 0 {
 			f.Write(b)
-			if x.scale < 0 {
-				io.CopyN(f, zeroReader{}, -int64(x.scale))
-			}
+			io.CopyN(f, zeroReader{}, -int64(scale))
 			return
 		}
 	}
@@ -267,10 +266,9 @@ func (f *formatter) formatSci(b []byte, adj int, e byte) {
 }
 
 // formatPlain returns the plain string version of b.
-func (f *formatter) formatPlain(b []byte) {
+func (f *formatter) formatPlain(b []byte, scale int) {
 	const zeroRadix = "0."
 
-	scale := int(f.x.scale)
 	switch radix := len(b) - scale; {
 	// log10(b) == scale, so immediately before b.
 	case radix == 0:

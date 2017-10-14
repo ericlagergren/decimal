@@ -22,8 +22,6 @@ const (
 // literals or using new.
 const DefaultPrecision = 16
 
-const noPrecision = -1
-
 // Context is a per-decimal contextual object that governs specific operations
 // such as how lossy operations (e.g. division) round.
 type Context struct {
@@ -53,6 +51,15 @@ type Context struct {
 	RoundingMode RoundingMode
 }
 
+// New is shorthand to create a Big from a Context.
+func (c Context) New(value int64, scale int32) *Big {
+	x := New(value, scale)
+	x.Context = c
+	return x
+}
+
+const noPrecision = -1
+
 // Precision returns the Context's precision.
 func (c Context) Precision() int32 {
 	switch c.precision {
@@ -80,7 +87,7 @@ func (c *Context) SetPrecision(prec int32) {
 // The following Contexts are based on IEEE 754R. Context is exported for this
 // documentation but is not expected to be used itself. Each Context's
 // RoundingMode is ToNearestEven, OperatingMode is GDA, and traps are set to
-// DefaultTraps.
+// every exception other than Inexact, Rounded, and Subnormal.
 var (
 	// Context32 is the IEEE 754R Decimal32 format.
 	Context32 = Context{
@@ -182,9 +189,9 @@ const (
 	// 	- an attempt is made to divide an infinity by an infinity
 	// 	- the divisor for a remainder operation is zero
 	// 	- the dividend for a remainder operation is an infinity
-	// 	- either operand of the quantize operation is an infinity, or the
-	// 	  result of a quantize operation would require greater precision than
-	// 	  is available
+	// 	- either operand of the quantize operation is an infinity, or the result
+	// 	  of a quantize operation would require greater precision than is
+	// 	  available
 	// 	- the operand of the ln or the log10 operation is less than zero
 	// 	- the operand of the square-root operation has a sign of 1 and a
 	// 	  non-zero coefficient
@@ -199,9 +206,8 @@ const (
 	// Rounded occurs when the result of an operation is rounded, or if an
 	// Overflow/Underflow occurs.
 	Rounded
-	// Subnormal ocurs when the result of a conversion or operation is
-	// subnormal (i.e. the adjusted scale is less than MinScale before any
-	// rounding).
+	// Subnormal ocurs when the result of a conversion or operation is subnormal
+	// (i.e. the adjusted scale is less than MinScale before any rounding).
 	Subnormal
 	// Underflow occurs when the result is inexact and the adjusted scale would
 	// be smaller (more negative) than MinScale.
@@ -213,6 +219,7 @@ func (c Condition) String() string {
 		return ""
 	}
 
+	// Each condition is one bit, so this saves some allocations.
 	a := make([]string, 0, arith.Popcnt32(uint32(c)))
 	for i := Condition(1); c != 0; i <<= 1 {
 		if c&i == 0 {

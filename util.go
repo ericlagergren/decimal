@@ -85,6 +85,8 @@ func findScale(f float64) (precision int32) {
 	return p
 }
 
+// TODO(eric): use math.Round when 1.10 lands.
+
 // The default rounding should be unbiased rounding.
 // It takes marginally longer than
 //
