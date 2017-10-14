@@ -1521,7 +1521,10 @@ var Regexp = regexp.MustCompile(`(?i)(((\+|-)?(\d+\.\d*|\.?\d+)([eE][+-]?\d+)?)|
 // 	qNaN
 // 	sNaN
 //
-// Inf and NaN map to +Inf and qNaN, respectively.
+// Inf and NaN map to +Inf and qNaN, respectively. NaN values may have optional
+// diagnostic information, represented as trailing digits; for example,
+// ``NaN123''. These digits are otherwise ignored but are included for
+// robustness.
 func (z *Big) SetString(s string) (*Big, bool) {
 	if s == "" {
 		return z.signal(ConversionSyntax, errors.New(`SetString("")`)), false
