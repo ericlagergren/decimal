@@ -8,7 +8,8 @@ func TestParseSpecial(t *testing.T) {
 		s    Special
 	}{
 		{"inf", PInf}, {"-infinity", NInf}, {"-iNfInItY", NInf}, {"+INF", PInf},
-		{"nan", QNaN}, {"qNaN", QNaN}, {"SNAN", SNaN}, {"na", Invalid},
+		{"nan", QNaN}, {"qNaN", QNaN}, {"SNAN", SNaN}, {"na", Invalid}, {"nan123", QNaN},
+		{"snan3123123", SNaN}, {"fnan213123213", Invalid},
 	} {
 		o := ParseSpecial(test.data)
 		if o != test.s {
@@ -22,7 +23,7 @@ var (
 	benchmarks = [...]string{
 		"NaN", "foobar", "infinity", "Infinity", "snan", "+Inf", "-iNfInItY",
 		"SNAN", "QNAN", "+inf", "+baaaz", "infinitY", "zzycczz", "not-a-number",
-		"-INF", "sNAN", "Snan", "fnI+", "inFINity", "",
+		"-INF", "sNAN", "Snan", "fnI+", "inFINity", "", "nan123123", "qnan231234",
 	}
 )
 
