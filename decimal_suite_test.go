@@ -107,7 +107,7 @@ func testCase(fname string, i int, c suite.Case, mode OperatingMode, t *testing.
 	z.Context.RoundingMode = RoundingMode(c.Mode)
 	z.Context.SetPrecision(50)
 	z.Context.OperatingMode = mode
-	z.Context.SetTraps(convException(c.Trap))
+	z.Context.Traps = convException(c.Trap)
 
 	var (
 		cond Condition
@@ -115,7 +115,7 @@ func testCase(fname string, i int, c suite.Case, mode OperatingMode, t *testing.
 		args = make([]*Big, len(c.Inputs))
 	)
 	for i, data := range c.Inputs {
-		args[i] = dataToBig(data)
+		args[i] = dataToBig(data, z.Context)
 	}
 
 	func() {
@@ -123,9 +123,9 @@ func testCase(fname string, i int, c suite.Case, mode OperatingMode, t *testing.
 			if e, ok := recover().(error); ok {
 				err = e
 			} else {
-				err = z.Err()
+				err = z.Context.Err
 			}
-			cond = z.Conditions()
+			cond = z.Context.Conditions
 		}()
 		switch c.Op {
 		case suite.Add:
@@ -145,7 +145,7 @@ func testCase(fname string, i int, c suite.Case, mode OperatingMode, t *testing.
 		t.Logf("%s: %s => [%e, %q, %v]", mode, c, z, cond, err)
 	}
 
-	want := dataToBig(c.Output)
+	want := dataToBig(c.Output, z.Context)
 	if want != nil {
 		z.Round(int32(want.Precision()))
 	}
@@ -169,13 +169,14 @@ func testCase(fname string, i int, c suite.Case, mode OperatingMode, t *testing.
 		}
 	}
 
-	nan, snan := c.Output.IsNaN()
-	errNaN := snan || (mode == Go && nan) || c.Output == suite.NoData
-	if _, ok := err.(ErrNaN); ok != errNaN {
-		t.Fatalf("%s#%d: wanted %t, got %t", fname, i, errNaN, ok)
+	if werr, zerr := want.Context.Err, z.Context.Err; werr != zerr {
+		t.Fatalf("%s#%d: wanted %v, got %v", fname, i, werr, zerr)
 	}
 
-	if want.Cmp(z) != 0 {
+	badNaN := want.IsNaN(+1) != z.IsNaN(+1) || want.IsNaN(-1) != z.IsNaN(-1)
+	nancmp := want.IsNaN(0) || z.IsNaN(0)
+
+	if badNaN || (!nancmp && want.Cmp(z) != 0) {
 		msg := fmt.Sprintf(`%s#%d: %s
 wanted: "%e"
 got   : "%e"
@@ -199,8 +200,9 @@ got   : "%e"
 
 var testZero = New(0, 0)
 
-func makeNaN(signal bool) *Big {
+func makeNaN(signal bool, ctx Context) *Big {
 	z := new(Big)
+	z.Context = ctx
 	if signal {
 		z.SetString("snan")
 	} else {
@@ -209,13 +211,14 @@ func makeNaN(signal bool) *Big {
 	return z
 }
 
-func dataToBig(s suite.Data) *Big {
+func dataToBig(s suite.Data, ctx Context) *Big {
 	switch s {
 	case "Q", "S", suite.NoData:
-		return makeNaN(s == "S" || s == suite.NoData)
+		return makeNaN(s == "S", ctx)
 	default:
-		x, ok := new(Big).SetString(string(s))
-		if !ok {
+		x := new(Big)
+		x.Context = ctx
+		if _, ok := x.SetString(string(s)); !ok {
 			panic(fmt.Sprintf("couldn't SetString(%q)", s))
 		}
 		return x

@@ -18,20 +18,9 @@ const (
 	MinPrecision = 1             // smallest allowed Context precision.
 )
 
-const (
-	// DefaultPrecision is the default precision used for decimals created as
-	// literals or using new.
-	DefaultPrecision = 16
-
-	// DefaultTraps is the default traps used for decimals created as literals
-	// or using new.
-	DefaultTraps = ^(Inexact | Rounded | Subnormal)
-)
-
-const (
-	noPrecision           = -1
-	noTraps     Condition = 1
-)
+// DefaultPrecision is the default precision used for decimals created as
+// literals or using new.
+const DefaultPrecision = 16
 
 // Context is a per-decimal contextual object that governs specific operations
 // such as how lossy operations (e.g. division) round.
@@ -44,16 +33,32 @@ type Context struct {
 	// modes that so the client can choose a preferred mode.
 	OperatingMode OperatingMode
 
-	precision  int32
-	traps      Condition
-	conditions Condition
-	err        error
+	precision int32
+
+	// Traps are a set of exceptional conditions that should result in an error.
+	Traps Condition
+
+	// Conditions are a set of the most recent exceptional conditions to occur
+	// during an operation.
+	Conditions Condition
+
+	// Err is the most recent error to occur during an operation.
+	Err error
 
 	// RoundingMode instructs how an infinite (repeating) decimal expansion
 	// (digits following the radix) should be rounded. This can occur during
 	// "lossy" operations like division.
 	RoundingMode RoundingMode
 }
+
+// New is shorthand to create a Big from a Context.
+func (c Context) New(value int64, scale int32) *Big {
+	x := New(value, scale)
+	x.Context = c
+	return x
+}
+
+const noPrecision = -1
 
 // Precision returns the Context's precision.
 func (c Context) Precision() int32 {
@@ -76,41 +81,20 @@ func (c *Context) SetPrecision(prec int32) {
 	}
 }
 
-// SetTraps sets c's traps conditions.
-func (c *Context) SetTraps(t Condition) {
-	if t == 0 {
-		c.traps = noTraps
-	} else {
-		c.traps = t
-	}
-}
-
-// Traps returns the Context's traps.
-func (c Context) Traps() Condition {
-	switch c.traps {
-	case 0:
-		return DefaultTraps
-	case noTraps:
-		return 0
-	default:
-		return c.traps
-	}
-}
-
 // The following are called ContextXX instead of DecimalXX
 // to reserve the DecimalXX namespace for future decimal types.
 
 // The following Contexts are based on IEEE 754R. Context is exported for this
 // documentation but is not expected to be used itself. Each Context's
 // RoundingMode is ToNearestEven, OperatingMode is GDA, and traps are set to
-// DefaultTraps.
+// every exception other than Inexact, Rounded, and Subnormal.
 var (
 	// Context32 is the IEEE 754R Decimal32 format.
 	Context32 = Context{
 		precision:     7,
 		RoundingMode:  ToNearestEven,
 		OperatingMode: GDA,
-		traps:         DefaultTraps,
+		Traps:         ^(Inexact | Rounded | Subnormal),
 	}
 
 	// Context64 is the IEEE 754R Decimal64 format.
@@ -118,7 +102,7 @@ var (
 		precision:     16,
 		RoundingMode:  ToNearestEven,
 		OperatingMode: GDA,
-		traps:         DefaultTraps,
+		Traps:         ^(Inexact | Rounded | Subnormal),
 	}
 
 	// Context128 is the IEEE 754R Decimal128 format.
@@ -126,7 +110,7 @@ var (
 		precision:     34,
 		RoundingMode:  ToNearestEven,
 		OperatingMode: GDA,
-		traps:         DefaultTraps,
+		Traps:         ^(Inexact | Rounded | Subnormal),
 	}
 )
 
@@ -205,9 +189,9 @@ const (
 	// 	- an attempt is made to divide an infinity by an infinity
 	// 	- the divisor for a remainder operation is zero
 	// 	- the dividend for a remainder operation is an infinity
-	// 	- either operand of the quantize operation is an infinity, or the
-	// 	  result of a quantize operation would require greater precision than
-	// 	  is available
+	// 	- either operand of the quantize operation is an infinity, or the result
+	// 	  of a quantize operation would require greater precision than is
+	// 	  available
 	// 	- the operand of the ln or the log10 operation is less than zero
 	// 	- the operand of the square-root operation has a sign of 1 and a
 	// 	  non-zero coefficient
@@ -222,9 +206,8 @@ const (
 	// Rounded occurs when the result of an operation is rounded, or if an
 	// Overflow/Underflow occurs.
 	Rounded
-	// Subnormal ocurs when the result of a conversion or operation is
-	// subnormal (i.e. the adjusted scale is less than MinScale before any
-	// rounding).
+	// Subnormal ocurs when the result of a conversion or operation is subnormal
+	// (i.e. the adjusted scale is less than MinScale before any rounding).
 	Subnormal
 	// Underflow occurs when the result is inexact and the adjusted scale would
 	// be smaller (more negative) than MinScale.
@@ -236,6 +219,7 @@ func (c Condition) String() string {
 		return ""
 	}
 
+	// Each condition is one bit, so this saves some allocations.
 	a := make([]string, 0, arith.Popcnt32(uint32(c)))
 	for i := Condition(1); c != 0; i <<= 1 {
 		if c&i == 0 {
