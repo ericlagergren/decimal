@@ -2,6 +2,7 @@ package decimal
 
 import (
 	"math"
+	"math/big"
 	"strconv"
 	"strings"
 	"testing"
@@ -382,6 +383,22 @@ func TestBig_Quo(t *testing.T) {
 		q := v.a.Quo(v.a, v.b)
 		if qs := q.String(); qs != v.r {
 			t.Fatalf("#%d: wanted %q, got %q", i, v.r, qs)
+		}
+	}
+}
+
+func TestBig_Rat(t *testing.T) {
+	for i, test := range [...]string{
+		"3.14156", "23423141234", ".44444", "1e+1222", "12e-444", "0",
+	} {
+		rat, ok := new(big.Rat).SetString(test)
+		if !ok {
+			t.Fatal("!ok")
+		}
+		x := new(Big).SetRat(rat)
+		xr := x.Rat()
+		if xr.Cmp(rat) != 0 {
+			t.Fatalf("%d: wanted %q, got %q", i, rat, xr)
 		}
 	}
 }
