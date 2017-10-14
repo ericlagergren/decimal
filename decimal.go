@@ -773,7 +773,7 @@ func (x *Big) IsBig() bool {
 // x is an infinity or a not a number value the result is undefined.
 func (x *Big) Int() *big.Int {
 	if x.form != finite {
-		return big.NewInt(0)
+		return new(big.Int)
 	}
 
 	var b big.Int
@@ -1328,6 +1328,10 @@ func (z *Big) simplifyBig() *Big {
 // Rat returns x as a *big.Rat. The result is undefined if x is an infinity or
 // not a number value.
 func (x *Big) Rat() *big.Rat {
+	if x.form != finite {
+		return new(big.Rat)
+	}
+
 	x0 := new(Big).Copy(x)
 	if x0.scale > 0 {
 		x0.scale = 0
