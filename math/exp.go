@@ -15,32 +15,34 @@ type expg struct {
 
 var P int32 = 16
 
-func (e *expg) Lentz() (f, Δ, C, D, eps *decimal.Big) {
-	f = e.recv                                       // f
-	Δ = new(decimal.Big)                             // Δ
-	C = new(decimal.Big)                             // C
-	D = new(decimal.Big)                             // D
-	eps = decimal.New(1, e.recv.Context.Precision()) // eps
+func (e *expg) Next() bool { return true }
 
-	C.Context.SetPrecision(P)
-	D.Context.SetPrecision(P)
+func (e *expg) Lentz() (f, Δ, C, D, eps *decimal.Big) {
+	f = e.recv
+	Δ = new(decimal.Big)
+	C = new(decimal.Big)
+	D = new(decimal.Big)
+	eps = decimal.New(1, e.recv.Context.Precision())
+
+	C.Context.SetPrecision(500)
+	D.Context.SetPrecision(500)
 	return
 }
 
-func (e *expg) Next() Term {
+func (e *expg) Term() Term {
 	// exp(z) can be expressed as the following continued fraction
 	//
 	//     e^z = 1 +             2z
-	//               ----------------------------
+	//               ------------------------------
 	//               2 - z +          z^2
-	//                       --------------------
-	//                       6 +       z^2
-	//                          ------------------
-	//                          10 +     z^2
-	//                               -------------
-	//                               14 +   z^2
-	//                                    --------
-	//                                         ...
+	//                       ----------------------
+	//                       6 +        z^2
+	//                           ------------------
+	//                           10 +     z^2
+	//                                -------------
+	//                                14 +   z^2
+	//                                     --------
+	//                                          ...
 	//
 	// (Khov, p 114)
 	//
@@ -62,31 +64,28 @@ func (e *expg) Next() Term {
 	//
 	// References:
 	//
-	// [Cuyt] - Annie A.M. Cuyt, Vigdis Petersen, Brigitte Verdonk, Haakon
-	// Waadeland, and William B. Jones. 2008. Handbook of Continued Fractions
-	// for Special Functions (1 ed.). Springer Publishing Company,
-	// Incorporated.
+	// [Cuyt] - Cuyt, A.; Petersen, V.; Brigette, V.; Waadeland, H.; Jones, W.B.
+	// (2008). Handbook of Continued Fractions for Special Functions. Springer
+	// Netherlands. https://doi.org/10.1007/978-1-4020-6949-9
 	//
-	// [Khov] - A. N. Khovanskii, 1963 The Application of Continued Fractions
-	// and Their Generalizations to Problems in Approximation Theory.
+	// [Khov] - Merkes, E. P. (1964). The Application of Continued Fractions and
+	// Their Generalizations to Problems in Approximation Theory
+	// (A. B. Khovanskii). SIAM Review, 6(2), 188–189.
+	// https://doi.org/10.1137/1006052
 
-	e.m++
 	switch e.m {
 	// [0, 1]
 	case 0:
 		e.t.A.SetMantScale(0, 0)
 		e.t.B.SetMantScale(1, 0)
-		return e.t
 	// [2z, 2-z]
 	case 1:
 		e.t.A.Mul(two, e.z)
 		e.t.B.Sub(two, e.z)
-		return e.t
 	// [z^2/6, 1]
 	case 2:
 		e.t.A.Quo(e.pow, six)
 		e.t.B.SetMantScale(1, 0)
-		return e.t
 	// [(1/(16((m-1)^2)-4))(z^2), 1]
 	default:
 		// maxM is the largest m value we can use to compute 4(2m - 3)(2m - 1)
@@ -113,13 +112,13 @@ func (e *expg) Next() Term {
 		e.t.A.Mul(e.t.A, e.pow)
 
 		// e.t.B is set to 1 inside case 2.
-		return e.t
 	}
+
+	e.m++
+	return e.t
 }
 
-// Exp sets z to e ** x and returns z. Exp will panic if z's rounding mode is
-// Unneeded as the exponential function is transcedental and requires some sort
-// of rounding.
+// Exp sets z to e ** x and returns z.
 func Exp(z, x *decimal.Big) *decimal.Big {
 	// TODO: "pestle_: eric_lagergren, that is, exp(z+z0) = exp(z)*exp(z0) and
 	//                 exp(z) ~ 1+z for small enough z"
@@ -128,47 +127,41 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 		// e ** +Inf = +Inf
 		// e ** -Inf = 0
 		if x.IsInf(+1) {
-			z.SetInf(true)
-		} else {
-			z.SetMantScale(0, 0)
+			return z.SetInf(true)
 		}
-		return z
+		return z.SetMantScale(0, 0)
 	}
 
-	sgn := x.Sign()
-	if sgn == 0 {
+	switch x.Sign() {
+	case 0:
 		// e ** 0 = 1
 		return z.SetMantScale(1, 0)
-	}
-
-	if x.Cmp(one) == 0 {
-		// e ** 1 = e
-		return z.Set(E).Round(z.Context.Precision())
-	}
-
-	// Since exp({z > 0: ∈ ℝ}) is transcedental, we *have* to round it.
-	if z.Context.RoundingMode == decimal.Unneeded {
-		panic("exponential function is transcedental; Unneeded is an invalid rounding mode")
-	}
-
-	if x.Cmp(two) == 0 {
-	}
-
-	if sgn < 0 {
+	case -1:
 		// 1 / (e ** -x)
 		return z.Quo(one, Exp(z, z.Neg(x)))
+	}
+
+	if x.IsInt() {
+		switch x.Int64() {
+		case 1:
+			// e ** 1 = e
+			return E(z)
+		case 2:
+			// e ** 2 = e * e
+			e := E(z)
+			return z.Mul(e, e).Round(z.Context.Precision())
+		}
 	}
 
 	// TODO: this allocates a bit. Try and reduce some allocs.
 
 	t := Term{A: new(decimal.Big), B: new(decimal.Big)}
-	t.A.Context.SetPrecision(P)
+	t.A.Context.SetPrecision(500)
 	g := expg{
 		recv: alias(z, x),
 		z:    x,
 		pow:  new(decimal.Big).Mul(x, x),
-		m:    -1,
 		t:    t,
 	}
-	return z.Set(Lentz(&g, z.Context.Precision()))
+	return Lentz(z, &g)
 }
