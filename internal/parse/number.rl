@@ -30,7 +30,7 @@ func ParseSpecial(data string) Special {
 		machine parser;
 
 		infinity = 'inf'i 'inity'i?;
-		nan      = 'nan'i;
+		nan      = 'nan'i digit*;
 
 		main := (
 			  '+'?  infinity @{ return PInf }

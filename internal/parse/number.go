@@ -90,6 +90,8 @@ const parser_en_main int = 1
 		goto st_case_16
 	case 17:
 		goto st_case_17
+	case 25:
+		goto st_case_25
 	case 18:
 		goto st_case_18
 	case 19:
@@ -98,6 +100,8 @@ const parser_en_main int = 1
 		goto st_case_20
 	case 21:
 		goto st_case_21
+	case 26:
+		goto st_case_26
 	}
 	goto st_out
 	st_case_1:
@@ -173,7 +177,7 @@ tr8:
 			goto _test_eof22
 		}
 	st_case_22:
-//line number.go:177
+//line number.go:181
 		switch data[p] {
 		case 73:
 			goto st5
@@ -237,20 +241,12 @@ tr19:
 //line number.rl:37
  return NInf 
 	goto st23
-tr21:
-//line number.rl:38
- return QNaN 
-	goto st23
-tr24:
-//line number.rl:39
- return SNaN 
-	goto st23
 	st23:
 		if p++; p == pe {
 			goto _test_eof23
 		}
 	st_case_23:
-//line number.go:254
+//line number.go:250
 		goto st0
 	st9:
 		if p++; p == pe {
@@ -297,7 +293,7 @@ tr15:
 			goto _test_eof24
 		}
 	st_case_24:
-//line number.go:301
+//line number.go:297
 		switch data[p] {
 		case 73:
 			goto st12
@@ -377,6 +373,20 @@ tr15:
 			goto tr21
 		}
 		goto st0
+tr21:
+//line number.rl:38
+ return QNaN 
+	goto st25
+	st25:
+		if p++; p == pe {
+			goto _test_eof25
+		}
+	st_case_25:
+//line number.go:386
+		if 48 <= data[p] && data[p] <= 57 {
+			goto tr21
+		}
+		goto st0
 	st18:
 		if p++; p == pe {
 			goto _test_eof18
@@ -425,6 +435,20 @@ tr15:
 			goto tr24
 		}
 		goto st0
+tr24:
+//line number.rl:39
+ return SNaN 
+	goto st26
+	st26:
+		if p++; p == pe {
+			goto _test_eof26
+		}
+	st_case_26:
+//line number.go:448
+		if 48 <= data[p] && data[p] <= 57 {
+			goto tr24
+		}
+		goto st0
 	st_out:
 	_test_eof2: cs = 2; goto _test_eof
 	_test_eof3: cs = 3; goto _test_eof
@@ -445,10 +469,12 @@ tr15:
 	_test_eof15: cs = 15; goto _test_eof
 	_test_eof16: cs = 16; goto _test_eof
 	_test_eof17: cs = 17; goto _test_eof
+	_test_eof25: cs = 25; goto _test_eof
 	_test_eof18: cs = 18; goto _test_eof
 	_test_eof19: cs = 19; goto _test_eof
 	_test_eof20: cs = 20; goto _test_eof
 	_test_eof21: cs = 21; goto _test_eof
+	_test_eof26: cs = 26; goto _test_eof
 
 	_test_eof: {}
 	_out: {}
