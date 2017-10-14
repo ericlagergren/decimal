@@ -260,7 +260,8 @@ func (c Condition) String() string {
 var (
 	one = New(1, 0)
 
-	oneInt = big.NewInt(1)
-	twoInt = big.NewInt(2)
-	tenInt = big.NewInt(10)
+	oneInt        = big.NewInt(1)
+	twoInt        = big.NewInt(2)
+	tenInt        = big.NewInt(10)
+	oneHundredInt = big.NewInt(100)
 )

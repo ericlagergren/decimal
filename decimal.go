@@ -157,6 +157,39 @@ func (z *Big) checkNaNs(x, y *Big, op string) (Condition, error) {
 	return cond, ErrNaN{Msg: op + " with NaN as an operand"}
 }
 
+var (
+	errOverflow  = errors.New("decimal: overflow: scale is too large")
+	errUnderflow = errors.New("decimal: underflow: scale is too small")
+)
+
+func (z *Big) xflow(over, neg bool) *Big {
+	// over == overflow
+	// neg == intermediate result < 0
+	if over {
+		// NOTE(eric): in some situations, the decimal library tells us to set
+		// z to "the largest finite number that can be represented in the
+		// current precision..." This is unreasonable, since this is an
+		// _arbitrary_ precision library. Use signed Infinity instead.
+		//
+		// Because of the logic above, every rounding mode works out to the
+		// following.
+		if neg {
+			z.form = ninf
+		} else {
+			z.form = pinf
+		}
+		return z.signal(Overflow|Inexact|Rounded, errOverflow)
+	}
+
+	z.scale = MinScale
+	if neg {
+		z.form = nzero
+	} else {
+		z.form = zero
+	}
+	return z.signal(Underflow|Inexact|Rounded|Subnormal, errUnderflow)
+}
+
 // These methods are here to prevent typos.
 
 func (x *Big) isCompact() bool  { return x.compact != c.Inflated }
@@ -1292,6 +1325,28 @@ func (z *Big) simplifyBig() *Big {
 	return z
 }
 
+// Rat returns x as a *big.Rat. The result is undefined if x is an infinity or
+// not a number value.
+func (x *Big) Rat() *big.Rat {
+	x0 := new(Big).Copy(x)
+	if x0.scale > 0 {
+		x0.scale = 0
+	}
+	num := x0.Int()
+
+	var denom *big.Int
+	if x.scale > 0 {
+		if shift, ok := pow.Ten64(int64(x.scale)); ok {
+			denom = big.NewInt(shift)
+		} else {
+			denom = new(big.Int).Exp(tenInt, big.NewInt(int64(x.scale)), nil)
+		}
+	} else {
+		denom = big.NewInt(1)
+	}
+	return new(big.Rat).SetFrac(num, denom)
+}
+
 // Raw directly returns x's raw compact and unscaled values. Caveat emptor:
 // Neither are guaranteed to be valid. Raw is intended to support missing
 // functionality outside this package and generally should be avoided.
@@ -1463,43 +1518,19 @@ func (z *Big) SetNaN(signal bool) *Big {
 	return z
 }
 
+// SetRat sets z to to the possibly rounded value of x and return z.
+func (z *Big) SetRat(x *big.Rat) *Big {
+	// TODO(eric): once we modify quoBig to accept two *big.Ints then this
+	// method can just be ``return z.quoBig(x.Num(), x.Denom())''
+	a := new(Big).SetBigMantScale(x.Num(), 0)
+	b := new(Big).SetBigMantScale(x.Denom(), 0)
+	return z.Quo(a, b)
+}
+
 // SetScale sets z's scale to scale and returns z.
 func (z *Big) SetScale(scale int32) *Big {
 	z.scale = scale
 	return z
-}
-
-var (
-	errOverflow  = errors.New("decimal: overflow: scale is too large")
-	errUnderflow = errors.New("decimal: underflow: scale is too small")
-)
-
-func (z *Big) xflow(over, neg bool) *Big {
-	// over == overflow
-	// neg == intermediate result < 0
-	if over {
-		// NOTE(eric): in some situations, the decimal library tells us to set
-		// z to "the largest finite number that can be represented in the
-		// current precision..." This is unreasonable, since this is an
-		// _arbitrary_ precision library. Use signed Infinity instead.
-		//
-		// Because of the logic above, every rounding mode works out to the
-		// following.
-		if neg {
-			z.form = ninf
-		} else {
-			z.form = pinf
-		}
-		return z.signal(Overflow|Inexact|Rounded, errOverflow)
-	}
-
-	z.scale = MinScale
-	if neg {
-		z.form = nzero
-	} else {
-		z.form = zero
-	}
-	return z.signal(Underflow|Inexact|Rounded|Subnormal, errUnderflow)
 }
 
 // Regexp matches any valid string representing a decimal that can be pased to
