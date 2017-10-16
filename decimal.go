@@ -328,9 +328,11 @@ func (z *Big) addCompact(x, y *Big) *Big {
 func (z *Big) addBig(x, y *Big) *Big {
 	xb, yb := &x.unscaled, &y.unscaled
 	if x.isCompact() {
-		xb = big.NewInt(x.compact)
+		xb = getInt64(x.compact)
+		defer putInt(xb)
 	} else if y.isCompact() {
-		yb = big.NewInt(y.compact)
+		yb = getInt64(y.compact)
+		defer putInt(yb)
 	}
 
 	z.compact = c.Inflated
@@ -359,7 +361,7 @@ func (z *Big) addBig(x, y *Big) *Big {
 }
 
 // BitLen returns the absolute value of x in bits. The result is undefined if
-// x is an infinity or not a number value.
+// x is an infinity or a NaN value.
 func (x *Big) BitLen() int {
 	if x.form != finite {
 		return 0
@@ -577,9 +579,30 @@ func (x *Big) Float64() float64 {
 			}
 		}
 	}
-	// No other way of doing it.
+	// TODO(eric): find a better way of doing this.
 	f, _ := strconv.ParseFloat(x.String(), 64)
 	return f
+}
+
+// Float sets z to x and returns z. z is allowed to be nil. The result is
+// undefined if z is a NaN value.
+func (x *Big) Float(z *big.Float) *big.Float {
+	if z == nil {
+		z = new(big.Float)
+	}
+
+	switch x.form {
+	case finite:
+		// TODO(eric): is there a more efficient way?
+		z.SetRat(x.Rat(nil))
+	case zero, snan, qnan:
+		z.SetInt64(0)
+	case nzero:
+		z.SetInt64(0).Neg(z)
+	case pinf, ninf:
+		z.SetInf(x.form == pinf)
+	}
+	return z
 }
 
 // Format implements the fmt.Formatter interface. The following verbs are
@@ -737,8 +760,7 @@ func (x *Big) Format(s fmt.State, c rune) {
 }
 
 // IsBig returns true if x, with its fractional part truncated, cannot fit
-// inside an int64. If x is an infinity or a not a number value the result is
-// undefined.
+// inside an int64. If x is an infinity or a NaN value the result is undefined.
 func (x *Big) IsBig() bool {
 	// x.form != finite == zero, infinity, or nan
 	if x.form != finite {
@@ -769,32 +791,36 @@ func (x *Big) IsBig() bool {
 	return !ok
 }
 
-// Int returns x as a big.Int, truncating the fractional portion, if any. If
-// x is an infinity or a not a number value the result is undefined.
-func (x *Big) Int() *big.Int {
-	if x.form != finite {
-		return new(big.Int)
+// Int sets z to x, truncating the fractional portion (if any) and returns z. z
+// is allowed to be nil. If x is an infinity or a NaN value the result is
+// undefined.
+func (x *Big) Int(z *big.Int) *big.Int {
+	if z == nil {
+		z = new(big.Int)
 	}
 
-	var b big.Int
+	if x.form != finite {
+		return z
+	}
+
 	if x.isCompact() {
-		b.SetInt64(x.compact)
+		z.SetInt64(x.compact)
 	} else {
-		b.Set(&x.unscaled)
+		z.Set(&x.unscaled)
 	}
 	if x.scale == 0 {
-		return &b
+		return z
 	}
 	if x.scale < 0 {
-		return checked.MulBigPow10(&b, -x.scale)
+		return checked.MulBigPow10(z, -x.scale)
 	}
 	p := pow.BigTen(int64(x.scale))
-	return b.Div(&b, &p)
+	return z.Quo(z, &p)
 }
 
 // Int64 returns x as an int64, truncating the fractional portion, if any. The
-// result is undefined if x is an infinity, a not a number value, or if x does
-// not fit inside an int64.
+// result is undefined if x is an infinity, a NaN value, or if x does not fit
+// inside an int64.
 func (x *Big) Int64() int64 {
 	if x.form != finite {
 		return 0
@@ -803,7 +829,10 @@ func (x *Big) Int64() int64 {
 	// x might be too large to fit into an int64 *now*, but rescaling x might
 	// shrink it enough. See issue #20.
 	if !x.isCompact() {
-		return x.Int().Int64()
+		tmp := get()
+		v := x.Int(tmp).Int64()
+		putInt(tmp)
+		return v
 	}
 
 	b := x.compact
@@ -836,22 +865,49 @@ func (x *Big) IsNaN(signal int) bool {
 	return signal >= 0 && x.form == snan || signal <= 0 && x.form == qnan
 }
 
-// IsInt reports whether x is an integer. Inf and NaN values are not integers.
+// IsInt reports whether x is an integer. Infinity and NaN values are not
+// integers.
 func (x *Big) IsInt() bool {
 	if x.form != finite {
 		return x.form <= nzero
 	}
-	// The x.Cmp(one) check is necessary because x might be a decimal *and*
-	// Prec <= 0 if x < 1.
-	//
-	// E.g., 0.1:  scale == 1, prec == 1
-	//       0.01: scale == 2, prec == 1
-	//
-	// TODO(eric): avoid Cmp.
-	return x.scale <= 0 || (x.Precision() <= int(x.scale) && x.Cmp(one) > 0)
+
+	// 5000, 420
+	if x.scale <= 0 {
+		return true
+	}
+
+	xp := x.Precision()
+
+	// 0.001
+	// 0.5
+	if int(x.scale) >= xp {
+		return false
+	}
+
+	// 44.00
+	// 1.000
+	if x.isCompact() {
+		for v := x.compact; v%10 == 0; v /= 10 {
+			xp--
+		}
+	} else {
+		v := getInt(&x.unscaled)
+		r := get()
+		for {
+			v.QuoRem(v, tenInt, r)
+			if r.Cmp(zeroInt) != 0 {
+				break
+			}
+			xp--
+		}
+		putInt(v)
+		putInt(r)
+	}
+	return xp <= int(x.scale)
 }
 
-// MarshalText implements encoding/TextMarshaler.
+// MarshalText implements encoding.TextMarshaler.
 func (x *Big) MarshalText() ([]byte, error) {
 	var (
 		b bytes.Buffer
@@ -1014,7 +1070,7 @@ func New(value int64, scale int32) *Big {
 
 // Precision returns the precision of x. That is, it returns the number of
 // digits in the unscaled form of x. x == 0 has a precision of 1. The result is
-// undefined if x is an infinity or a not a number value.
+// undefined if x is an infinity or a NaN value.
 func (x *Big) Precision() int {
 	if x.form != finite {
 		if x.form <= nzero {
@@ -1325,30 +1381,36 @@ func (z *Big) simplifyBig() *Big {
 	return z
 }
 
-// Rat returns x as a *big.Rat. The result is undefined if x is an infinity or
-// not a number value.
-func (x *Big) Rat() *big.Rat {
+// Rat sets z to x returns z. z is allowed to be nil. The result is undefined if
+// x is an infinity or NaN value.
+func (x *Big) Rat(z *big.Rat) *big.Rat {
+	if z == nil {
+		z = new(big.Rat)
+	}
+
 	if x.form != finite {
-		return new(big.Rat)
+		return z.SetInt64(0)
 	}
 
 	x0 := new(Big).Copy(x)
 	if x0.scale > 0 {
 		x0.scale = 0
 	}
-	num := x0.Int()
+	num := x0.Int(nil)
 
 	var denom *big.Int
 	if x.scale > 0 {
 		if shift, ok := pow.Ten64(int64(x.scale)); ok {
 			denom = big.NewInt(shift)
 		} else {
-			denom = new(big.Int).Exp(tenInt, big.NewInt(int64(x.scale)), nil)
+			tmp := getInt64(int64(x.scale))
+			denom = new(big.Int).Exp(tenInt, tmp, nil)
+			putInt(tmp)
 		}
 	} else {
 		denom = big.NewInt(1)
 	}
-	return new(big.Rat).SetFrac(num, denom)
+	return z.SetFrac(num, denom)
 }
 
 // Raw directly returns x's raw compact and unscaled values. Caveat emptor:
@@ -1428,6 +1490,46 @@ func (z *Big) SetBigMantScale(value *big.Int, scale int32) *Big {
 	z.unscaled.Set(value)
 	z.form = finite
 	z.compact = c.Inflated
+	return z
+}
+
+// SetFloat sets z to x and returns z.
+func (z *Big) SetFloat(x *big.Float) *Big {
+	if x.IsInf() {
+		if x.Signbit() {
+			z.form = ninf
+		} else {
+			z.form = pinf
+		}
+		return z
+	}
+
+	if x.Sign() == 0 {
+		if x.Signbit() {
+			z.form = nzero
+		} else {
+			z.form = zero
+		}
+		return z
+	}
+
+	z.scale = 0
+	x0 := x
+	if !x.IsInt() {
+		x0 = new(big.Float).Copy(x)
+		for !x0.IsInt() {
+			x0.Mul(x0, tenFloat)
+			z.scale++
+		}
+	}
+
+	if mant, acc := x0.Int64(); acc == big.Exact {
+		z.compact = mant
+	} else {
+		z.compact = c.Inflated
+		x0.Int(&z.unscaled)
+	}
+	z.form = finite
 	return z
 }
 
@@ -1556,9 +1658,9 @@ var Regexp = regexp.MustCompile(`(?i)(((\+|-)?(\d+\.\d*|\.?\d+)([eE][+-]?\d+)?)|
 // 	qNaN
 // 	sNaN
 //
-// Inf and NaN map to +Inf and qNaN, respectively. NaN values may have optional
-// diagnostic information, represented as trailing digits; for example,
-// ``NaN123''. These digits are otherwise ignored but are included for
+// ``Inf'' and ``NaN'' map to ``+Inf'' and ``qNaN', respectively. NaN values may
+// have optional diagnostic information, represented as trailing digits; for
+// example, ``NaN123''. These digits are otherwise ignored but are included for
 // robustness.
 func (z *Big) SetString(s string) (*Big, bool) {
 	if s == "" {
@@ -1582,7 +1684,7 @@ func (z *Big) SetString(s string) (*Big, bool) {
 	// We deviate a little by being a tad bit more forgiving. For instance,
 	// we allow case-insensitive nan and infinity values.
 
-	// Eliminate overhead when searching for inf and nan values.
+	// Eliminate overhead when searching for infinity and nan values.
 	if s[len(s)-1] > '9' {
 		switch parse.ParseSpecial(s) {
 		case parse.QNaN:
@@ -1688,7 +1790,7 @@ func (z *Big) SetString(s string) (*Big, bool) {
 //	 0 if x == 0
 //	+1 if x >  0
 //
-// The result is undefined if x is a not a number value.
+// The result is undefined if x is a NaN value.
 func (x *Big) Sign() int {
 	if x.form != finite {
 		switch x.form {
@@ -1815,7 +1917,7 @@ func (z *Big) Sub(x, y *Big) *Big {
 	return z.Neg(y)
 }
 
-// UnmarshalText implements encoding/TextUnmarshaler.
+// UnmarshalText implements encoding.TextUnmarshaler.
 func (z *Big) UnmarshalText(data []byte) error {
 	// TODO(eric): get rid of the allocation here.
 	if _, ok := z.SetString(string(data)); !ok {

@@ -177,6 +177,22 @@ func TestBig_Cmp(t *testing.T) {
 	}
 }
 
+func TestBig_Float(t *testing.T) {
+	for i, test := range [...]string{
+		"42", "3.14156", "23423141234", ".44444", "1e+1222", "12e-444", "0",
+	} {
+		flt, ok := new(big.Float).SetString(test)
+		if !ok {
+			t.Fatal("!ok")
+		}
+		fv := new(big.Float).SetPrec(flt.Prec())
+		xf := new(Big).SetFloat(flt).Float(fv)
+		if xf.String() != flt.String() {
+			t.Fatalf("#%d: wanted %f, got %f", i, flt, xf)
+		}
+	}
+}
+
 func TestBig_IsBig(t *testing.T) {
 	for i, test := range [...]struct {
 		a   *Big
@@ -215,7 +231,7 @@ func TestBig_Int(t *testing.T) {
 		case x == 0:
 			iv = "0"
 		}
-		n := a.Int()
+		n := a.Int(nil)
 		if n.String() != iv {
 			t.Fatalf("#%d: wanted %q, got %q", i, iv, n.String())
 		}
@@ -253,7 +269,12 @@ func TestBig_IsInt(t *testing.T) {
 		"-0 int",
 		"1 int",
 		"-1 int",
+		"0.0120",
+		"444.000 int",
+		"10.000 int",
+		"1.0001e+33333 int",
 		"0.5",
+		"0.011",
 		"1.23",
 		"1.23e1",
 		"1.23e2 int",
@@ -272,7 +293,7 @@ func TestBig_IsInt(t *testing.T) {
 		}
 		want := s != test
 		if got := x.IsInt(); got != want {
-			t.Fatalf("#%d: %s.IsInt() == %t", i, s, got)
+			t.Fatalf("#%d: (%q).IsInt() == %t", i, s, got)
 		}
 	}
 }
@@ -389,16 +410,15 @@ func TestBig_Quo(t *testing.T) {
 
 func TestBig_Rat(t *testing.T) {
 	for i, test := range [...]string{
-		"3.14156", "23423141234", ".44444", "1e+1222", "12e-444", "0",
+		"42", "3.14156", "23423141234", ".44444", "1e+1222", "12e-444", "0",
 	} {
 		rat, ok := new(big.Rat).SetString(test)
 		if !ok {
 			t.Fatal("!ok")
 		}
-		x := new(Big).SetRat(rat)
-		xr := x.Rat()
+		xr := new(Big).SetRat(rat).Rat(nil)
 		if xr.Cmp(rat) != 0 {
-			t.Fatalf("%d: wanted %q, got %q", i, rat, xr)
+			t.Fatalf("#%d: wanted %q, got %q", i, rat, xr)
 		}
 	}
 }

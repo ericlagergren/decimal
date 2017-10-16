@@ -13,9 +13,8 @@ func BigAbs(x *big.Int) *big.Int {
 	return new(big.Int).Abs(x)
 }
 
-// bigAbsAlias returns a big.Int set to |x| whose inner slices
-// alias each other. Do not use unless the return value will not be
-// modified.
+// bigAbsAlias returns a big.Int set to |x| whose inner slices alias each other.
+// Do not use unless the return value will not be modified.
 func bigAbsAlias(x *big.Int) *big.Int {
 	return new(big.Int).SetBits(x.Bits())
 }
