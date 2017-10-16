@@ -9,7 +9,7 @@ www.bytereef.org/mpdecimal/benchmarks.html
 |    Program (version)                  | 9 digits |  19 digits  | 38 digits | 100 digits | average |
 |-----------------------------|----------|-------------|-----------|------------|---------|
 | BigDecimal<sup>[4]</sup> (Java 1.8, warm) | 0.049    | 0.19        | 0.6       | 3.29       | 1.05    |
-| decimal<sup>[1]</sup> (Go 1.9)            | 0.039    | 0.53        | 1.30      | 4.45       | 1.57    |
+| **decimal**<sup>[1]</sup> (Go 1.9)            | 0.031    | 0.51        | 1.22      | 4.15       | 1.47    |
 | decimal<sup>[5]</sup> (Python 3.6.2)      | 0.27     | 0.58        | 1.32      | 4.52       | 1.67    |
 | BigDecimal (Java 1.8)       | 0.29     | 0.96        | 1.79      | 3.99       | 1.76    |
 | apd<sup>[2]</sup> (Go 1.9)                | 0.52     | 2.21        | 8.98      | 68.43      | 20.03   |

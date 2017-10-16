@@ -8,8 +8,7 @@ import (
 
 // Length returns the number of digits in x.
 func Length(x int64) int {
-	x = Abs(x)
-	if x < 10 {
+	if x = Abs(x); x < 10 {
 		return 1
 	}
 	return ilog10(x)
