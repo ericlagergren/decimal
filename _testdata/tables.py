@@ -14,7 +14,7 @@ ops = {
 
 def make_dec():
     sign = "+" if random.randint(0, 1) % 2 == 0 else "-"
-    return decimal.Decimal("{}{}".format(sign, random.uniform(0, sys.float_info.min)))
+    return decimal.Decimal("{}{}".format(sign, random.uniform(0, sys.float_info.max)))
 
 def rand_dec():
     q = random.randint(0, 4)
