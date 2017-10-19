@@ -25,7 +25,7 @@ func ParseCases(r io.Reader) (cases []Case, err error) {
 			continue
 		}
 
-		c, err := parseCase(p)
+		c, err := ParseCase(p)
 		if err != nil {
 			return nil, err
 		}
@@ -63,6 +63,8 @@ type Case struct {
 	Output Data
 	Excep  Exception
 }
+
+// TODO(eric): String should print the same format as the input
 
 func (c Case) String() string {
 	return fmt.Sprintf("%s%d [%s, %s]: %s(%s) = %s %s",

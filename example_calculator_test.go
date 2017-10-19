@@ -9,6 +9,7 @@ import (
 func ExampleBig_reversePolishNotationCalculator() {
 	const input = "15 7 1 1 + - / 3 * 2 1 1 + + - 5 * 3 / ="
 	var stack []*Big
+Loop:
 	for _, tok := range strings.Split(input, " ") {
 		last := len(stack) - 1
 		switch tok {
@@ -29,7 +30,7 @@ func ExampleBig_reversePolishNotationCalculator() {
 			x.Mul(x, stack[last])
 			stack = stack[:last]
 		case "=":
-			break
+			break Loop
 		default:
 			x := new(Big)
 			x.Context = Context128
