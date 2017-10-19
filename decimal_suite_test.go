@@ -2,11 +2,13 @@ package decimal
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -55,9 +57,12 @@ func TestSuiteCases(t *testing.T) {
 		// Loop over names instead of sets so our tests run in the same order.
 		// Makes debugging easier.
 		for _, name := range names {
+			name := name
 			for i, cs := range sets[name] {
-				// +1 makes debugging easier since file lines are 1-indexed.
-				testCase(name, i+1, cs, mode, t)
+				t.Run(name, func(t *testing.T) {
+					// +1 makes debugging easier since file lines are 1-indexed.
+					testCase(name, i+1, cs, mode, t)
+				})
 			}
 		}
 	}
@@ -100,7 +105,6 @@ func testCase(fname string, i int, c suite.Case, mode OperatingMode, t *testing.
 	switch fname {
 	case "Underflow.json":
 		return
-	default:
 	}
 
 	z := new(Big)
@@ -138,6 +142,8 @@ func testCase(fname string, i int, c suite.Case, mode OperatingMode, t *testing.
 			z.Quo(args[0], args[1])
 		case suite.Neg:
 			z.Neg(args[0])
+		default:
+			t.Fatalf("bad op: %q", c.Op)
 		}
 	}()
 
@@ -146,8 +152,9 @@ func testCase(fname string, i int, c suite.Case, mode OperatingMode, t *testing.
 	}
 
 	want := dataToBig(c.Output, z.Context)
-	if want != nil {
-		z.Round(int32(want.Precision()))
+	prec := int32(want.Precision())
+	if prec != 0 {
+		z.Round(prec)
 	}
 
 	// fpgen doesn't test for Rounded.
@@ -174,26 +181,22 @@ func testCase(fname string, i int, c suite.Case, mode OperatingMode, t *testing.
 	}
 
 	badNaN := want.IsNaN(+1) != z.IsNaN(+1) || want.IsNaN(-1) != z.IsNaN(-1)
-	nancmp := want.IsNaN(0) || z.IsNaN(0)
+	neitherNaN := !want.IsNaN(0) && !z.IsNaN(0)
 
-	if badNaN || (!nancmp && want.Cmp(z) != 0) {
-		msg := fmt.Sprintf(`%s#%d: %s
-wanted: "%e"
-got   : "%e"
-`, fname, i, c, want, z)
-
-		badInexact := Inexact&wantConds != 0
-		if badInexact {
-			if _, badInexact = c.Output.IsInf(); !badInexact {
-				badInexact = want.Cmp(testZero) == 0
-			}
+	if badNaN || (neitherNaN && want.Cmp(z) != 0) {
+		t.Parallel()
+		pywant := shellOut(args[0], args[1], c.Op, z.Context.Precision())
+		if prec != 0 {
+			pywant.Round(prec)
 		}
 
-		if want.Signbit() == z.Signbit() &&
-			(badInexact || wantConds&(Overflow|Underflow) != 0) {
-			t.Logf("CHECK: %s", msg)
-		} else {
-			t.Fatal(msg)
+		// Test suite says we got the incorrect answer, but double-check with
+		// Python since the test suite doesn't use arbitrary precision.
+		if z.Cmp(pywant) != 0 {
+			t.Fatal(fmt.Sprintf(`%s#%d: %s
+wanted: "%e" (or "%e")
+got   : "%e"
+`, fname, i, c, want, pywant, z))
 		}
 	}
 }
@@ -223,4 +226,36 @@ func dataToBig(s suite.Data, ctx Context) *Big {
 		}
 		return x
 	}
+}
+
+func shellOut(x, y *Big, op suite.Op, prec int32) *Big {
+	var opstr string
+	switch op {
+	case suite.Add:
+		opstr = "+"
+	case suite.Sub:
+		opstr = "-"
+	case suite.Mul:
+		opstr = "*"
+	case suite.Div:
+		opstr = "/"
+	default:
+		panic(fmt.Sprintf("bad op %q", op))
+	}
+	cmd := fmt.Sprintf(`
+python3 - <<EOF
+from decimal import *
+getcontext().prec = %d
+print(Decimal(%q) %s Decimal(%q))
+EOF
+`, prec, x, opstr, y)
+	out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
+	if err != nil {
+		panic(fmt.Sprintf("err: %v: %s", err, out))
+	}
+	x, ok := new(Big).SetString(string(bytes.TrimSuffix(out, []byte{'\n'})))
+	if !ok {
+		panic("!ok")
+	}
+	return x
 }

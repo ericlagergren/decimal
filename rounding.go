@@ -45,6 +45,6 @@ func (z *Big) needsInc(x, r int64, pos, odd bool) bool {
 
 func (z *Big) needsIncBig(x, r *big.Int, pos, odd bool) bool {
 	var x0 big.Int
-	m := arith.BigAbsCmp(*x0.Mul(r, twoInt), *x)
+	m := arith.BigAbsCmp(x0.Mul(r, twoInt), x)
 	return z.Context.RoundingMode.needsInc(m, pos, odd)
 }

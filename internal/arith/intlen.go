@@ -38,7 +38,7 @@ func ilog10(x int64) int {
 func bigIlog10(x *big.Int) int {
 	// Should be accurate up to as high as we can possibly report.
 	r := int(((int64(x.BitLen()) + 1) * 0x268826A1) >> 31)
-	if BigAbsCmp(*x, pow.BigTen(int64(r))) < 0 {
+	if BigAbsCmp(x, pow.BigTen(int64(r))) < 0 {
 		return r
 	}
 	return r + 1

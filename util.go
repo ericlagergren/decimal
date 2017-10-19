@@ -34,16 +34,16 @@ func cmpNorm(x int64, xs int32, y int64, ys int32) (ok bool) {
 	if debug && (x == 0 || y == 0) {
 		panic("x and/or y cannot be zero")
 	}
+	goodx, goody := true, true
 	if diff := xs - ys; diff != 0 {
-		// TODO: should we check the bool result here?
 		if diff < 0 {
-			x, _ = checked.MulPow10(x, -diff)
+			x, goodx = checked.MulPow10(x, -diff)
 		} else {
-			y, _ = checked.MulPow10(y, diff)
+			y, goody = checked.MulPow10(y, diff)
 		}
 	}
-	if x != c.Inflated {
-		if y != c.Inflated {
+	if goodx {
+		if goody {
 			return arith.AbsCmp(x, y) > 0
 		}
 		return false
@@ -54,13 +54,14 @@ func cmpNorm(x int64, xs int32, y int64, ys int32) (ok bool) {
 // cmpNormBig compares x and y in the range [0.1, 0.999...] and returns true if
 // x > y.
 func cmpNormBig(x *big.Int, xs int32, y *big.Int, ys int32) (ok bool) {
-	diff := xs - ys
-	if diff < 0 {
-		x1 := new(big.Int).Set(x)
-		return checked.MulBigPow10(x1, -diff).Cmp(y) > 0
+	if diff := xs - ys; diff < 0 {
+		x = checked.MulBigPow10(getInt(x), -diff)
+		defer putInt(x)
+	} else {
+		y = checked.MulBigPow10(getInt(y), diff)
+		defer putInt(y)
 	}
-	y1 := new(big.Int).Set(y)
-	return x.Cmp(checked.MulBigPow10(y1, diff)) > 0
+	return arith.BigAbsCmp(x, y) > 0
 }
 
 // findScale determines the precision of a float64.

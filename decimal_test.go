@@ -1,14 +1,35 @@
 package decimal
 
 import (
+	"bufio"
+	"compress/gzip"
+	"fmt"
 	"math"
 	"math/big"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/ericlagergren/decimal/internal/c"
+	"github.com/ericlagergren/decimal/suite"
 )
+
+func getTests(t *testing.T, name string) (s *bufio.Scanner, close func()) {
+	t.Helper()
+
+	fpath := filepath.Join("_testdata", fmt.Sprintf("%s-tables.gzip", name))
+	file, err := os.Open(fpath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gzr, err := gzip.NewReader(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return bufio.NewScanner(gzr), func() { gzr.Close(); file.Close() }
+}
 
 func didPanic(f func()) (ok bool) {
 	defer func() { ok = recover() != nil }()
@@ -57,42 +78,27 @@ func TestBig_Abs(t *testing.T) {
 }
 
 func TestBig_Add(t *testing.T) {
-	type inp struct {
-		a   string
-		b   string
-		res string
-		nan bool
-	}
+	s, close := getTests(t, "addition")
+	defer close()
 
-	inputs := [...]inp{
-		0:  {a: "2", b: "3", res: "5"},
-		1:  {a: "2454495034", b: "3451204593", res: "5905699627"},
-		2:  {a: "24544.95034", b: ".3451204593", res: "24545.2954604593"},
-		3:  {a: ".1", b: ".1", res: "0.2"},
-		4:  {a: ".1", b: "-.1", res: "0"},
-		5:  {a: "0", b: "1.001", res: "1.001"},
-		6:  {a: "123456789123456789.12345", b: "123456789123456789.12345", res: "246913578246913578.2469"},
-		7:  {a: ".999999999", b: ".00000000000000000000000000000001", res: "0.99999999900000000000000000000001"},
-		8:  {"+Inf", "-Inf", "NaN", true},
-		9:  {"+Inf", "+Inf", "+Inf", false},
-		10: {"0", "0", "0", false},
-	}
+	for i := 0; s.Scan(); i++ {
+		c, err := suite.ParseCase(s.Bytes())
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	for i, inp := range inputs {
-		a, ok := new(Big).SetString(inp.a)
-		if !ok {
-			t.FailNow()
-		}
-		b, ok := new(Big).SetString(inp.b)
-		if !ok {
-			t.FailNow()
-		}
-		panicked := didPanic(func() { a.Add(a, b) })
-		if panicked != inp.nan {
-			t.Fatalf("#%d: wanted panicked == %t, got %t", i, inp.nan, panicked)
-		}
-		if as := a.String(); as != inp.res {
-			t.Fatalf("#%d: wanted %s, got %s", i, inp.res, as)
+		z := new(Big)
+		z.Context.SetPrecision(int32(c.Prec))
+		x, _ := new(Big).SetString(string(c.Inputs[0]))
+		y, _ := new(Big).SetString(string(c.Inputs[1]))
+		r, _ := new(Big).SetString(string(c.Output))
+
+		z.Add(x, y)
+		if z.Cmp(r) != 0 {
+			t.Fatalf(`#%d: %s
+wanted: %q
+got   : %q
+`, i+1, c, r, z)
 		}
 	}
 }
@@ -340,15 +346,27 @@ func TestBig_Neg(t *testing.T) {
 }
 
 func TestBig_Mul(t *testing.T) {
-	for i, v := range mulTestTable {
-		d1 := newbig(t, v.d1)
-		d2 := newbig(t, v.d2)
-		panicked := didPanic(func() { d1.Mul(d1, d2) })
-		if panicked != v.nan {
-			t.Fatalf("#%d: wanted panicked: %t, got %t", i, v.nan, panicked)
+	s, close := getTests(t, "multiplication")
+	defer close()
+
+	for i := 0; s.Scan(); i++ {
+		c, err := suite.ParseCase(s.Bytes())
+		if err != nil {
+			t.Fatal(err)
 		}
-		if s := d1.String(); s != v.res {
-			t.Fatalf("#%d: wanted %s got %s", i, v.res, s)
+
+		z := new(Big)
+		z.Context.SetPrecision(int32(c.Prec))
+		x, _ := new(Big).SetString(string(c.Inputs[0]))
+		y, _ := new(Big).SetString(string(c.Inputs[1]))
+		r, _ := new(Big).SetString(string(c.Output))
+
+		z.Mul(x, y)
+		if z.Cmp(r) != 0 {
+			t.Fatalf(`#%d: %s
+wanted: %q
+got   : %q
+`, i+1, c, r, z)
 		}
 	}
 }
@@ -358,52 +376,27 @@ func TestBig_Prec(t *testing.T) {
 }
 
 func TestBig_Quo(t *testing.T) {
-	huge1, ok := new(Big).SetString("12345678901234567890.1234")
-	if !ok {
-		t.Fatal("invalid")
-	}
-	huge2, ok := new(Big).SetString("239482394823948239843298432984.4324324234324234324")
-	if !ok {
-		t.Fatal("invalid")
-	}
+	s, close := getTests(t, "division")
+	defer close()
 
-	huge3, ok := new(Big).SetString("10000000000000000000000000000000000000000")
-	if !ok {
-		t.Fatal("invalid")
-	}
-	huge4, ok := new(Big).SetString("10000000000000000000000000000000000000000")
-	if !ok {
-		t.Fatal("invalid")
-	}
-
-	tests := [...]struct {
-		a *Big
-		b *Big
-		p int32
-		r string
-	}{
-		0:  {a: New(10, 0), b: New(2, 0), r: "5"},
-		1:  {a: New(1234, 3), b: New(-2, 0), r: "-0.617"},
-		2:  {a: New(10, 0), b: New(3, 0), r: "3.333333333333333"},
-		3:  {a: New(100, 0), b: New(3, 0), p: 4, r: "33.33"},
-		4:  {a: New(-405, 1), b: New(1257, 2), r: "-3.221957040572792"},
-		5:  {a: New(-991242141244124, 7), b: New(235325235323, 3), r: "-0.4212222033406559"},
-		6:  {a: huge1, b: huge2, r: "5.155150928864855e-11"},
-		7:  {a: New(1000, 0), b: New(20, 0), r: "50"},
-		8:  {a: huge3, b: huge4, r: "1"},
-		9:  {a: New(100, 0), b: New(1, 0), r: "100"},
-		10: {a: New(10, 0), b: New(1, 0), r: "10"},
-		11: {a: New(1, 0), b: New(10, 0), r: "0.1"},
-	}
-	for i, v := range tests {
-		if v.p != 0 {
-			v.a.Context.SetPrecision(v.p)
-		} else {
-			v.a.Context.SetPrecision(DefaultPrecision)
+	for i := 0; s.Scan(); i++ {
+		c, err := suite.ParseCase(s.Bytes())
+		if err != nil {
+			t.Fatal(err)
 		}
-		q := v.a.Quo(v.a, v.b)
-		if qs := q.String(); qs != v.r {
-			t.Fatalf("#%d: wanted %q, got %q", i, v.r, qs)
+
+		z := new(Big)
+		z.Context.SetPrecision(int32(c.Prec))
+		x, _ := new(Big).SetString(string(c.Inputs[0]))
+		y, _ := new(Big).SetString(string(c.Inputs[1]))
+		r, _ := new(Big).SetString(string(c.Output))
+
+		z.Quo(x, y)
+		if z.Cmp(r) != 0 {
+			t.Fatalf(`#%d: %s
+wanted: %q
+got   : %q
+`, i+1, c, r, z)
 		}
 	}
 }
@@ -436,10 +429,14 @@ func TestBig_Round(t *testing.T) {
 		4: {"5.65", 2, "5.6"},
 		5: {"5.0002", 2, "5"},
 		6: {"0.000158674", 6, "0.000158674"},
+		7: {"1.58089722856961873690377135139876745465351534188711107066818e+12288", 50, "1.5808972285696187369037713513987674546535153418871e+12288"},
 	} {
 		bd := newbig(t, test.v)
 		if rs := bd.Round(test.to).String(); rs != test.res {
-			t.Fatalf("#%d: wanted %s, got %s", i, test.res, rs)
+			t.Fatalf(`#%d:
+wanted: %q
+got   : %q
+`, i, test.res, rs)
 		}
 	}
 }
@@ -584,42 +581,27 @@ func TestBig_String(t *testing.T) {
 }
 
 func TestBig_Sub(t *testing.T) {
-	inputs := [...]struct {
-		a   string
-		b   string
-		r   string
-		nan bool
-	}{
-		0:  {a: "2", b: "3", r: "-1"},
-		1:  {a: "12", b: "3", r: "9"},
-		2:  {a: "-2", b: "9", r: "-11"},
-		3:  {a: "2454495034", b: "3451204593", r: "-996709559"},
-		4:  {a: "24544.95034", b: ".3451204593", r: "24544.6052195407"},
-		5:  {a: ".1", b: "-.1", r: "0.2"},
-		6:  {a: ".1", b: ".1", r: "0"},
-		7:  {a: "0", b: "1.001", r: "-1.001"},
-		8:  {a: "1.001", b: "0", r: "1.001"},
-		9:  {a: "2.3", b: ".3", r: "2"},
-		10: {"+Inf", "-Inf", "+Inf", false},
-		11: {"+Inf", "+Inf", "NaN", true},
-		12: {"0", "0", "0", false},
-	}
+	s, close := getTests(t, "subtraction")
+	defer close()
 
-	for i, inp := range inputs {
-		a, ok := new(Big).SetString(inp.a)
-		if !ok {
-			t.FailNow()
+	for i := 0; s.Scan(); i++ {
+		c, err := suite.ParseCase(s.Bytes())
+		if err != nil {
+			t.Fatal(err)
 		}
-		b, ok := new(Big).SetString(inp.b)
-		if !ok {
-			t.FailNow()
-		}
-		panicked := didPanic(func() { a.Sub(a, b) })
-		if panicked != inp.nan {
-			t.Fatalf("#%d: wanted panicked == %t, got %t", i, inp.nan, panicked)
-		}
-		if as := a.String(); as != inp.r {
-			t.Fatalf("#%d: wanted %s, got %s", i, inp.r, as)
+
+		z := new(Big)
+		z.Context.SetPrecision(int32(c.Prec))
+		x, _ := new(Big).SetString(string(c.Inputs[0]))
+		y, _ := new(Big).SetString(string(c.Inputs[1]))
+		r, _ := new(Big).SetString(string(c.Output))
+
+		z.Sub(x, y)
+		if z.Cmp(r) != 0 {
+			t.Fatalf(`#%d: %s
+wanted: %q
+got   : %q
+`, i+1, c, r, z)
 		}
 	}
 }

@@ -5,7 +5,7 @@ import (
     "strconv"
 )
 
-func parseCase(data []byte) (c Case, err error) {
+func ParseCase(data []byte) (c Case, err error) {
     cs, p, pe, eof := 0, 0, len(data), len(data)
 
     var (
@@ -112,7 +112,7 @@ func parseCase(data []byte) (c Case, err error) {
         );
         trap = exception >mark %set_trap;
         excep = exception >mark %set_excep;
-        number = (('+' | '-')? [0-9]+ ('.' [0-9]+)? ('e' '-'? digit+)?);
+        number = (('+' | '-')? digit+ ('.' digit+)? ('e'i '-'? digit+)?);
         inout = (
               ('S' | 'Q')           # S, Q
             | (('+' | '-')? /inf/i) # +inf, -inf, ...
@@ -125,9 +125,9 @@ func parseCase(data []byte) (c Case, err error) {
             prefix . prec . (op ' ') # Prefix, prec, and op are one 'chunk'
             (mode ' ')               # Mode is its own chunk
             (trap+ ' ')?             # Trap is its own chunk, maybe exists
-            (input ' ')*             # Input is multiple chunks, maybe exists
+            (input ' ')+             # Input is one or more chunks
             '-> '                    #
-            output                   # Output is its own chunk chunk
+            output                   # Output is its own chunk 
             (' ' excep+)?            # Excep is its own chunk, maybe exists
         );
 

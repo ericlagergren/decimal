@@ -32,7 +32,7 @@ func AbsCmp(x, y int64) int {
 	return -1
 }
 
-func BigAbsCmp(x, y big.Int) int {
+func BigAbsCmp(x, y *big.Int) int {
 	var x0, y0 big.Int
 	// SetBits sets to |v|, thus giving an absolute comparison.
 	x0.SetBits(x.Bits())
