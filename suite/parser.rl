@@ -112,14 +112,18 @@ func ParseCase(data []byte) (c Case, err error) {
         );
         trap = exception >mark %set_trap;
         excep = exception >mark %set_excep;
-        number = (('+' | '-')? digit+ ('.' digit+)? ('e'i '-'? digit+)?);
-        inout = (
-              ('S' | 'Q')           # S, Q
-            | (('+' | '-')? /inf/i) # +inf, -inf, ...
-            | number                # 10, 10.1, +0e-392, ...
+
+		sign = '+' | '-';
+		indicator = 'e' | 'E';
+		exponent = indicator? sign? digit+;
+        number = sign? digit+ ('.' digit+)? exponent?;
+        numeric_string = (
+              ('S' | 'Q')              # S, Q
+            | (sign? 'inf'i 'inity'i?) # +inf, -inf, ...
+            | number                   # 10, 10.1, +0e-392, ...
         );
-        input = inout >mark %add_input;
-        output = (inout | '#') >mark %set_output;
+        input = numeric_string >mark %add_input;
+        output = (numeric_string | '#') >mark %set_output;
 
         main := (
             prefix . prec . (op ' ') # Prefix, prec, and op are one 'chunk'

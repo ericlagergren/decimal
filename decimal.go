@@ -131,10 +131,11 @@ func (f form) String() string {
 	}
 }
 
+// TODO(eric): Perhaps use math/big.ErrNaN if possible in the future?
+
 // An ErrNaN panic is raised by a decimal operation that would lead to a NaN
 // under IEEE-754 rules. An ErrNaN implements the error interface.
 type ErrNaN struct {
-	// TODO(eric): Perhaps use math/big.ErrNaN if possible in the future?
 	Msg string
 }
 
@@ -1063,26 +1064,8 @@ func (z *Big) Quo(x, y *Big) *Big {
 	if x.form == finite && y.form == finite {
 		z.form = finite
 		// x / y (common case)
-		if x.isCompact() {
-			if y.isCompact() {
-				return z.quoCompact(x, y)
-			}
-			return z.quoBig(&Big{
-				compact:  c.Inflated,
-				unscaled: *big.NewInt(x.compact),
-				Context:  x.Context,
-				form:     x.form,
-				scale:    x.scale,
-			}, y)
-		}
-		if y.isCompact() {
-			return z.quoBig(x, &Big{
-				compact:  c.Inflated,
-				unscaled: *big.NewInt(y.compact),
-				Context:  y.Context,
-				form:     y.form,
-				scale:    y.scale,
-			})
+		if x.isCompact() && y.isCompact() {
+			return z.quoCompact(x, y)
 		}
 		return z.quoBig(x, y)
 	}
@@ -1139,22 +1122,17 @@ func (z *Big) quoAndRound(x, y int64) *Big {
 	}
 
 	// Remainder
-	r := x % y
-
-	sign := int64(1)
-	if (x < 0) != (y < 0) {
-		sign = -1
-	}
-	if r != 0 {
+	if r := x % y; r != 0 {
 		if z.needsInc(y, r, sign > 0, z.compact&1 != 0) {
-			z.compact += sign
+			if (x < 0) == (y < 0) {
+				z.compact++
+			} else {
+				z.compact--
+			}
 		}
 		return z
 	}
-	if z.scale != z.Context.Precision() {
-		return z.simplify()
-	}
-	return z
+	return z.simplify()
 }
 
 func (z *Big) quoCompact(x, y *Big) *Big {
@@ -1235,6 +1213,18 @@ func (z *Big) quoCompact(x, y *Big) *Big {
 }
 
 func (z *Big) quoBig(x, y *Big) *Big {
+	xb, yb := &x.unscaled, &y.unscaled
+	xcop, ycop := false, false
+	if xcop = x.isCompact(); xcop {
+		xb = getInt64(x.compact)
+		defer putInt(xb)
+	}
+
+	if ycop = y.isCompact(); ycop {
+		yb = getInt64(y.compact)
+		defer putInt(yb)
+	}
+
 	scale, ok := checked.Sub32(x.scale, y.scale)
 	if !ok {
 		// -x - y ∈ [-1<<31, 1<<31-1]
@@ -1246,7 +1236,7 @@ func (z *Big) quoBig(x, y *Big) *Big {
 	yp := int32(y.Precision())
 
 	// Multiply y by 10 if x' > y'
-	if cmpNormBig(&x.unscaled, xp, &y.unscaled, yp) {
+	if cmpNormBig(xb, xp, yb, yp) {
 		yp--
 	}
 
@@ -1264,9 +1254,12 @@ func (z *Big) quoBig(x, y *Big) *Big {
 	}
 
 	if shift > 0 {
-		xs := checked.MulBigPow10(getInt(&x.unscaled), shift)
-		defer putInt(xs)
-		return z.quoBigAndRound(xs, &y.unscaled)
+		if !xcop {
+			xb = getInt(xb)
+			defer putInt(xb)
+		}
+		xb = checked.MulBigPow10(xb, shift)
+		return z.quoBigAndRound(xb, yb)
 	}
 
 	// shift < 0
@@ -1280,9 +1273,12 @@ func (z *Big) quoBig(x, y *Big) *Big {
 		// -x - y ∈ [-1<<31, ..., 1<<31-1]
 		return z.xflow(zp > 0, true)
 	}
-	ys := checked.MulBigPow10(getInt(&y.unscaled), shift)
-	defer putInt(ys)
-	return z.quoBigAndRound(&x.unscaled, ys)
+	if !ycop {
+		yb = getInt(yb)
+		defer putInt(yb)
+	}
+	yb = checked.MulBigPow10(yb, shift)
+	return z.quoBigAndRound(xb, yb)
 }
 
 func (z *Big) quoBigAndRound(x, y *big.Int) *Big {
@@ -1296,28 +1292,26 @@ func (z *Big) quoBigAndRound(x, y *big.Int) *Big {
 		return z
 	}
 
-	sign := int64(1)
-	if (x.Sign() < 0) != (y.Sign() < 0) {
-		sign = -1
-	}
-	tmp := get().And(q, oneInt)
-	odd := tmp.Sign() != 0
-	defer putInt(tmp)
-
 	if r.Sign() != 0 {
+		tmp := get().And(q, oneInt)
+		odd := tmp.Sign() != 0
 		if z.needsIncBig(y, r, sign > 0, odd) {
-			tmp.SetInt64(int64(sign))
-			z.unscaled.Add(&z.unscaled, tmp)
+			if (x.Sign() < 0) == (y.Sign() < 0) {
+				z.unscaled.Add(&z.unscaled, tmp.SetInt64(+1))
+			} else {
+				z.unscaled.Add(&z.unscaled, tmp.SetInt64(-1))
+			}
 		}
+		putInt(tmp)
 		return z
 	}
-	if z.scale != z.Context.Precision() {
-		return z.simplifyBig()
-	}
-	return z
+	return z.simplifyBig()
 }
 
 func (z *Big) simplify() *Big {
+	if z.scale == z.Context.Precision() {
+		return z
+	}
 	ok := false
 	prec := z.Context.Precision()
 	for arith.Abs(z.compact) >= 10 && z.scale > prec {
@@ -1334,6 +1328,9 @@ func (z *Big) simplify() *Big {
 }
 
 func (z *Big) simplifyBig() *Big {
+	if z.scale == z.Context.Precision() {
+		return z
+	}
 	var (
 		ok   = false
 		prec = z.Context.Precision()
@@ -1398,7 +1395,8 @@ func Raw(x *Big) (int64, *big.Int) {
 }
 
 func (z *Big) round() *Big {
-	if zp := z.Context.Precision(); zp != 0 {
+	zp := z.Context.Precision()
+	if zp != 0 && z.Context.OperatingMode == GDA {
 		return z.Round(zp)
 	}
 	return z
@@ -1664,23 +1662,18 @@ func (z *Big) SetString(s string) (*Big, bool) {
 	// We deviate a little by being a tad bit more forgiving. For instance,
 	// we allow case-insensitive nan and infinity values.
 
-	// Eliminate overhead when searching for infinity and nan values.
-	if s[len(s)-1] > '9' {
-		switch parse.ParseSpecial(s) {
-		case parse.QNaN:
-			z.form = qnan
-		case parse.SNaN:
-			z.form = snan
-		case parse.PInf:
-			z.form = pinf
-		case parse.NInf:
-			z.form = ninf
-		default:
-			return z.signal(
-				ConversionSyntax,
-				fmt.Errorf("SetString: invalid input: %q", s),
-			), false
-		}
+	switch parse.ParseSpecial(s) {
+	case parse.QNaN:
+		z.form = qnan
+		return z, true
+	case parse.SNaN:
+		z.form = snan
+		return z, true
+	case parse.PInf:
+		z.form = pinf
+		return z, true
+	case parse.NInf:
+		z.form = ninf
 		return z, true
 	}
 
