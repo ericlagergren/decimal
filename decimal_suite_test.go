@@ -183,7 +183,7 @@ func testCase(fname string, i int, c suite.Case, mode OperatingMode, t *testing.
 	badNaN := want.IsNaN(+1) != z.IsNaN(+1) || want.IsNaN(-1) != z.IsNaN(-1)
 	neitherNaN := !want.IsNaN(0) && !z.IsNaN(0)
 
-	if badNaN || (neitherNaN && want.Cmp(z) != 0) {
+	if badNaN || (neitherNaN && want.Cmp(z) != 0 && mode == GDA) {
 		t.Parallel()
 		pywant := shellOut(args[0], args[1], c.Op, z.Context.Precision())
 		if prec != 0 {

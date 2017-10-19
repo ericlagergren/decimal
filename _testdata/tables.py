@@ -12,10 +12,22 @@ ops = {
     "/": "division",
 }
 
+def make_dec():
+    sign = "+" if random.randint(0, 1) % 2 == 0 else "-"
+    return decimal.Decimal("{}{}".format(sign, random.uniform(0, sys.float_info.min)))
+
 def rand_dec():
-    return decimal.Decimal("{}{}".format(
-        "+" if random.randint(0, 1) % 2 == 0 else "-",
-        random.uniform(0, sys.float_info.min)))
+    q = random.randint(0, 4)
+    d = make_dec()
+    if q == 1:
+        d *= make_dec()
+    elif q == 2:
+        d /= make_dec()
+    elif q == 3:
+        d -= make_dec()
+    else: # q == 4
+        d += make_dec()
+    return d
 
 for op, name in ops.items():
     with gzip.open("{}-tables.gzip".format(name), "wt") as f:

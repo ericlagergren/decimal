@@ -25,12 +25,8 @@ const DefaultPrecision = 16
 // Context is a per-decimal contextual object that governs specific operations
 // such as how lossy operations (e.g. division) round.
 type Context struct {
-	// OperatingMode which dictates how the decimal operates. For example, the
-	// Decimal Arithmetic Specification (version 1.70) requires an infinity
-	// decimal, to return "Infinity" from its "String" (or equivalent) method.
-	// This, however, differs from other Go types like float64 and big.Float
-	// that return "+Inf" or "-Inf." To compensate, Context provides multiple
-	// modes that so the client can choose a preferred mode.
+	// OperatingMode which dictates how the decimal operates under certain
+	// conditions. See OperatingMode for more information.
 	OperatingMode OperatingMode
 
 	precision int32
@@ -84,10 +80,9 @@ func (c *Context) SetPrecision(prec int32) {
 // The following are called ContextXX instead of DecimalXX
 // to reserve the DecimalXX namespace for future decimal types.
 
-// The following Contexts are based on IEEE 754R. Context is exported for this
-// documentation but is not expected to be used itself. Each Context's
-// RoundingMode is ToNearestEven, OperatingMode is GDA, and traps are set to
-// every exception other than Inexact, Rounded, and Subnormal.
+// The following Contexts are based on IEEE 754R. Each Context's RoundingMode is
+// ToNearestEven, OperatingMode is GDA, and traps are set to every exception
+// other than Inexact, Rounded, and Subnormal.
 var (
 	// Context32 is the IEEE 754R Decimal32 format.
 	Context32 = Context{
@@ -126,25 +121,36 @@ const (
 	AwayFromZero                      // no IEEE 754-2008 equivalent
 	ToNegativeInf                     // == IEEE 754-2008 roundTowardNegative
 	ToPositiveInf                     // == IEEE 754-2008 roundTowardPositive
-
-	// Unneeded means finite decimal expansion. Lossy routines will panic if
-	// this RoundingMode is provided and the lossy operation does not have a
-	// finite decimal expansion.
-	Unneeded
 )
 
 //go:generate stringer -type RoundingMode
 
 // OperatingMode dictates how the decimal approaches specific non-numeric
-// operations like conversions to strings and panicking on NaNs. See Context's
-// documentation for further information.
+// operations like conversions to strings and panicking on NaNs.
 type OperatingMode uint8
 
 const (
-	// Go adheres to typical Go idioms.
+	// Go adheres to typical Go idioms. In particular:
+	//
+	//  - it panics on NaN values
+	//  - has lossless (i.e., without rounding) addition, subtraction, and
+	//    multiplication
+	//  - traps are ignored; it does not set Context.Err or Context.Conditions
+	//  - its string forms of qNaN, sNaN, +Inf, and -Inf are "NaN", "NaN",
+	//     "+Inf", and "-Inf", respectively
+	//
 	Go OperatingMode = iota
+
 	// GDA strictly adheres to the General Decimal Arithmetic Specification
-	// Version 1.70.
+	// Version 1.70. In particular:
+	//
+	//  - at does not panic
+	//  - all arithmetic operations will be rounded down to the proper precision
+	//    if necessary
+	//  - it utilizes traps to set both Context.Err and Context.Conditions
+	//  - its string forms of qNaN, sNaN, +Inf, and -Inf are "NaN", "sNaN",
+	//    "Infinity", and "-Infinity", respectively
+	//
 	GDA
 )
 

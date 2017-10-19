@@ -1,16 +1,15 @@
 package decimal
 
 import (
+	"fmt"
 	"math"
 	"math/big"
 
 	"github.com/ericlagergren/decimal/internal/arith"
 )
 
-func (r RoundingMode) needsInc(c int, pos, odd bool) bool {
-	switch r {
-	case Unneeded:
-		panic("decimal: rounding is necessary")
+func (z *Big) shouldInc(c int, pos, odd bool) bool {
+	switch r := z.Context.RoundingMode; r {
 	case AwayFromZero:
 		return true
 	case ToZero:
@@ -31,20 +30,22 @@ func (r RoundingMode) needsInc(c int, pos, odd bool) bool {
 		}
 		return true
 	default:
-		panic("decimal: unknown RoundingMode")
+		z.signal(InvalidContext, fmt.Errorf("invalid rounding mode: %d", r))
+		return false
 	}
 }
 
 func (z *Big) needsInc(x, r int64, pos, odd bool) bool {
 	m := 1
 	if r > math.MinInt64/2 || r <= math.MaxInt64/2 {
-		m = arith.AbsCmp(r<<1, x)
+		m = arith.AbsCmp(r*2, x)
 	}
-	return z.Context.RoundingMode.needsInc(m, pos, odd)
+	return z.shouldInc(m, pos, odd)
 }
 
 func (z *Big) needsIncBig(x, r *big.Int, pos, odd bool) bool {
-	var x0 big.Int
-	m := arith.BigAbsCmp(x0.Mul(r, twoInt), x)
-	return z.Context.RoundingMode.needsInc(m, pos, odd)
+	x0 := get().Mul(r, twoInt)
+	m := arith.BigAbsCmp(x0, x)
+	putInt(x0)
+	return z.shouldInc(m, pos, odd)
 }

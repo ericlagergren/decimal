@@ -89,6 +89,7 @@ func TestBig_Add(t *testing.T) {
 
 		z := new(Big)
 		z.Context.SetPrecision(int32(c.Prec))
+		z.Context.OperatingMode = GDA
 		x, _ := new(Big).SetString(string(c.Inputs[0]))
 		y, _ := new(Big).SetString(string(c.Inputs[1]))
 		r, _ := new(Big).SetString(string(c.Output))
@@ -357,6 +358,7 @@ func TestBig_Mul(t *testing.T) {
 
 		z := new(Big)
 		z.Context.SetPrecision(int32(c.Prec))
+		z.Context.OperatingMode = GDA
 		x, _ := new(Big).SetString(string(c.Inputs[0]))
 		y, _ := new(Big).SetString(string(c.Inputs[1]))
 		r, _ := new(Big).SetString(string(c.Output))
@@ -387,6 +389,7 @@ func TestBig_Quo(t *testing.T) {
 
 		z := new(Big)
 		z.Context.SetPrecision(int32(c.Prec))
+		z.Context.OperatingMode = GDA
 		x, _ := new(Big).SetString(string(c.Inputs[0]))
 		y, _ := new(Big).SetString(string(c.Inputs[1]))
 		r, _ := new(Big).SetString(string(c.Output))
@@ -592,6 +595,7 @@ func TestBig_Sub(t *testing.T) {
 
 		z := new(Big)
 		z.Context.SetPrecision(int32(c.Prec))
+		z.Context.OperatingMode = GDA
 		x, _ := new(Big).SetString(string(c.Inputs[0]))
 		y, _ := new(Big).SetString(string(c.Inputs[1]))
 		r, _ := new(Big).SetString(string(c.Output))

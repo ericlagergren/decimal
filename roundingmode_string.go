@@ -4,9 +4,9 @@ package decimal
 
 import "fmt"
 
-const _RoundingMode_name = "ToNearestEvenToNearestAwayToZeroAwayFromZeroToNegativeInfToPositiveInfUnneeded"
+const _RoundingMode_name = "ToNearestEvenToNearestAwayToZeroAwayFromZeroToNegativeInfToPositiveInf"
 
-var _RoundingMode_index = [...]uint8{0, 13, 26, 32, 44, 57, 70, 78}
+var _RoundingMode_index = [...]uint8{0, 13, 26, 32, 44, 57, 70}
 
 func (i RoundingMode) String() string {
 	if i >= RoundingMode(len(_RoundingMode_index)-1) {
