@@ -46,7 +46,7 @@ func (d *Decimal) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	v := d.V
-	if v.IsNaN(true) || v.IsNaN(false) {
+	if v.IsNaN(0) {
 		return "NaN", nil
 	}
 	if v.IsInf(0) {
@@ -83,7 +83,10 @@ func (d *Decimal) Scan(val interface{}) error {
 		d.V = new(decimal.Big)
 	}
 	if _, ok := d.V.SetString(str); !ok {
-		return d.V.Err()
+		if err := d.V.Context.Err; err != nil {
+			return err
+		}
+		return fmt.Errorf("Decimal.Scan: invalid syntax: %q", str)
 	}
 	return nil
 }
