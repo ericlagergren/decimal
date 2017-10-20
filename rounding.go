@@ -44,8 +44,7 @@ func (z *Big) needsInc(x, r int64, pos, odd bool) bool {
 }
 
 func (z *Big) needsIncBig(x, r *big.Int, pos, odd bool) bool {
-	x0 := get().Mul(r, twoInt)
+	x0 := new(big.Int).Mul(r, twoInt)
 	m := arith.BigAbsCmp(x0, x)
-	putInt(x0)
 	return z.shouldInc(m, pos, odd)
 }

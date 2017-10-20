@@ -23,23 +23,24 @@ func BigLength(x *big.Int) int {
 }
 
 func ilog10(x int64) int {
+	// Where x >= 10
+
 	// From https://graphics.stanford.edu/~seander/bithacks.html#IntegerLog10
-	t := ((64 - CLZ(x) + 1) * 1233) >> 12
-	v, ok := pow.Ten64(int64(t))
-	if !ok {
-		return bigIlog10(big.NewInt(x))
+	t := int64(((64 - CLZ(x) + 1) * 1233) >> 12)
+	if v, ok := pow.Ten64(t); !ok || x < v {
+		return int(t)
 	}
-	if x < v {
-		return t
-	}
-	return t + 1
+	return int(t) + 1
 }
 
 func bigIlog10(x *big.Int) int {
-	// Should be accurate up to as high as we can possibly report.
-	r := int(((int64(x.BitLen()) + 1) * 0x268826A1) >> 31)
-	if BigAbsCmp(x, pow.BigTen(int64(r))) < 0 {
-		return r
+	// Where x > 0
+
+	// 0x268826A1/2^31 is an approximation of log10(2). See ilog10.
+	// The more accurate approximation 0x268826A13EF3FE08/2^63 overflows.
+	r := ((int64(x.BitLen()) + 1) * 0x268826A1) >> 31
+	if BigAbsCmp(x, pow.BigTen(r)) < 0 {
+		return int(r)
 	}
-	return r + 1
+	return int(r) + 1
 }

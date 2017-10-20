@@ -31,6 +31,7 @@ package decimal
 
 import (
 	"bytes"
+	"encoding"
 	"errors"
 	"fmt"
 	"io"
@@ -142,6 +143,8 @@ type ErrNaN struct {
 func (e ErrNaN) Error() string {
 	return e.Msg
 }
+
+var _ error = ErrNaN{}
 
 // checkNaNs checks if either x or y is NaN. If so, it sets z's form to either
 // qnan or snan and returns the peoper Condition along with ErrNaN.
@@ -276,13 +279,11 @@ func (z *Big) addCompact(x, y *Big) *Big {
 			}
 			z.compact = sum
 		} else {
-			xt := getInt64(x.compact)
-			yt := getInt64(y.compact)
+			xt := big.NewInt(x.compact)
+			yt := big.NewInt(y.compact)
 			if z.unscaled.Add(xt, yt).Sign() == 0 {
 				z.form = zero
 			}
-			putInt(xt)
-			putInt(yt)
 			z.compact = c.Inflated
 		}
 		return z
@@ -307,14 +308,12 @@ func (z *Big) addCompact(x, y *Big) *Big {
 		}
 	}
 
-	scaled := checked.MulBigPow10(getInt64(lo.compact), inc)
+	scaled := checked.MulBigPow10(big.NewInt(lo.compact), inc)
 
-	unscaled := getInt64(hi.compact)
+	unscaled := big.NewInt(hi.compact)
 	if z.unscaled.Add(scaled, unscaled).Sign() == 0 {
 		z.form = zero
 	}
-	putInt(scaled)
-	putInt(unscaled)
 
 	z.compact = c.Inflated
 	return z
@@ -323,12 +322,10 @@ func (z *Big) addCompact(x, y *Big) *Big {
 func (z *Big) addBig(x, y *Big) *Big {
 	xb, yb := &x.unscaled, &y.unscaled
 	if x.isCompact() {
-		xb = getInt64(x.compact)
-		defer putInt(xb)
+		xb = big.NewInt(x.compact)
 	}
 	if y.isCompact() {
-		yb = getInt64(y.compact)
-		defer putInt(yb)
+		yb = big.NewInt(y.compact)
 	}
 
 	z.compact = c.Inflated
@@ -347,11 +344,10 @@ func (z *Big) addBig(x, y *Big) *Big {
 		his, los = los, his
 	}
 	// Inflate lo so we can add with matching scales.
-	lo = checked.MulBigPow10(getInt(lo), his-los)
+	lo = checked.MulBigPow10(new(big.Int).Set(lo), his-los)
 	if z.unscaled.Add(hi, lo).Sign() == 0 {
 		z.form = zero
 	}
-	putInt(lo)
 	z.scale = his
 	return z
 }
@@ -434,11 +430,9 @@ func (z *Big) Cmp(x *Big) int {
 			// certain that inflated > compact is an invariant.
 			zu, xu := &z.unscaled, &x.unscaled
 			if z.isCompact() {
-				zu = getInt64(z.compact)
-				defer putInt(zu)
+				zu = big.NewInt(z.compact)
 			} else {
-				xu = getInt64(x.compact)
-				defer putInt(xu)
+				xu = big.NewInt(x.compact)
 			}
 			return zu.Cmp(xu)
 		}
@@ -489,15 +483,13 @@ func (z *Big) Cmp(x *Big) int {
 	if xc != c.Inflated {
 		if nx, ok := checked.MulPow10(xc, diff); !ok {
 			// Can't fit in an int64, use big.Int.
-			xm = checked.MulBigPow10(getInt64(xc), diff)
-			defer putInt(xm)
+			xm = checked.MulBigPow10(big.NewInt(xc), diff)
 			xc = c.Inflated
 		} else {
 			xc = nx
 		}
 	} else {
-		xm = checked.MulBigPow10(getInt(xm), diff)
-		defer putInt(xm)
+		xm = checked.MulBigPow10(new(big.Int).Set(xm), diff)
 	}
 
 	// Swap back to original.
@@ -516,15 +508,13 @@ func (z *Big) Cmp(x *Big) int {
 			}
 			return 0
 		}
-		tmp := getInt64(zc)
+		tmp := big.NewInt(zc)
 		cmp := tmp.Cmp(xm)
-		putInt(tmp)
 		return cmp
 	}
 	if xc != c.Inflated {
-		tmp := getInt64(xc)
+		tmp := big.NewInt(xc)
 		cmp := zm.Cmp(tmp)
-		putInt(tmp)
 		return cmp
 	}
 	return zm.Cmp(xm)
@@ -755,6 +745,8 @@ func (x *Big) Format(s fmt.State, c rune) {
 	}
 }
 
+var _ fmt.Formatter = (*Big)(nil)
+
 // IsBig returns true if x, with its fractional part truncated, cannot fit
 // inside an int64. If x is an infinity or a NaN value the result is undefined.
 func (x *Big) IsBig() bool {
@@ -824,10 +816,7 @@ func (x *Big) Int64() int64 {
 	// x might be too large to fit into an int64 *now*, but rescaling x might
 	// shrink it enough. See issue #20.
 	if !x.isCompact() {
-		tmp := get()
-		v := x.Int(tmp).Int64()
-		putInt(tmp)
-		return v
+		return x.Int(nil).Int64()
 	}
 
 	b := x.compact
@@ -853,11 +842,11 @@ func (x *Big) IsInf(sign int) bool {
 }
 
 // IsNaN returns true if x is NaN.
-// If sign >  0, IsNaN reports whether x is signaling NaN.
-// If sign <  0, IsNaN reports whether x is quiet NaN.
+// If sign >  0, IsNaN reports whether x is quiet NaN.
+// If sign <  0, IsNaN reports whether x is signaling NaN.
 // If sign == 0, IsNaN reports whether x is either NaN.
-func (x *Big) IsNaN(signal int) bool {
-	return signal >= 0 && x.form == snan || signal <= 0 && x.form == qnan
+func (x *Big) IsNaN(quiet int) bool {
+	return quiet >= 0 && x.form == qnan || quiet <= 0 && x.form == snan
 }
 
 // IsInt reports whether x is an integer. Infinity and NaN values are not
@@ -887,8 +876,8 @@ func (x *Big) IsInt() bool {
 			xp--
 		}
 	} else {
-		v := getInt(&x.unscaled)
-		r := get()
+		v := new(big.Int).Set(&x.unscaled)
+		r := new(big.Int)
 		for {
 			v.QuoRem(v, tenInt, r)
 			if r.Cmp(zeroInt) != 0 {
@@ -896,8 +885,6 @@ func (x *Big) IsInt() bool {
 			}
 			xp--
 		}
-		putInt(v)
-		putInt(r)
 	}
 	return xp <= int(x.scale)
 }
@@ -969,11 +956,9 @@ func (z *Big) mulCompact(x, y *Big) *Big {
 	if ok {
 		z.compact = prod
 	} else {
-		xt := getInt64(x.compact)
-		yt := getInt64(y.compact)
+		xt := big.NewInt(x.compact)
+		yt := big.NewInt(y.compact)
 		z.unscaled.Mul(xt, yt)
-		putInt(xt)
-		putInt(yt)
 		z.compact = c.Inflated
 	}
 	z.form = finite
@@ -983,12 +968,10 @@ func (z *Big) mulCompact(x, y *Big) *Big {
 func (z *Big) mulBig(x, y *Big) *Big {
 	xb, yb := &x.unscaled, &y.unscaled
 	if x.isCompact() {
-		xb = getInt64(x.compact)
-		defer putInt(xb)
+		xb = big.NewInt(x.compact)
 	}
 	if y.isCompact() {
-		yb = getInt64(y.compact)
-		defer putInt(yb)
+		yb = big.NewInt(y.compact)
 	}
 
 	z.unscaled.Mul(xb, yb)
@@ -1052,6 +1035,12 @@ func (x *Big) Precision() int {
 		}
 		return 0
 	}
+	// Implementation detail: the max value we can calculate is 4294967295,
+	// which corresponds to a big bit-length of 14267572532. Given
+	// 429496725 > MaxScale, int(int32(x.Precision())) == x.Precision() for all
+	// possible decimals.
+	//
+	// TODO(eric): should the above be a well-defined part of the API?
 	if x.isCompact() {
 		return arith.Length(x.compact)
 	}
@@ -1112,45 +1101,26 @@ func (z *Big) Quo(x, y *Big) *Big {
 	return z.signal(DivisionByZero, errors.New("division by zero"))
 }
 
-func (z *Big) quoAndRound(x, y int64) *Big {
-	// Quotient
-	z.compact = x / y
-
-	// ToZero means we can ignore remainder.
-	if z.Context.RoundingMode == ToZero {
-		return z
-	}
-
-	// Remainder
-	if r := x % y; r != 0 {
-		if z.needsInc(y, r, sign > 0, z.compact&1 != 0) {
-			if (x < 0) == (y < 0) {
-				z.compact++
-			} else {
-				z.compact--
-			}
-		}
-		return z
-	}
-	return z.simplify()
+func (z *Big) quoCompact(x, y *Big) *Big {
+	return z.quoCompactCore(
+		x.compact, x.scale, int32(x.Precision()),
+		y.compact, y.scale, int32(y.Precision()),
+	)
 }
 
-func (z *Big) quoCompact(x, y *Big) *Big {
-	sdiff, ok := checked.Sub32(x.scale, y.scale)
+func (z *Big) quoCompactCore(x int64, xs, xp int32, y int64, ys, yp int32) *Big {
+	sdiff, ok := checked.Sub32(xs, ys)
 	if !ok {
 		// -x - y ∈ [-1<<31, 1<<31-1]
-		return z.xflow(y.scale > 0, true)
+		return z.xflow(ys > 0, true)
 	}
 
-	zp := z.Context.Precision()
-	xp := int32(x.Precision())
-	yp := int32(y.Precision())
-
 	// Multiply y by 10 if x' > y'
-	if cmpNorm(x.compact, xp, y.compact, yp) {
+	if cmpNorm(x, xp, y, yp) {
 		yp--
 	}
 
+	zp := z.Context.Precision()
 	scale, ok := checked.Int32(int64(sdiff) + int64(yp) - int64(xp) + int64(zp))
 	if !ok {
 		// The wraparound from int32(int64(x)) where x ∉ [-1<<31, 1<<31-1]
@@ -1164,20 +1134,12 @@ func (z *Big) quoCompact(x, y *Big) *Big {
 		return z.xflow(scale < 0, false)
 	}
 
-	xs, ys := x.compact, y.compact
 	if shift > 0 {
-		xs, ok = checked.MulPow10(x.compact, shift)
-		if !ok {
-			x0 := checked.MulBigPow10(getInt64(x.compact), shift)
-			y0 := getInt64(y.compact)
-
-			z = z.quoBigAndRound(x0, y0)
-
-			putInt(x0)
-			putInt(y0)
-			return z
+		if sx, ok := checked.MulPow10(x, shift); ok {
+			return z.quoAndRound(sx, y)
 		}
-		return z.quoAndRound(xs, ys)
+		xb := checked.MulBigPow10(big.NewInt(x), shift)
+		return z.quoBigAndRound(xb, big.NewInt(y))
 	}
 
 	// shift < 0
@@ -1189,7 +1151,7 @@ func (z *Big) quoCompact(x, y *Big) *Big {
 
 	// No inflation needed.
 	if ns == yp {
-		return z.quoAndRound(xs, ys)
+		return z.quoAndRound(x, y)
 	}
 
 	shift, ok = checked.Sub32(ns, yp)
@@ -1197,115 +1159,36 @@ func (z *Big) quoCompact(x, y *Big) *Big {
 		// -x - y ∈ [-1<<31, 1<<31-1]
 		return z.xflow(yp > 0, true)
 	}
-	ys, ok = checked.MulPow10(ys, shift)
-	if !ok {
-		x0 := getInt64(x.compact)
-		y0 := checked.MulBigPow10(getInt64(y.compact), shift)
 
-		z = z.quoBigAndRound(x0, y0)
-
-		putInt(y0)
-		putInt(x0)
-
-		return z
+	if sy, ok := checked.MulPow10(y, shift); ok {
+		return z.quoAndRound(x, sy)
 	}
-	return z.quoAndRound(xs, ys)
+	yb := checked.MulBigPow10(big.NewInt(y), shift)
+	return z.quoBigAndRound(big.NewInt(x), yb)
 }
 
-func (z *Big) quoBig(x, y *Big) *Big {
-	xb, yb := &x.unscaled, &y.unscaled
-	xcop, ycop := false, false
-	if xcop = x.isCompact(); xcop {
-		xb = getInt64(x.compact)
-		defer putInt(xb)
-	}
+func (z *Big) quoAndRound(x, y int64) *Big {
+	// Quotient
+	z.compact = x / y
 
-	if ycop = y.isCompact(); ycop {
-		yb = getInt64(y.compact)
-		defer putInt(yb)
-	}
-
-	scale, ok := checked.Sub32(x.scale, y.scale)
-	if !ok {
-		// -x - y ∈ [-1<<31, 1<<31-1]
-		return z.xflow(y.scale > 0, true)
-	}
-
-	zp := z.Context.Precision()
-	xp := int32(x.Precision())
-	yp := int32(y.Precision())
-
-	// Multiply y by 10 if x' > y'
-	if cmpNormBig(xb, xp, yb, yp) {
-		yp--
-	}
-
-	scale, ok = checked.Int32(int64(scale) + int64(yp) - int64(xp) + int64(zp))
-	if !ok {
-		// The wraparound from int32(int64(x)) where x ∉ [-1<<31, 1<<31-1] will
-		// swap its sign.
-		return z.xflow(scale < 0, true)
-	}
-	z.scale = scale
-
-	shift, ok := checked.SumSub(zp, yp, xp)
-	if !ok {
-		return z.xflow(shift < 0, true)
-	}
-
-	if shift > 0 {
-		if !xcop {
-			xb = getInt(xb)
-			defer putInt(xb)
-		}
-		xb = checked.MulBigPow10(xb, shift)
-		return z.quoBigAndRound(xb, yb)
-	}
-
-	// shift < 0
-	ns, ok := checked.Sub32(xp, zp)
-	if !ok {
-		// -x - y ∈ [-1<<31, ..., 1<<31-1]
-		return z.xflow(zp > 0, true)
-	}
-	shift, ok = checked.Sub32(ns, yp)
-	if !ok {
-		// -x - y ∈ [-1<<31, ..., 1<<31-1]
-		return z.xflow(zp > 0, true)
-	}
-	if !ycop {
-		yb = getInt(yb)
-		defer putInt(yb)
-	}
-	yb = checked.MulBigPow10(yb, shift)
-	return z.quoBigAndRound(xb, yb)
-}
-
-func (z *Big) quoBigAndRound(x, y *big.Int) *Big {
-	z.compact = c.Inflated
-
-	r := get()
-	defer putInt(r)
-	q, r := z.unscaled.QuoRem(x, y, r)
-
+	// ToZero means we can ignore remainder.
 	if z.Context.RoundingMode == ToZero {
 		return z
 	}
 
-	if r.Sign() != 0 {
-		tmp := get().And(q, oneInt)
-		odd := tmp.Sign() != 0
-		if z.needsIncBig(y, r, sign > 0, odd) {
-			if (x.Sign() < 0) == (y.Sign() < 0) {
-				z.unscaled.Add(&z.unscaled, tmp.SetInt64(+1))
-			} else {
-				z.unscaled.Add(&z.unscaled, tmp.SetInt64(-1))
-			}
-		}
-		putInt(tmp)
-		return z
+	// Remainder
+	r := x % y
+	if r == 0 {
+		return z.simplify()
 	}
-	return z.simplifyBig()
+	if z.needsInc(y, r, sign > 0, z.compact&1 != 0) {
+		if (x < 0) == (y < 0) {
+			z.compact++
+		} else {
+			z.compact--
+		}
+	}
+	return z
 }
 
 func (z *Big) simplify() *Big {
@@ -1327,14 +1210,123 @@ func (z *Big) simplify() *Big {
 	return z
 }
 
+func (z *Big) quoBig(x, y *Big) *Big {
+	return z.quoBigCore(
+		&x.unscaled, x.compact, x.scale, int32(x.Precision()),
+		&y.unscaled, y.compact, y.scale, int32(y.Precision()),
+	)
+}
+
+func (z *Big) quoBigCore(
+	xb *big.Int, xc int64, xs, xp int32,
+	yb *big.Int, yc int64, ys, yp int32,
+) *Big {
+	sdiff, ok := checked.Sub32(xs, ys)
+	if !ok {
+		// -x - y ∈ [-1<<31, 1<<31-1]
+		return z.xflow(ys > 0, true)
+	}
+
+	// Multiply y by 10 if x' > y'
+	if cmpNormBig(xb, xp, yb, yp) {
+		yp--
+	}
+
+	zp := z.Context.Precision()
+	scale, ok := checked.Int32(int64(sdiff) + int64(yp) - int64(xp) + int64(zp))
+	if !ok {
+		// The wraparound from int32(int64(x)) where x ∉ [-1<<31, 1<<31-1] will
+		// swap its sign.
+		return z.xflow(scale < 0, true)
+	}
+	z.scale = scale
+
+	shift, ok := checked.SumSub(zp, yp, xp)
+	if !ok {
+		return z.xflow(shift < 0, true)
+	}
+
+	// Inflate x.
+	if shift > 0 {
+		if yc != c.Inflated {
+			yb = big.NewInt(yc)
+		}
+		if xc == c.Inflated {
+			xb = checked.MulBigPow10(new(big.Int).Set(xb), shift)
+		} else {
+			if xcs, ok := checked.MulPow10(xc, shift); ok {
+				xb = big.NewInt(xcs)
+			} else {
+				xb = checked.MulBigPow10(big.NewInt(xc), shift)
+			}
+		}
+		return z.quoBigAndRound(xb, yb)
+	}
+
+	// shift < 0
+	ns, ok := checked.Sub32(xp, zp)
+	if !ok {
+		// -x - y ∈ [-1<<31, ..., 1<<31-1]
+		return z.xflow(zp > 0, true)
+	}
+	shift, ok = checked.Sub32(ns, yp)
+	if !ok {
+		// -x - y ∈ [-1<<31, ..., 1<<31-1]
+		return z.xflow(yp > 0, true)
+	}
+	if xc != c.Inflated {
+		xb = big.NewInt(xc)
+	}
+	// Inflate y.
+	if yc == c.Inflated {
+		yb = checked.MulBigPow10(new(big.Int).Set(yb), shift)
+	} else {
+		if ycs, ok := checked.MulPow10(yc, shift); ok {
+			yb = big.NewInt(ycs)
+		} else {
+			yb = checked.MulBigPow10(big.NewInt(yc), shift)
+		}
+	}
+	return z.quoBigAndRound(xb, yb)
+}
+
+func (z *Big) quoBigAndRound(x, y *big.Int) *Big {
+	z.compact = c.Inflated
+
+	r := new(big.Int)
+	q, r := z.unscaled.QuoRem(x, y, r)
+
+	if z.Context.RoundingMode == ToZero && z.scale == z.Context.Precision() {
+		return z
+	}
+
+	if r.Sign() == 0 {
+		return z.simplifyBig()
+	}
+	tmp := new(big.Int).And(q, oneInt)
+	odd := tmp.Sign() != 0
+	if z.needsIncBig(y, r, sign > 0, odd) {
+		if (x.Sign() < 0) == (y.Sign() < 0) {
+			z.unscaled.Add(&z.unscaled, tmp.SetInt64(+1))
+		} else {
+			z.unscaled.Add(&z.unscaled, tmp.SetInt64(-1))
+		}
+	}
+	return z
+}
+
 func (z *Big) simplifyBig() *Big {
 	if z.scale == z.Context.Precision() {
 		return z
 	}
+	if z.unscaled.IsInt64() {
+		z.compact = z.unscaled.Int64()
+		return z.simplify()
+	}
 	var (
 		ok   = false
 		prec = z.Context.Precision()
-		tmp  = get()
+		tmp  = new(big.Int)
 	)
 	for arith.BigAbs(&z.unscaled).Cmp(tenInt) >= 0 && z.scale > prec {
 		if tmp.And(&z.unscaled, oneInt).Cmp(oneInt) != 0 ||
@@ -1344,11 +1336,9 @@ func (z *Big) simplifyBig() *Big {
 		z.unscaled.Div(&z.unscaled, tenInt)
 		z.Context.Conditions |= Rounded
 		if z.scale, ok = checked.Sub32(z.scale, 1); !ok {
-			putInt(tmp)
 			return z.xflow(false, z.Sign() < 0)
 		}
 	}
-	putInt(tmp)
 	return z
 }
 
@@ -1374,9 +1364,8 @@ func (x *Big) Rat(z *big.Rat) *big.Rat {
 		if shift, ok := pow.Ten64(int64(x.scale)); ok {
 			denom = big.NewInt(shift)
 		} else {
-			tmp := getInt64(int64(x.scale))
+			tmp := big.NewInt(int64(x.scale))
 			denom = new(big.Int).Exp(tenInt, tmp, nil)
-			putInt(tmp)
 		}
 	} else {
 		denom = big.NewInt(1)
@@ -1438,6 +1427,21 @@ func (z *Big) Round(n int32) *Big {
 
 // Scale returns x's scale.
 func (x *Big) Scale() int32 { return x.scale }
+
+// Scan implements fmt.Scanner.
+func (z *Big) Scan(state fmt.ScanState, verb rune) error {
+	toks, err := state.Token(true, func(c rune) bool {
+		// Small enough range that we balance speed with accuracy.
+		return c >= '+' && c <= 'e'
+	})
+	if err != nil {
+		return err
+	}
+	z.SetString(string(toks))
+	return nil
+}
+
+var _ fmt.Scanner = (*Big)(nil)
 
 // Set sets z to x and returns z. The result might be rounded depending on z's
 // Context.
@@ -1511,58 +1515,28 @@ func (z *Big) SetFloat(x *big.Float) *Big {
 	return z
 }
 
-// SetFloat64 sets z to the provided float64.
-//
-// Because certain numbers cannot be exactly represented as floating-point
-// numbers, SetFloat64 "rounds" its input in order to break it into simple
-// mantissa and scale parts as if SetMantScale were called. If SetFloat64 took
-// its input as-is, the result of calling SetFloat64(0.1) would be
-// 0.1000000000000000055511151231257827021181583404541015625.
-//
-// Approximately 2.3% of decimals created from floats will have an rounding
-// imprecision of ± 1 ULP.
-func (z *Big) SetFloat64(value float64) *Big {
-	if value == 0 {
-		z.form = 0
+// SetFloat64 sets z to exactly x. It's an exact conversion, meaning
+// SetFloat64(0.1) results in a decimal with a value of
+// 0.1000000000000000055511151231257827021181583404541015625. Use SetMantScale
+// or SetString if you require exact conversions.
+func (z *Big) SetFloat64(x float64) *Big {
+	if x == 0 {
+		z.form = zero
 		return z
 	}
-
-	if math.IsNaN(value) {
+	if math.IsNaN(x) {
 		z.form = qnan
 		return z.signal(InvalidOperation, ErrNaN{"SetFloat64(NaN)"})
 	}
-	if math.IsInf(value, 0) {
-		if math.IsInf(value, 1) {
+	if math.IsInf(x, 0) {
+		if math.IsInf(x, 1) {
 			z.form = pinf
 		} else {
 			z.form = ninf
 		}
 		return z.signal(InvalidOperation, errors.New("SetFloat(Inf)"))
 	}
-
-	var scale int32
-
-	// If value is not an integer (has a fractional part) bump up its value and
-	// find the appropriate scale.
-	if _, fr := math.Modf(value); fr != 0 {
-		scale = findScale(value)
-		value *= math.Pow10(int(scale))
-	}
-
-	// Given float64(math.MaxInt64) == math.MaxInt64.
-	if value <= math.MaxInt64 {
-		z.compact = int64(value)
-	} else {
-		if value <= math.MaxUint64 {
-			z.unscaled.SetUint64(uint64(value))
-		} else {
-			z.unscaled.Set(bigIntFromFloat(value))
-		}
-		z.compact = c.Inflated
-	}
-	z.scale = scale
-	z.form = finite
-	return z
+	return z.SetRat(new(big.Rat).SetFloat64(x))
 }
 
 // SetInf sets x to -Inf if signbit is set or +Inf is signbit is not set, and
@@ -1604,11 +1578,33 @@ func (z *Big) SetNaN(signal bool) *Big {
 
 // SetRat sets z to to the possibly rounded value of x and return z.
 func (z *Big) SetRat(x *big.Rat) *Big {
-	// TODO(eric): once we modify quoBig to accept two *big.Ints then this
-	// method can just be ``return z.quoBig(x.Num(), x.Denom())''
-	a := new(Big).SetBigMantScale(x.Num(), 0)
-	b := new(Big).SetBigMantScale(x.Denom(), 0)
-	return z.Quo(a, b)
+	// Construct the required parts manually. The alternative is something like
+	//
+	//   num := new(Big).SetBigMantScale(x.Num(), 0)
+	//   denom := new(Big).SetBigMantScale(x.Denom(), 0)
+	//   return z.Quo(num, denom)
+	//
+	// But requires allocations we can avoid.
+
+	xb, xc, xp := x.Num(), c.Inflated, 0
+	if xb.IsInt64() {
+		xc = xb.Int64()
+		xp = arith.Length(xc)
+	} else {
+		xp = arith.BigLength(xb)
+	}
+
+	yb, yc, yp := x.Denom(), c.Inflated, 0
+	if yb.IsInt64() {
+		yc = yb.Int64()
+		yp = arith.Length(yc)
+	} else {
+		yp = arith.BigLength(yb)
+	}
+	if xc != c.Inflated && yc != c.Inflated {
+		return z.quoCompactCore(xc, 0, int32(xp), yc, 0, int32(yp))
+	}
+	return z.quoBigCore(xb, xc, 0, int32(xp), yb, yc, 0, int32(yp))
 }
 
 // SetScale sets z's scale to scale and returns z.
@@ -1641,6 +1637,8 @@ var Regexp = regexp.MustCompile(`(?i)(((\+|-)?(\d+\.\d*|\.?\d+)([eE][+-]?\d+)?)|
 // example, ``NaN123''. These digits are otherwise ignored but are included for
 // robustness.
 func (z *Big) SetString(s string) (*Big, bool) {
+	// TODO(eric): write a scan(io.Reader) method.
+
 	if s == "" {
 		return z.signal(ConversionSyntax, errors.New(`SetString("")`)), false
 	}
@@ -1848,6 +1846,8 @@ func (x *Big) String() string {
 	return b.String()
 }
 
+var _ fmt.Stringer = (*Big)(nil)
+
 // Sub sets z to x - y and returns z.
 func (z *Big) Sub(x, y *Big) *Big {
 	if x.form == finite && y.form == finite {
@@ -1923,12 +1923,10 @@ func (z *Big) subCompact(x, y *Big) *Big {
 func (z *Big) subBig(x, y *Big) *Big {
 	xb, yb := &x.unscaled, &y.unscaled
 	if x.isCompact() {
-		xb = getInt64(x.compact)
-		defer putInt(xb)
+		xb = big.NewInt(x.compact)
 	}
 	if y.isCompact() {
-		yb = getInt64(y.compact)
-		defer putInt(yb)
+		yb = big.NewInt(y.compact)
 	}
 	switch {
 	case x.scale == y.scale:
@@ -1955,3 +1953,5 @@ func (z *Big) UnmarshalText(data []byte) error {
 	}
 	return nil
 }
+
+var _ encoding.TextUnmarshaler = (*Big)(nil)

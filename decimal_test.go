@@ -62,9 +62,6 @@ func testFormZero(t *testing.T, z *Big, name string) {
 	}
 }
 
-// Verify that ErrNaN implements the error interface.
-var _ error = ErrNaN{}
-
 func TestBig_Abs(t *testing.T) {
 	for i, test := range [...]string{"-1", "1", "50", "-50", "0", "-0"} {
 		x := newbig(t, test)
@@ -444,55 +441,41 @@ got   : %q
 	}
 }
 
+func TestBig_Scan(t *testing.T) {
+	// TODO(erc): this
+}
+
 func TestBig_SetFloat64(t *testing.T) {
-	tests := map[float64]string{
-		123.4:          "123.4",
-		123.42:         "123.42",
-		123.412345:     "123.412345",
-		123.4123456:    "123.4123456",
-		123.41234567:   "123.41234567",
-		123.412345678:  "123.412345678",
-		123.4123456789: "123.4123456789",
-	}
-
-	// add negatives
-	for p, s := range tests {
-		if p > 0 {
-			tests[-p] = "-" + s
+	const (
+		min  = -math.MaxFloat32
+		max  = math.MaxFloat32
+		step = 1
+	)
+	var (
+		err float64
+		//z   Big
+		n int
+	)
+	/*
+		for f := float64(0); f < max; f += step {
+			bfs := fmt.Sprintf("%f", z.SetFloat64(f))
+			gfs := strconv.FormatFloat(f, 'f', -1, 64)
+			if bfs != gfs {
+				fmt.Println(f)
+				fmt.Println(bfs)
+				fmt.Println(gfs)
+				fmt.Println()
+				err++
+			}
+			n++
 		}
-	}
+	*/
 
-	var d Big
-	for input, s := range tests {
-		d.SetFloat64(input)
-		if ds := d.String(); ds != s {
-			t.Fatalf("wanted %s, got %s", s, ds)
-		}
-	}
-
-	if !didPanic(func() { d.SetFloat64(math.NaN()) }) {
-		t.Fatalf("wanted panic when creating a Big from NaN, got %s instead",
-			d.String())
-	}
-
-	if testing.Short() {
-		return
-	}
-
-	var err float64
-	for f, s := range testTable {
-		d.SetFloat64(f)
-		if d.String() != s {
-			err++
-		}
-	}
-
-	// Some margin of error is acceptable when converting from
-	// a float. On a table of roughly 9,000 entries an acceptable
-	// margin of error is around 450. Using Gaussian/banker's rounding our
-	// margin of error is roughly 215 per 9,000 entries, for a rate of around
-	// 2.3%.
-	if err >= 0.05*float64(len(testTable)) {
+	// Some margin of error is acceptable when converting from a float. On a
+	// table of roughly 9,000 entries an acceptable margin of error is around
+	// 450. Using bankers' rounding, the margin of error is roughly 215 per
+	// 9,000 entries, for a rate of around 2.3%.
+	if err >= 0.05*float64(n) {
 		t.Fatalf("wanted error rate to be < 0.05%% of table, got %.f", err)
 	}
 }
