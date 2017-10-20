@@ -1,4 +1,4 @@
-// Package c provides basic, internal constants.
+// Package c provides internal constants.
 package c
 
 import (
@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	BadScale = math.MaxInt32
-	Inflated = math.MaxInt64
+	BadScale int32 = math.MaxInt32
+	Inflated int64 = math.MaxInt64
 )
 
 var (

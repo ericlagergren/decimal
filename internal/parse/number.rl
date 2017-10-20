@@ -23,14 +23,20 @@ func (s Special) String() string {
 	}
 }
 
-func ParseSpecial(data string) Special {
+func ParseSpecial(data []byte) Special {
 	cs, p, pe := 0, 0, len(data)
 
 	%%{
 		machine parser;
-
-		infinity = 'inf'i 'inity'i?;
-		nan      = 'nan'i digit*;
+		
+		sign           = [-+];
+		indicator      = [eE];
+		decimal_part   = digit+ '.' digit* | '.'? digit+;
+		exponent_part  = indicator sign? digit+;
+		infinity       = 'inf'i 'inity'i?;
+		nan            = [sSqQ]? 'nan'i digit*;
+		numeric_value  = decimal_part exponent_part? | infinity;
+		numeric_string = sign? numeric_value | sign? nan;
 
 		main := (
 			  '+'?  infinity @{ return PInf }
