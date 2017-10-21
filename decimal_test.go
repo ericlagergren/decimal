@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -446,37 +447,24 @@ func TestBig_Scan(t *testing.T) {
 }
 
 func TestBig_SetFloat64(t *testing.T) {
-	const (
-		min  = -math.MaxFloat32
-		max  = math.MaxFloat32
-		step = 1
-	)
-	var (
-		err float64
-		//z   Big
-		n int
-	)
-	/*
-		for f := float64(0); f < max; f += step {
-			bfs := fmt.Sprintf("%f", z.SetFloat64(f))
-			gfs := strconv.FormatFloat(f, 'f', -1, 64)
-			if bfs != gfs {
-				fmt.Println(f)
-				fmt.Println(bfs)
-				fmt.Println(gfs)
-				fmt.Println()
-				err++
-			}
-			n++
-		}
-	*/
+	z := new(Big)
+	z.Context.OperatingMode = GDA
+	z.Context.SetPrecision(25)
 
-	// Some margin of error is acceptable when converting from a float. On a
-	// table of roughly 9,000 entries an acceptable margin of error is around
-	// 450. Using bankers' rounding, the margin of error is roughly 215 per
-	// 9,000 entries, for a rate of around 2.3%.
-	if err >= 0.05*float64(n) {
-		t.Fatalf("wanted error rate to be < 0.05%% of table, got %.f", err)
+	step := uint32(1)
+	if testing.Short() {
+		step = uint32(rand.Int31n(150))
+	}
+	for x := uint32(0); x < math.MaxUint32-step; x += step {
+		f := float64(math.Float32frombits(x))
+		z.SetFloat64(f)
+		zf := z.Float64()
+		if zf != f && (!math.IsNaN(f) && !math.IsNaN(zf)) {
+			t.Fatalf(`#%d:
+wanted: %g
+got   : %g
+`, x, f, zf)
+		}
 	}
 }
 

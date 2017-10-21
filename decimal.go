@@ -1051,7 +1051,7 @@ func (x *Big) Precision() int {
 func (z *Big) Quo(x, y *Big) *Big {
 	// TODO(eric): rewrite Quo since it's... slow.
 	if x.form == finite && y.form == finite {
-		z.form = finite
+		// set z.form == finite inside the quo* methods.
 		// x / y (common case)
 		if x.isCompact() && y.isCompact() {
 			return z.quoCompact(x, y)
@@ -1108,6 +1108,7 @@ func (z *Big) quoCompact(x, y *Big) *Big {
 	)
 }
 
+// quoCompactCore implements division of two compact decimals.
 func (z *Big) quoCompactCore(x int64, xs, xp int32, y int64, ys, yp int32) *Big {
 	sdiff, ok := checked.Sub32(xs, ys)
 	if !ok {
@@ -1168,6 +1169,8 @@ func (z *Big) quoCompactCore(x int64, xs, xp int32, y int64, ys, yp int32) *Big 
 }
 
 func (z *Big) quoAndRound(x, y int64) *Big {
+	z.form = finite
+
 	// Quotient
 	z.compact = x / y
 
@@ -1217,6 +1220,8 @@ func (z *Big) quoBig(x, y *Big) *Big {
 	)
 }
 
+// see quoCompactCore. xc and yc override xb and yb, respectively, if they !=
+// c.Inflated.
 func (z *Big) quoBigCore(
 	xb *big.Int, xc int64, xs, xp int32,
 	yb *big.Int, yc int64, ys, yp int32,
@@ -1291,6 +1296,7 @@ func (z *Big) quoBigCore(
 }
 
 func (z *Big) quoBigAndRound(x, y *big.Int) *Big {
+	z.form = finite
 	z.compact = c.Inflated
 
 	r := new(big.Int)
@@ -1586,6 +1592,16 @@ func (z *Big) SetRat(x *big.Rat) *Big {
 	//
 	// But requires allocations we can avoid.
 
+	if x.Sign() == 0 {
+		z.form = zero
+		return z
+	}
+
+	if x.IsInt() {
+		z.form = finite
+		return z.SetBigMantScale(x.Num(), 0)
+	}
+
 	xb, xc, xp := x.Num(), c.Inflated, 0
 	if xb.IsInt64() {
 		xc = xb.Int64()
@@ -1601,10 +1617,12 @@ func (z *Big) SetRat(x *big.Rat) *Big {
 	} else {
 		yp = arith.BigLength(yb)
 	}
-	if xc != c.Inflated && yc != c.Inflated {
-		return z.quoCompactCore(xc, 0, int32(xp), yc, 0, int32(yp))
+
+	z.form = finite
+	if xc == c.Inflated || yc == c.Inflated {
+		return z.quoBigCore(xb, xc, 0, int32(xp), yb, yc, 0, int32(yp))
 	}
-	return z.quoBigCore(xb, xc, 0, int32(xp), yb, yc, 0, int32(yp))
+	return z.quoCompactCore(xc, 0, int32(xp), yc, 0, int32(yp))
 }
 
 // SetScale sets z's scale to scale and returns z.
