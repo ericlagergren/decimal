@@ -7,6 +7,7 @@ import (
 	"github.com/cockroachdb/apd"
 	"github.com/ericlagergren/decimal"
 	ssdec "github.com/shopspring/decimal"
+	"gopkg.in/inf.v0"
 )
 
 func newd(c int64, m int32, p int32, mode decimal.OperatingMode) *decimal.Big {
@@ -25,7 +26,32 @@ var (
 	dnumThirtyTwo  = dnum.NewDnum(false, 32, 0)
 	ssdecEight     = ssdec.New(8, 0)
 	ssdecThirtyTwo = ssdec.New(32, 0)
+	infEight       = inf.NewDec(8, 0)
+	infThirtyTwo   = inf.NewDec(32, 0)
 )
+
+func calcPi_inf(prec int32) *inf.Dec {
+	var (
+		lasts = inf.NewDec(0, 0)
+		t     = inf.NewDec(3, 0)
+		s     = inf.NewDec(3, 0)
+		n     = inf.NewDec(1, 0)
+		na    = inf.NewDec(0, 0)
+		d     = inf.NewDec(0, 0)
+		da    = inf.NewDec(24, 0)
+	)
+	for s.Cmp(lasts) != 0 {
+		lasts.Set(s)
+		n.Add(n, na)
+		na.Add(na, infEight)
+		d.Add(d, da)
+		da.Add(da, infThirtyTwo)
+		t.Mul(t, n)
+		t.QuoRound(t, d, inf.Scale(prec), inf.RoundDown)
+		s.Add(s, t)
+	}
+	return s
+}
 
 func calcPi_shopSpring(prec int32) ssdec.Decimal {
 	var (
@@ -148,6 +174,7 @@ var (
 	apdgs   *apd.Decimal
 	dnumgs  dnum.Dnum
 	ssdecgs ssdec.Decimal
+	infs    *inf.Dec
 )
 
 const rounds = 10000
@@ -192,6 +219,16 @@ func benchPi_shopspring(b *testing.B, prec int32) {
 	ssdecgs = ls
 }
 
+func benchPi_inf(b *testing.B, prec int32) {
+	var ls *inf.Dec
+	for i := 0; i < b.N; i++ {
+		for j := 0; j < rounds; j++ {
+			ls = calcPi_inf(prec)
+		}
+	}
+	infs = ls
+}
+
 func BenchmarkPi_BaselineFloat64(b *testing.B) {
 	var lf float64
 	for i := 0; i < b.N; i++ {
@@ -221,3 +258,8 @@ func BenchmarkPi_shopspring_9(b *testing.B)   { benchPi_shopspring(b, 9) }
 func BenchmarkPi_shopspring_19(b *testing.B)  { benchPi_shopspring(b, 19) }
 func BenchmarkPi_shopspring_38(b *testing.B)  { benchPi_shopspring(b, 38) }
 func BenchmarkPi_shopspring_100(b *testing.B) { benchPi_shopspring(b, 100) }
+
+func BenchmarkPi_inf_9(b *testing.B)   { benchPi_inf(b, 9) }
+func BenchmarkPi_inf_19(b *testing.B)  { benchPi_inf(b, 19) }
+func BenchmarkPi_inf_38(b *testing.B)  { benchPi_inf(b, 38) }
+func BenchmarkPi_inf_100(b *testing.B) { benchPi_inf(b, 100) }
