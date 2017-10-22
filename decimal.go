@@ -508,14 +508,10 @@ func (z *Big) Cmp(x *Big) int {
 			}
 			return 0
 		}
-		tmp := big.NewInt(zc)
-		cmp := tmp.Cmp(xm)
-		return cmp
+		return big.NewInt(zc).Cmp(xm)
 	}
 	if xc != c.Inflated {
-		tmp := big.NewInt(xc)
-		cmp := zm.Cmp(tmp)
-		return cmp
+		return zm.Cmp(big.NewInt(xc))
 	}
 	return zm.Cmp(xm)
 }
