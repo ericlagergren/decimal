@@ -4,96 +4,101 @@ package pow
 import (
 	"math/big"
 	"sync"
+	"sync/atomic"
 
 	"github.com/ericlagergren/decimal/internal/c"
 )
 
-const Tab64Len = 19
+const (
+	// TabLen is the largest cached power for integers.
+	TabLen = 20
 
-var (
-	pow10tab    [Tab64Len]int64
-	bigPow10Tab struct {
-		sync.RWMutex
-		x []*big.Int
-	}
+	// BigTabLen is the largest cached power for *big.Ints.
+	BigTabLen = 1e5
 )
 
+var (
+	pow10tab    [TabLen]uint64
+	bigMu       sync.Mutex // protects writes to bigPow10Tab
+	bigPow10Tab atomic.Value
+)
+
+func loadBigTable() []*big.Int    { return *(bigPow10Tab.Load().(*[]*big.Int)) }
+func storeBigTable(x *[]*big.Int) { bigPow10Tab.Store(x) }
+
 // BigTen computes 10 ** n. The returned *big.Int must not be modified.
-func BigTen(n int64) *big.Int {
-	if n < 0 {
-		return new(big.Int)
+func BigTen(n uint64) *big.Int {
+	tab := loadBigTable()
+
+	tabLen := uint64(len(tab))
+	if n < tabLen {
+		return tab[n]
 	}
 
-	// If we don't have a constraint on the length of the big powers table we
-	// could very well end up trying to eat up 32 bits of space (because our
-	// scale is 32 bits). To keep from making silly mistkes like that, cap the
-	// slice's size at something reasonable.
-	if n > 1e5 {
-		return new(big.Int).Exp(c.TenInt, big.NewInt(n), nil)
+	// Too large for our table.
+	if n > BigTabLen {
+		// Optimization: we don't need to start from scratch each time. Start
+		// from the largest term we've found so far.
+		partial := tab[tabLen-1]
+		p := new(big.Int).SetUint64(n - (tabLen - 1))
+		return p.Mul(partial, p.Exp(c.TenInt, p, nil))
 	}
+	return growBigTen(n, tab)
+}
 
-	bigPow10Tab.RLock()
-	if int(n) < len(bigPow10Tab.x) {
-		p := bigPow10Tab.x[n]
-		bigPow10Tab.RUnlock()
-		return p
-	}
-
+func growBigTen(n uint64, tab []*big.Int) *big.Int {
 	// We need to expand our table to contain the value for 10 ** n.
+	bigMu.Lock()
 
-	// We need to drop our read lock so we can lock the table for writing.
-	bigPow10Tab.RUnlock()
+	// n >= BigTabLen
 
-	bigPow10Tab.Lock()
-	defer bigPow10Tab.Unlock()
-
-	// However, we need to look again: another thread could have came in and
-	// resized the table for us.
-	if int(n) < len(bigPow10Tab.x) {
-		return bigPow10Tab.x[n]
-	}
-
-	// In the clear. Double the table size.
-	tableLen := int64(len(bigPow10Tab.x))
+	tableLen := uint64(len(tab))
 	newLen := tableLen * 2
 	for newLen <= n {
 		newLen *= 2
 	}
-	for i := tableLen; i < newLen; i++ {
-		prev := bigPow10Tab.x[i-1]
-		pow := new(big.Int).Mul(prev, c.TenInt)
-		bigPow10Tab.x = append(bigPow10Tab.x, pow)
+	if newLen > BigTabLen {
+		newLen = BigTabLen
 	}
-	return bigPow10Tab.x[n]
+	for i := tableLen; i < newLen; i++ {
+		tab = append(tab, new(big.Int).Mul(tab[i-1], c.TenInt))
+	}
+
+	storeBigTable(&tab)
+	bigMu.Unlock()
+	return tab[n]
 }
 
-// Ten64 returns 10 ** e and a boolean indicating whether
-// it fits into an int64.
-func Ten64(e int64) (int64, bool) {
-	if e < 0 {
-		p, ok := Ten64(-e)
-		// Otherwise division by zero.
-		if !ok {
-			return 0, false
-		}
-		return 1 / p, ok
-	}
-	if e < Tab64Len {
+// Ten returns 10 ** e and a boolean indicating whether the result fits into
+// an uint64.
+func Ten(e uint64) (uint64, bool) {
+	if e < TabLen {
 		return pow10tab[e], true
 	}
 	return 0, false
 }
 
+// Ten returns 10 ** e and a boolean indicating whether the result fits into
+// an int64.
+func TenInt(e uint64) (int64, bool) {
+	if e < TabLen-1 {
+		return int64(pow10tab[e]), true
+	}
+	return 0, false
+}
+
 func init() {
+	pow10tab[0] = 1
 	pow10tab[1] = 10
-	for i := 2; i < Tab64Len; i++ {
+
+	tab := make([]*big.Int, TabLen)
+	tab[0] = c.OneInt
+	tab[1] = c.TenInt
+	for i := 2; i < TabLen; i++ {
 		m := i / 2
 		pow10tab[i] = pow10tab[m] * pow10tab[i-m]
+		tab[i] = new(big.Int).SetUint64(pow10tab[i])
 	}
-
-	bigPow10Tab.x = make([]*big.Int, Tab64Len)
-	for i := int64(0); i < Tab64Len; i++ {
-		p, _ := Ten64(i)
-		bigPow10Tab.x[i] = big.NewInt(p)
-	}
+	// Set first power of 10 so our calculations don't have to handle that case.
+	storeBigTable(&tab)
 }

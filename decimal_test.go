@@ -6,14 +6,12 @@ import (
 	"fmt"
 	"math"
 	"math/big"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/ericlagergren/decimal/internal/c"
 	"github.com/ericlagergren/decimal/suite"
 )
 
@@ -86,8 +84,9 @@ func TestBig_Add(t *testing.T) {
 		}
 
 		z := new(Big)
-		z.Context.SetPrecision(int32(c.Prec))
+		z.Context.SetPrecision(c.Prec)
 		z.Context.OperatingMode = GDA
+		z.Context.RoundingMode = RoundingMode(c.Mode)
 		x, _ := new(Big).SetString(string(c.Inputs[0]))
 		y, _ := new(Big).SetString(string(c.Inputs[1]))
 		r, _ := new(Big).SetString(string(c.Output))
@@ -102,82 +101,33 @@ got   : %q
 	}
 }
 
-func TestBig_BitLen(t *testing.T) {
-	var x Big
-	const maxCompact = (1<<63 - 1) - 1
-	tests := [...]struct {
-		a *Big
-		b int
-	}{
-		0:  {a: New(0, 0), b: 0},
-		1:  {a: New(12, 0), b: 4},
-		2:  {a: New(50, 0), b: 6},
-		3:  {a: New(12345, 0), b: 14},
-		4:  {a: New(123456789, 0), b: 27},
-		5:  {a: New(maxCompact, 0), b: 63},
-		6:  {a: x.Add(New(maxCompact, 0), New(maxCompact, 0)), b: 64},
-		7:  {a: New(1000, 0), b: 10},
-		8:  {a: New(10, -2), b: 10},
-		9:  {a: New(1e6, 0), b: 20},
-		10: {a: New(10, -5), b: 20},
-		11: {a: New(1e8, 0), b: 27},
-		12: {a: New(10, -7), b: 27},
-	}
-	for i, v := range tests {
-		if b := v.a.BitLen(); b != v.b {
-			t.Fatalf("#%d: wanted %d, got %d", i, v.b, b)
-		}
-	}
-}
-
 func TestBig_Cmp(t *testing.T) {
-	const (
-		lesser  = -1
-		equal   = 0
-		greater = +1
-	)
+	s, close := getTests(t, "comparison")
+	defer close()
 
-	samePtr := New(0, 0)
-	large, ok := new(Big).SetString(strings.Repeat("9", 500))
-	if !ok {
-		t.Fatal(ok)
-	}
-	for i, test := range [...]struct {
-		a, b *Big
-		v    int
-	}{
-		// Simple
-		0: {New(1, 0), New(0, 0), greater},
-		1: {New(0, 0), New(1, 0), lesser},
-		2: {New(0, 0), New(0, 0), equal},
-		// Fractional
-		3: {New(9876, 3), New(1234, 0), lesser},
-		// zl > 0, xl < 0
-		4: {New(1234, 3), New(50, 25), greater},
-		// Same pointers
-		5: {samePtr, samePtr, equal},
-		// Large int vs large big.Int
-		6: {New(99999999999, 0), large, lesser},
-		7: {large, New(999999999999999999, 0), greater},
-		8: {New(4, 0), New(4, 0), equal},
-		9: {New(4, 0), new(Big).Quo(New(12, 0), New(3, 0)), equal},
-		// z.scale < 0
-		10: {large, new(Big).Copy(large), equal},
-		// Differing signs
-		11: {new(Big).Set(large).Neg(large), large, lesser},
-		12: {new(Big).Quo(new(Big).Set(large), New(314156, 5)), large, lesser},
-		13: {New(1234, 3), newbig(t, "1000000000000000000000000000000.234"), lesser},
-		14: {
-			newbig(t, "10000000000000000000"),
-			newbig(t, "100000000000000000000").SetScale(1), equal,
-		},
-		// zl < 0, xl < 0
-		15: {New(2, c.BadScale-1), New(2, c.BadScale-2), lesser},
-		16: {New(1000000000000000, 16), New(16666666666666666, 18), greater},
-	} {
-		r := test.a.Cmp(test.b)
-		if test.v != r {
-			t.Fatalf("#%d: wanted %d, got %d", i, test.v, r)
+	for i := 0; s.Scan(); i++ {
+		c, err := suite.ParseCase(s.Bytes())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		z := new(Big)
+		z.Context.SetPrecision(c.Prec)
+		z.Context.OperatingMode = GDA
+		z.Context.RoundingMode = RoundingMode(c.Mode)
+		x, _ := new(Big).SetString(string(c.Inputs[0]))
+		y, _ := new(Big).SetString(string(c.Inputs[1]))
+
+		r, err := strconv.Atoi(string(c.Output))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if x.Cmp(y) != r {
+			t.Fatalf(`#%d: %s
+wanted: %d
+got   : %d
+`, i+1, c, r, z)
 		}
 	}
 }
@@ -355,8 +305,9 @@ func TestBig_Mul(t *testing.T) {
 		}
 
 		z := new(Big)
-		z.Context.SetPrecision(int32(c.Prec))
+		z.Context.SetPrecision(c.Prec)
 		z.Context.OperatingMode = GDA
+		z.Context.RoundingMode = RoundingMode(c.Mode)
 		x, _ := new(Big).SetString(string(c.Inputs[0]))
 		y, _ := new(Big).SetString(string(c.Inputs[1]))
 		r, _ := new(Big).SetString(string(c.Output))
@@ -375,6 +326,39 @@ func TestBig_Prec(t *testing.T) {
 	// confirmed to work inside internal/arith/intlen_test.go
 }
 
+func TestBig_Quantize(t *testing.T) {
+	s, close := getTests(t, "quantize")
+	defer close()
+
+	for i := 0; s.Scan(); i++ {
+		c, err := suite.ParseCase(s.Bytes())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		//x0, _ := new(Big).SetString(string(c.Inputs[0]))
+		x, _ := new(Big).SetString(string(c.Inputs[0]))
+		x.Context.SetPrecision(c.Prec)
+		x.Context.OperatingMode = GDA
+		x.Context.RoundingMode = RoundingMode(c.Mode)
+
+		y, err := strconv.ParseInt(string(c.Inputs[1]), 10, 32)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		r, _ := new(Big).SetString(string(c.Output))
+
+		x.Quantize(int32(y))
+		if x.Cmp(r) != 0 {
+			t.Fatalf(`#%d: %s
+wanted: "%g"
+got   : "%g"
+`, i+1, c, r, x)
+		}
+	}
+}
+
 func TestBig_Quo(t *testing.T) {
 	s, close := getTests(t, "division")
 	defer close()
@@ -386,8 +370,9 @@ func TestBig_Quo(t *testing.T) {
 		}
 
 		z := new(Big)
-		z.Context.SetPrecision(int32(c.Prec))
+		z.Context.SetPrecision(c.Prec)
 		z.Context.OperatingMode = GDA
+		z.Context.RoundingMode = RoundingMode(c.Mode)
 		x, _ := new(Big).SetString(string(c.Inputs[0]))
 		y, _ := new(Big).SetString(string(c.Inputs[1]))
 		r, _ := new(Big).SetString(string(c.Output))
@@ -420,7 +405,7 @@ func TestBig_Rat(t *testing.T) {
 func TestBig_Round(t *testing.T) {
 	for i, test := range [...]struct {
 		v   string
-		to  int32
+		to  int
 		res string
 	}{
 		0: {"5.5", 1, "6"},
@@ -443,7 +428,7 @@ got   : %q
 }
 
 func TestBig_Scan(t *testing.T) {
-	// TODO(erc): this
+	// TODO(eric): this
 }
 
 func TestBig_SetFloat64(t *testing.T) {
@@ -451,11 +436,12 @@ func TestBig_SetFloat64(t *testing.T) {
 	z.Context.OperatingMode = GDA
 	z.Context.SetPrecision(25)
 
-	step := uint32(1)
+	var start, end uint32
 	if testing.Short() {
-		step = uint32(rand.Int31n(150))
+		start = math.MaxUint32 / 4
+		end = start * 3
 	}
-	for x := uint32(0); x < math.MaxUint32-step; x += step {
+	for x := start; x <= end; x++ {
 		f := float64(math.Float32frombits(x))
 		z.SetFloat64(f)
 		zf := z.Float64()
@@ -565,8 +551,9 @@ func TestBig_Sub(t *testing.T) {
 		}
 
 		z := new(Big)
-		z.Context.SetPrecision(int32(c.Prec))
+		z.Context.SetPrecision(c.Prec)
 		z.Context.OperatingMode = GDA
+		z.Context.RoundingMode = RoundingMode(c.Mode)
 		x, _ := new(Big).SetString(string(c.Inputs[0]))
 		y, _ := new(Big).SetString(string(c.Inputs[1]))
 		r, _ := new(Big).SetString(string(c.Output))

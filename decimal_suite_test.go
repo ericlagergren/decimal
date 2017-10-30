@@ -152,7 +152,7 @@ func testCase(fname string, i int, c suite.Case, mode OperatingMode, t *testing.
 	}
 
 	want := dataToBig(c.Output, z.Context)
-	prec := int32(want.Precision())
+	prec := want.Precision()
 	if prec != 0 {
 		z.Round(prec)
 	}
@@ -228,7 +228,7 @@ func dataToBig(s suite.Data, ctx Context) *Big {
 	}
 }
 
-func shellOut(x, y *Big, op suite.Op, prec int32) *Big {
+func shellOut(x, y *Big, op suite.Op, prec int) *Big {
 	var opstr string
 	switch op {
 	case suite.Add:

@@ -10,6 +10,15 @@ import (
 	"github.com/ericlagergren/decimal/internal/c"
 )
 
+func UAdd(x, y uint) (sum uint, ok bool) {
+	sum = x + y
+	return sum, sum >= x
+}
+
+func UAdd64(x, y uint64) (sum uint64, ok bool) {
+	return x + y, arith.LeadingZeros64(x) < 32 && arith.LeadingZeros64(y) < 32
+}
+
 // Add returns x + y and a bool indicating whether the addition was successful.
 func Add(x, y int64) (sum int64, ok bool) {
 	sum = x + y
@@ -32,7 +41,7 @@ func Mul(x, y int64) (prod int64, ok bool) {
 	return prod, ((arith.Abs(x)|arith.Abs(y))>>31 == 0 || prod/y == x)
 }
 
-// Mul returns x * y and a bool indicating whether the multiplication was
+// Mul32 returns x * y and a bool indicating whether the multiplication was
 // successful.
 func Mul32(x, y int32) (prod int32, ok bool) {
 	p, ok := Mul(int64(x), int64(y))
@@ -42,6 +51,10 @@ func Mul32(x, y int32) (prod int32, ok bool) {
 // Sub returns x - y and a bool indicating whether the subtraction was successful.
 func Sub(x, y int64) (diff int64, ok bool) {
 	return Add(x, -y)
+}
+
+func USub(x, y uint) (diff uint, ok bool) {
+	return x - y, x >= y
 }
 
 // Sub32 returns x - y and a bool indicating whether the subtraction was
@@ -66,31 +79,31 @@ func SubSum(x, y, z int32) (res int32, ok bool) {
 	return Int32(int64(x) - int64(y) + int64(z))
 }
 
-// MulPow10 computes 10 * x ** n and a bool indicating whether the multiplcation
+// MulPow10 computes 10 * x**n and a bool indicating whether the multiplcation
 // was successful.
-func MulPow10(x int64, n int32) (p int64, ok bool) {
-	if x == 0 || n <= 0 || x == c.Inflated {
+func MulPow10(x int64, n uint64) (p int64, ok bool) {
+	if x == 0 {
 		return x, true
 	}
-	if n >= pow.Tab64Len {
+	if n >= pow.TabLen-1 || x == c.Inflated {
 		return 0, false
 	}
-	if x == 1 {
-		return pow.Ten64(int64(n))
-	}
-	p, ok = pow.Ten64(int64(n))
+	up, ok := pow.Ten(n)
 	if !ok {
 		return 0, false
 	}
-	return Mul(x, p)
+	if x == 1 {
+		return int64(up), true
+	}
+	return Mul(x, int64(up))
 }
 
-// MulBigPow10 computes 10 * x ** n. It reuses x.
-func MulBigPow10(x *big.Int, n int32) *big.Int {
-	if x.Sign() == 0 || n <= 0 {
+// MulBigPow10 computes 10 * x**n. It reuses x.
+func MulBigPow10(x *big.Int, n uint64) *big.Int {
+	if x.Sign() == 0 {
 		return x
 	}
-	return x.Mul(x, pow.BigTen(int64(n)))
+	return x.Mul(x, pow.BigTen(uint64(n)))
 }
 
 // Int32 returns true if x can fit in an int32.

@@ -69,26 +69,41 @@ type Case struct {
 func (c Case) String() string {
 	return fmt.Sprintf("%s%d [%s, %s]: %s(%s) = %s %s",
 		c.Prefix, c.Prec, c.Trap, c.Mode, c.Op,
-		join(c.Inputs, ", "), c.Output, c.Excep)
+		join(c.Inputs, ", ", -1), c.Output, c.Excep)
 }
 
-func join(a []Data, sep Data) Data {
+// ShortString returns the same as String, except long data values are capped at
+// length digits.
+func (c Case) ShortString(length int) string {
+	return fmt.Sprintf("%s%d [%s, %s]: %s(%s) = %s %s",
+		c.Prefix, c.Prec, c.Trap, c.Mode, c.Op,
+		join(c.Inputs, ", ", length), trunc(c.Output, length), c.Excep)
+}
+
+func trunc(d Data, l int) Data {
+	if l <= 0 || l >= len(d) {
+		return d
+	}
+	return d[:l/2] + "..." + d[len(d)-(l/2):]
+}
+
+func join(a []Data, sep Data, l int) Data {
 	if len(a) == 0 {
 		return ""
 	}
 	if len(a) == 1 {
-		return a[0]
+		return trunc(a[0], l)
 	}
 	n := len(sep) * (len(a) - 1)
 	for i := 0; i < len(a); i++ {
-		n += len(a[i])
+		n += len(trunc(a[i], l))
 	}
 
 	b := make([]byte, n)
-	bp := copy(b, a[0])
+	bp := copy(b, trunc(a[0], l))
 	for _, s := range a[1:] {
 		bp += copy(b[bp:], sep)
-		bp += copy(b[bp:], s)
+		bp += copy(b[bp:], trunc(s, l))
 	}
 	return Data(b)
 }
@@ -176,6 +191,7 @@ var valToMode = map[string]big.RoundingMode{
 	"0":  big.ToZero,
 	"=0": big.ToNearestEven,
 	"=^": big.ToNearestAway,
+	"^":  big.AwayFromZero,
 }
 
 // Op is a specific operation the test case must perform.

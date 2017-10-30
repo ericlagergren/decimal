@@ -68,7 +68,7 @@ func (d *Decimal) Value() (driver.Value, error) {
 		if !d.Round {
 			return nil, &LengthError{Part: "fractional", N: sl, max: MaxFractionalDigits}
 		}
-		v.Round(int32(dl - (sl - MaxFractionalDigits)))
+		v.Round(dl - (sl - MaxFractionalDigits))
 	}
 	return v.String(), nil
 }

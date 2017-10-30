@@ -296,6 +296,8 @@ tr15:
 			goto tr16
 		case 61:
 			goto tr17
+		case 94:
+			goto tr16
 		}
 		if 60 <= data[p] && data[p] <= 62 {
 			goto tr16
@@ -310,7 +312,7 @@ tr16:
 			goto _test_eof6
 		}
 	st_case_6:
-//line parser.go:314
+//line parser.go:316
 		if data[p] == 32 {
 			goto tr18
 		}
@@ -328,7 +330,7 @@ tr18:
 			goto _test_eof7
 		}
 	st_case_7:
-//line parser.go:332
+//line parser.go:334
 		switch data[p] {
 		case 43:
 			goto tr19
@@ -365,7 +367,7 @@ tr19:
 			goto _test_eof8
 		}
 	st_case_8:
-//line parser.go:369
+//line parser.go:371
 		switch data[p] {
 		case 73:
 			goto st25
@@ -385,7 +387,7 @@ tr20:
 			goto _test_eof9
 		}
 	st_case_9:
-//line parser.go:389
+//line parser.go:391
 		switch data[p] {
 		case 32:
 			goto tr27
@@ -413,7 +415,7 @@ tr27:
 			goto _test_eof10
 		}
 	st_case_10:
-//line parser.go:417
+//line parser.go:419
 		switch data[p] {
 		case 43:
 			goto tr19
@@ -441,7 +443,7 @@ tr31:
 			goto _test_eof11
 		}
 	st_case_11:
-//line parser.go:445
+//line parser.go:447
 		switch data[p] {
 		case 62:
 			goto st12
@@ -497,7 +499,7 @@ tr34:
 			goto _test_eof60
 		}
 	st_case_60:
-//line parser.go:501
+//line parser.go:503
 		if data[p] == 32 {
 			goto tr71
 		}
@@ -511,7 +513,7 @@ tr71:
 			goto _test_eof14
 		}
 	st_case_14:
-//line parser.go:515
+//line parser.go:517
 		switch data[p] {
 		case 105:
 			goto tr38
@@ -544,7 +546,7 @@ tr72:
 			goto _test_eof61
 		}
 	st_case_61:
-//line parser.go:548
+//line parser.go:550
 		switch data[p] {
 		case 105:
 			goto tr72
@@ -566,7 +568,7 @@ tr35:
 			goto _test_eof15
 		}
 	st_case_15:
-//line parser.go:570
+//line parser.go:572
 		switch data[p] {
 		case 73:
 			goto st19
@@ -586,7 +588,7 @@ tr36:
 			goto _test_eof62
 		}
 	st_case_62:
-//line parser.go:590
+//line parser.go:592
 		switch data[p] {
 		case 32:
 			goto tr71
@@ -680,7 +682,7 @@ tr37:
 			goto _test_eof19
 		}
 	st_case_19:
-//line parser.go:684
+//line parser.go:686
 		switch data[p] {
 		case 78:
 			goto st20
@@ -771,7 +773,7 @@ tr21:
 			goto _test_eof25
 		}
 	st_case_25:
-//line parser.go:775
+//line parser.go:777
 		switch data[p] {
 		case 78:
 			goto st26
@@ -862,7 +864,7 @@ tr22:
 			goto _test_eof32
 		}
 	st_case_32:
-//line parser.go:866
+//line parser.go:868
 		if data[p] == 32 {
 			goto tr27
 		}
@@ -942,7 +944,7 @@ tr23:
 			goto _test_eof38
 		}
 	st_case_38:
-//line parser.go:946
+//line parser.go:948
 		switch data[p] {
 		case 32:
 			goto tr59
@@ -976,7 +978,7 @@ tr59:
 			goto _test_eof39
 		}
 	st_case_39:
-//line parser.go:980
+//line parser.go:982
 		switch data[p] {
 		case 43:
 			goto tr19
@@ -1016,7 +1018,7 @@ tr60:
 			goto _test_eof40
 		}
 	st_case_40:
-//line parser.go:1020
+//line parser.go:1022
 		switch data[p] {
 		case 32:
 			goto tr59
@@ -1040,7 +1042,7 @@ tr17:
 			goto _test_eof41
 		}
 	st_case_41:
-//line parser.go:1044
+//line parser.go:1046
 		switch data[p] {
 		case 48:
 			goto st6
@@ -1063,7 +1065,7 @@ tr4:
 			goto _test_eof42
 		}
 	st_case_42:
-//line parser.go:1067
+//line parser.go:1069
 		switch data[p] {
 		case 32:
 			goto tr15
@@ -1086,7 +1088,7 @@ tr6:
 			goto _test_eof43
 		}
 	st_case_43:
-//line parser.go:1090
+//line parser.go:1092
 		switch data[p] {
 		case 65:
 			goto st4
@@ -1109,7 +1111,7 @@ tr7:
 			goto _test_eof44
 		}
 	st_case_44:
-//line parser.go:1113
+//line parser.go:1115
 		if data[p] == 113 {
 			goto st45
 		}
@@ -1165,7 +1167,7 @@ tr8:
 			goto _test_eof49
 		}
 	st_case_49:
-//line parser.go:1169
+//line parser.go:1171
 		switch data[p] {
 		case 32:
 			goto tr15
@@ -1212,7 +1214,7 @@ tr9:
 			goto _test_eof51
 		}
 	st_case_51:
-//line parser.go:1216
+//line parser.go:1218
 		switch data[p] {
 		case 97:
 			goto st4
@@ -1237,7 +1239,7 @@ tr10:
 			goto _test_eof52
 		}
 	st_case_52:
-//line parser.go:1241
+//line parser.go:1243
 		switch data[p] {
 		case 100:
 			goto st53
@@ -1287,7 +1289,7 @@ tr11:
 			goto _test_eof55
 		}
 	st_case_55:
-//line parser.go:1291
+//line parser.go:1293
 		if data[p] == 113 {
 			goto st4
 		}
@@ -1307,7 +1309,7 @@ tr12:
 			goto _test_eof56
 		}
 	st_case_56:
-//line parser.go:1311
+//line parser.go:1313
 		switch data[p] {
 		case 67:
 			goto st4
@@ -1330,7 +1332,7 @@ tr13:
 			goto _test_eof57
 		}
 	st_case_57:
-//line parser.go:1334
+//line parser.go:1336
 		if data[p] == 102 {
 			goto st58
 		}
@@ -1359,7 +1361,7 @@ tr14:
 			goto _test_eof59
 		}
 	st_case_59:
-//line parser.go:1363
+//line parser.go:1365
 		if data[p] == 67 {
 			goto st4
 		}
@@ -1444,14 +1446,14 @@ tr14:
 	    	}
             c.Excep |= exc
         
-//line parser.go:1448
+//line parser.go:1450
 		}
 	}
 
 	_out: {}
 	}
 
-//line parser.rl:141
+//line parser.rl:142
 
     return c, nil
 }

@@ -8,17 +8,17 @@ import (
 	"github.com/ericlagergren/decimal/internal/arith/pow"
 )
 
-const debug = true
-
 // cmpNorm compares x and y in the range [0.1, 0.999...] and returns true if x
 // > y.
-func cmpNorm(x int64, xs int32, y int64, ys int32) (ok bool) {
+func cmpNorm(x int64, xs int, y int64, ys int) (ok bool) {
 	goodx, goody := true, true
+
+	// xs, ys > 0, so no overflow
 	if diff := xs - ys; diff != 0 {
 		if diff < 0 {
-			x, goodx = checked.MulPow10(x, -diff)
+			x, goodx = checked.MulPow10(x, -uint64(diff))
 		} else {
-			y, goody = checked.MulPow10(y, diff)
+			y, goody = checked.MulPow10(y, uint64(diff))
 		}
 	}
 	if goodx {
@@ -32,11 +32,13 @@ func cmpNorm(x int64, xs int32, y int64, ys int32) (ok bool) {
 
 // cmpNormBig compares x and y in the range [0.1, 0.999...] and returns true if
 // x > y.
-func cmpNormBig(x *big.Int, xs int32, y *big.Int, ys int32) (ok bool) {
-	if diff := xs - ys; diff < 0 {
-		x = checked.MulBigPow10(new(big.Int).Set(x), -diff)
-	} else {
-		y = checked.MulBigPow10(new(big.Int).Set(y), diff)
+func cmpNormBig(x *big.Int, xs int, y *big.Int, ys int) (ok bool) {
+	if diff := xs - ys; diff != 0 {
+		if diff < 0 {
+			x = checked.MulBigPow10(new(big.Int).Set(x), uint64(-diff))
+		} else {
+			y = checked.MulBigPow10(new(big.Int).Set(y), uint64(diff))
+		}
 	}
 	return arith.BigAbsCmp(x, y) > 0
 }
@@ -45,13 +47,13 @@ func cmpNormBig(x *big.Int, xs int32, y *big.Int, ys int32) (ok bool) {
 // x = x / 10^scale.
 func scalex(x int64, scale int32) (sx int64, ok bool) {
 	if scale < 0 {
-		sx, ok = checked.MulPow10(x, -scale)
+		sx, ok = checked.MulPow10(x, -uint64(scale))
 		if !ok {
 			return 0, false
 		}
 		return sx, true
 	}
-	p, ok := pow.Ten64(int64(scale))
+	p, ok := pow.TenInt(uint64(scale))
 	if !ok {
 		return 0, false
 	}
