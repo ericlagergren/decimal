@@ -82,7 +82,7 @@ for op, name in ops.items():
             elif op == "quant":
                 decimal.getcontext().prec = decimal.MAX_PREC
                 r = x.quantize(y)
-                y = y.as_tuple().exponent
+                y = -y.as_tuple().exponent
             else:
                 raise ValueError("bad op")
             f.write("d{}{} {} {} {} -> {}\n".format(prec, op, mode, x, y, r))

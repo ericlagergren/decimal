@@ -593,17 +593,18 @@ func (x *Big) Format(s fmt.State, c rune) {
 	}
 
 	var (
-		hash   = s.Flag('#')
-		dash   = s.Flag('-')
-		lpZero = s.Flag('0')
-		plus   = s.Flag('+')
-		space  = s.Flag(' ')
-		f      = formatter{prec: prec, width: width}
+		hash    = s.Flag('#')
+		dash    = s.Flag('-')
+		lpZero  = s.Flag('0')
+		lpSpace = width != noWidth && !dash && !lpZero
+		plus    = s.Flag('+')
+		space   = s.Flag(' ')
+		f       = formatter{prec: prec, width: width}
 	)
 
 	// If we need to left pad then we need to first write our string into an
 	// empty buffer.
-	if lpZero {
+	if lpZero || lpSpace {
 		f.w = new(bytes.Buffer)
 	} else {
 		f.w = stateWrapper{s}
@@ -620,7 +621,11 @@ func (x *Big) Format(s fmt.State, c rune) {
 	const noE = 0
 	switch c {
 	case 's', 'd':
-		f.format(x, normal, 'e')
+		e := byte('e')
+		if x.Context.OperatingMode == GDA {
+			e = 'E'
+		}
+		f.format(x, normal, e)
 	case 'q':
 		// The fmt package's docs specify that the '+' flag
 		// "guarantee[s] ASCII-only output for %q (%+q)"
@@ -633,7 +638,11 @@ func (x *Big) Format(s fmt.State, c rune) {
 			quote = '`'
 		}
 		f.WriteByte(quote)
-		f.format(x, normal, 'e')
+		e := byte('e')
+		if x.Context.OperatingMode == GDA {
+			e = 'E'
+		}
+		f.format(x, normal, e)
 		f.WriteByte(quote)
 	case 'e', 'E':
 		f.format(x, sci, byte(c))
@@ -695,19 +704,19 @@ func (x *Big) Format(s fmt.State, c rune) {
 	}
 
 	needPad := f.n < int64(width)
-	if needPad && lpZero {
-		io.CopyN(s, zeroReader{}, int64(width)-f.n)
-		needPad = false
+	if !needPad {
+		return
 	}
 
-	// TODO(eric): find a better way of doing this.
-	// If we had to write into a temp buffer, copy it over to the State.
-	if r, ok := f.w.(*bytes.Buffer); ok {
-		io.Copy(s, r)
-	}
-
-	// Right pad if need be.
-	if needPad && dash {
+	if lpZero || lpSpace {
+		if lpZero {
+			io.CopyN(s, zeroReader{}, int64(width)-f.n)
+		} else {
+			io.CopyN(s, spaceReader{}, int64(width)-f.n)
+		}
+		// If we had to write into a temp buffer, copy it over to the State.
+		io.Copy(s, f.w.(*bytes.Buffer))
+	} else if dash {
 		io.CopyN(s, spaceReader{}, int64(width)-f.n)
 	}
 }
@@ -1145,6 +1154,12 @@ func (z *Big) quoAndRoundCompact(x, y int64) *Big {
 		} else {
 			z.compact--
 		}
+	} else if z.compact == 0 {
+		if pos {
+			z.form = zero
+		} else {
+			z.form = nzero
+		}
 	}
 	return z
 }
@@ -1263,6 +1278,12 @@ func (z *Big) quoAndRoundBig(x, y *big.Int) *Big {
 		} else {
 			z.unscaled.Sub(&z.unscaled, c.OneInt)
 		}
+	} else if z.unscaled.Sign() == 0 {
+		if pos {
+			z.form = zero
+		} else {
+			z.form = nzero
+		}
 	}
 	return z
 }
@@ -1345,7 +1366,8 @@ func (z *Big) round() *Big {
 
 // Round rounds z down to n digits of precision and returns z. The result is
 // undefined if z is not finite. No rounding will occur if n == 0. The result of
-// Round will always be within the interval [⌊z⌋, z].
+// Round will always be within the interval [⌊10**x⌋, z] where x = the precision
+// of z.
 func (z *Big) Round(n int) *Big {
 	if n <= 0 || z.form != finite {
 		return z
@@ -1389,7 +1411,6 @@ func (z *Big) Quantize(n int32) *Big {
 		return z
 	}
 
-	n = -n
 	if z.scale == n {
 		return z
 	}
