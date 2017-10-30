@@ -4,6 +4,6 @@ package arith
 
 import "math/bits"
 
-func CLZ(x int64) int       { return bits.LeadingZeros64(uint64(x)) }
-func BitLen(x int64) int    { return bits.Len64(uint64(x)) }
-func Popcnt32(x uint32) int { return bits.OnesCount32(x) }
+func LeadingZeros64(x uint64) int { return bits.LeadingZeros64(x) }
+func Len64(x uint64) int          { return bits.Len64(x) }
+func OnesCount32(x uint32) int    { return bits.OnesCount32(x) }

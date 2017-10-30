@@ -3,7 +3,6 @@ package decimal
 import (
 	"fmt"
 	"math"
-	"math/big"
 	"strings"
 
 	"github.com/ericlagergren/decimal/internal/arith"
@@ -14,13 +13,11 @@ const (
 	MaxScale = math.MaxInt32 // largest allowed scale.
 	MinScale = math.MinInt32 // smallest allowed scale.
 
-	MaxPrecision = math.MaxInt32 // largest allowed Context precision.
-	MinPrecision = 1             // smallest allowed Context precision.
+	MaxPrecision       = int(^uint(0) >> 1) // largest allowed Context precision.
+	MinPrecision       = 1                  // smallest allowed Context precision.
+	UnlimitedPrecision = -1                 // no precision, but may error.
+	DefaultPrecision   = 16                 // default precision for literals.
 )
-
-// DefaultPrecision is the default precision used for decimals created as
-// literals or using new.
-const DefaultPrecision = 16
 
 // Context is a per-decimal contextual object that governs specific operations
 // such as how lossy operations (e.g. division) round.
@@ -29,7 +26,7 @@ type Context struct {
 	// conditions. See OperatingMode for more information.
 	OperatingMode OperatingMode
 
-	precision int32
+	precision int
 
 	// Traps are a set of exceptional conditions that should result in an error.
 	Traps Condition
@@ -41,37 +38,31 @@ type Context struct {
 	// Err is the most recent error to occur during an operation.
 	Err error
 
-	// RoundingMode instructs how an infinite (repeating) decimal expansion
-	// (digits following the radix) should be rounded. This can occur during
-	// "lossy" operations like division.
+	// RoundingMode determines how a decimal is rounded.
 	RoundingMode RoundingMode
 }
 
-// New is shorthand to create a Big from a Context.
-func (c Context) New(value int64, scale int32) *Big {
-	x := New(value, scale)
+// WithContext is shorthand to create a Big decimal from a Context.
+func WithContext(c Context) *Big {
+	x := new(Big)
 	x.Context = c
 	return x
 }
 
-const noPrecision = -1
-
-// Precision returns the Context's precision.
-func (c Context) Precision() int32 {
-	switch c.precision {
-	case 0:
+// Precision returns the Context's precision. By default a Context literal will
+// have a precision of DefaultPrecision.
+func (c Context) Precision() int {
+	if c.precision == 0 {
 		return DefaultPrecision
-	case noPrecision:
-		return 0
-	default:
-		return c.precision
 	}
+	return c.precision
 }
 
-// SetPrecision sets c's precision.
-func (c *Context) SetPrecision(prec int32) {
-	if prec == 0 {
-		c.precision = noPrecision
+// SetPrecision sets the Context's precision. A precision value not in the range
+// [1, MaxPrecision] will be set to DefaultPrecision.
+func (c *Context) SetPrecision(prec int) {
+	if prec <= UnlimitedPrecision {
+		c.precision = DefaultPrecision
 	} else {
 		c.precision = prec
 	}
@@ -109,8 +100,7 @@ var (
 	}
 )
 
-// RoundingMode determines how a decimal will be rounded if the exact result
-// cannot accurately be represented.
+// RoundingMode determines how a decimal will be rounded.
 type RoundingMode uint8
 
 // The following rounding modes are supported.
@@ -124,6 +114,40 @@ const (
 )
 
 //go:generate stringer -type RoundingMode
+
+func (z *Big) needsInc(r int, pos bool) bool {
+	switch z.Context.RoundingMode {
+	case AwayFromZero:
+		return true // always up
+	case ToZero:
+		return false // always down
+	case ToPositiveInf:
+		return pos // up if positive
+	case ToNegativeInf:
+		return !pos // down if negative
+
+	//  r <  0: closer to higher
+	//  r == 0: halfway
+	//  r >  0: closer to lower
+	//
+	case ToNearestEven:
+		if r != 0 {
+			return r > 0
+		}
+		if z.isCompact() {
+			return z.compact&1 != 0
+		}
+		return z.unscaled.Bit(0) != 0
+	case ToNearestAway:
+		return r >= 0
+	default:
+		z.signal(
+			InvalidContext,
+			fmt.Errorf("invalid rounding mode: %d", z.Context.RoundingMode),
+		)
+		return false
+	}
+}
 
 // OperatingMode dictates how the decimal approaches specific non-numeric
 // operations like conversions to strings and panicking on NaNs.
@@ -226,7 +250,7 @@ func (c Condition) String() string {
 	}
 
 	// Each condition is one bit, so this saves some allocations.
-	a := make([]string, 0, arith.Popcnt32(uint32(c)))
+	a := make([]string, 0, arith.OnesCount32(uint32(c)))
 	for i := Condition(1); c != 0; i <<= 1 {
 		if c&i == 0 {
 			continue
@@ -263,13 +287,4 @@ func (c Condition) String() string {
 	return strings.Join(a, ", ")
 }
 
-var (
-	one = New(1, 0)
-
-	zeroInt = big.NewInt(0)
-	oneInt  = big.NewInt(1)
-	twoInt  = big.NewInt(2)
-	tenInt  = big.NewInt(10)
-
-	tenFloat = big.NewFloat(10)
-)
+var one = New(1, 0)

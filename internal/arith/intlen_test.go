@@ -1,8 +1,12 @@
 package arith
 
 import (
+	"math"
 	"math/big"
+	"math/rand"
 	"testing"
+
+	"github.com/ericlagergren/decimal/internal/arith/pow"
 )
 
 func TestLength(t *testing.T) {
@@ -70,17 +74,73 @@ func TestBigLength(t *testing.T) {
 		}
 	}
 
-	x := big.NewInt(1)
-	if !testing.Short() {
-		// Test a really long one.
-		ten := big.NewInt(10)
-		// Tested up to like 7 zeros but it takes *forever* to run.
-		for i := 0; i < 100000; i++ {
-			x.Mul(x, ten)
-		}
+	if testing.Short() {
+		return
 	}
+
+	// Test a really long one.
+	x := new(big.Int).Exp(big.NewInt(10), big.NewInt(1e5), nil)
 	n := len(x.String())
 	if l := BigLength(x); l != n {
-		t.Fatalf("#%d: wanted %d, got %d", len(tests), n, l)
+		t.Fatalf("exp(10, 1e5): wanted %d, got %d", n, l)
 	}
+
+	const overflowCutoff = 14267572532
+
+	// Randomly chosen length so its bit-length is a smidge above overflowCutoff
+	// to speed up this looong test.
+	nat := make([]big.Word, 222932222)
+	nat[0] = 0xDEADBEEF
+	for bp := 1; bp < len(nat); bp *= 2 {
+		copy(nat[bp:], nat[:bp])
+	}
+	x.SetBits(nat)
+
+	// Used by math/big.nat to determine the size of the output buffer.
+	n = int(float64(x.BitLen())/math.Log2(10)) + 1
+
+	// We're allowed to be +1 larger, but not smaller.
+	if l := BigLength(x); l-n > 1 {
+		t.Fatalf("really freaking big: wanted %d, got %d", n, l)
+	}
+}
+
+var lengths = func() []*big.Int {
+	var n [4096]*big.Int
+	for i := range n {
+		n[i] = pow.BigTen(uint64(rand.Int63n(5000)))
+	}
+	return n[:]
+}()
+
+var gl int
+
+func BenchmarkLogarithm(b *testing.B) {
+	var ll int
+	for i := 0; i < b.N; i++ {
+		for _, x := range lengths {
+			ll = logLength(x)
+		}
+	}
+	gl = ll
+}
+
+func BenchmarkLogarithmNoCmp(b *testing.B) {
+	var ll int
+	for i := 0; i < b.N; i++ {
+		for _, x := range lengths {
+			ll = logLengthNoCmp(x)
+		}
+	}
+	gl = ll
+}
+
+func BenchmarkReductions(b *testing.B) {
+	var ll int
+	for i := 0; i < b.N; i++ {
+		for _, x := range lengths {
+			ll = reductionLength(x)
+		}
+	}
+	gl = ll
 }

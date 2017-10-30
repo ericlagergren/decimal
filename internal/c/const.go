@@ -6,13 +6,14 @@ import (
 	"math/big"
 )
 
-const (
-	BadScale int32 = math.MaxInt32
-	Inflated int64 = math.MaxInt64
-)
+const Inflated int64 = math.MaxInt64
 
 var (
+	OneInt = big.NewInt(1)
+	TwoInt = big.NewInt(2)
 	TenInt = big.NewInt(10)
+
+	TenFloat = big.NewFloat(10)
 
 	MaxInt64 = big.NewInt(math.MaxInt64)
 	MinInt64 = big.NewInt(math.MinInt64)

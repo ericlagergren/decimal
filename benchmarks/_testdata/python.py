@@ -29,7 +29,7 @@ def pi_decimal(prec):
         s += t
     return s
 
-d = {
+funcs = {
     "native":  pi_native,
     "decimal": pi_decimal,
 }
@@ -38,11 +38,11 @@ for name in ["native", "decimal"]:
     print(name)
     sum = 0.0
     for prec in [9, 19, 38, 100]:
-        func = d[name]
+        func = funcs[name]
         start = time.time()
         for i in range(10000):
             x = func(prec)
-        x = time.time()-start
-        sum += x
-        print("%fs\n" % x)
+        d = time.time()-start
+        sum += d
+        print("%fs" % d)
     print("avg: %f\n" % (sum / 4.0))

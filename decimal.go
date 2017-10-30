@@ -107,6 +107,7 @@ const (
 
 // String is for internal use only.
 func (f form) String() string {
+	const debug = false
 	if !debug {
 		return strconv.Itoa(int(f))
 	}
@@ -173,7 +174,7 @@ func (z *Big) xflow(over, neg bool) *Big {
 		// NOTE(eric): in some situations, the decimal library tells us to set
 		// z to "the largest finite number that can be represented in the
 		// current precision..." This is unreasonable, since this is an
-		// _arbitrary_ precision library. Use signed Infinity instead.
+		// _arbitrary_ precision data type. Use signed Infinity instead.
 		//
 		// Because of the logic above, every rounding mode works out to the
 		// following.
@@ -297,7 +298,7 @@ func (z *Big) addCompact(x, y *Big) *Big {
 
 	// Power of 10 we need to multiply our lo value by in order
 	// to equalize the scales.
-	inc := hi.scale - lo.scale
+	inc := uint64(hi.scale - lo.scale)
 	z.scale = hi.scale
 
 	scaledLo, ok := checked.MulPow10(lo.compact, inc)
@@ -344,7 +345,7 @@ func (z *Big) addBig(x, y *Big) *Big {
 		his, los = los, his
 	}
 	// Inflate lo so we can add with matching scales.
-	lo = checked.MulBigPow10(new(big.Int).Set(lo), his-los)
+	lo = checked.MulBigPow10(new(big.Int).Set(lo), uint64(his-los))
 	if z.unscaled.Add(hi, lo).Sign() == 0 {
 		z.form = zero
 	}
@@ -352,89 +353,64 @@ func (z *Big) addBig(x, y *Big) *Big {
 	return z
 }
 
-// BitLen returns the absolute value of x in bits. The result is undefined if
-// x is an infinity or a NaN value.
-func (x *Big) BitLen() int {
-	if x.form != finite {
-		return 0
-	}
-
-	// If using an artificially inflated number determine the
-	// bitlen using the number of digits.
-	//
-	// http://www.exploringbinary.com/number-of-bits-in-a-decimal-integer/
-	if x.scale < 0 {
-		// log2(10)
-		const ln210 = 3.321928094887362347870319429489390175864831393024580612054
-
-		// Number of zeros in scale + digits in z.
-		d := -int(x.scale) + x.Precision()
-		return int(math.Ceil(float64(d-1) * ln210))
-	}
-	if x.isCompact() {
-		return arith.BitLen(x.compact)
-	}
-	return x.unscaled.BitLen()
-}
-
-// Cmp compares d and x and returns:
+// Cmp compares x and y and returns:
 //
-//   -1 if z <  x
-//    0 if z == x
-//   +1 if z >  x
+//   -1 if x <  y
+//    0 if x == y
+//   +1 if x >  y
 //
-// It does not modify z or x. The result is undefined if either z or x are not
+// It does not modify x or y. The result is undefined if either x or y are not
 // a number values.
-func (z *Big) Cmp(x *Big) int {
-	if z == x {
+func (x *Big) Cmp(y *Big) int {
+	if x == y {
 		return 0
 	}
 
 	// NaN cmp x
 	// z cmp NaN
 	// NaN cmp NaN
-	if c, err := z.checkNaNs(z, x, "comparison"); err != nil {
-		z.signal(c, err)
+	if c, err := x.checkNaNs(x, y, "comparison"); err != nil {
+		x.signal(c, err)
 		return 0
 	}
 
 	// Fast path: different signs. Catches non-finite forms like zero and ±Inf.
-	zs := z.Sign()
 	xs := x.Sign()
+	ys := y.Sign()
 	switch {
-	case zs > xs:
+	case xs > ys:
 		return +1
-	case zs < xs:
+	case xs < ys:
 		return -1
-	case zs == 0 && xs == 0:
+	case xs == 0 && ys == 0:
 		return 0
 	}
 
 	// zs == xs
 
 	// Same scales means we can compare straight across.
-	if z.scale == x.scale {
+	if x.scale == y.scale {
 		switch {
-		case z.isCompact() && x.isCompact():
-			if z.compact > x.compact {
+		case x.isCompact() && y.isCompact():
+			if x.compact > y.compact {
 				return +1
 			}
-			if z.compact < x.compact {
+			if x.compact < y.compact {
 				return -1
 			}
 			return 0
-		case z.isInflated() && x.isInflated():
-			return z.unscaled.Cmp(&x.unscaled)
+		case x.isInflated() && y.isInflated():
+			return x.unscaled.Cmp(&y.unscaled)
 		default:
 			// The inflated number is more than likely larger, but I'm not 100%
 			// certain that inflated > compact is an invariant.
-			zu, xu := &z.unscaled, &x.unscaled
-			if z.isCompact() {
-				zu = big.NewInt(z.compact)
-			} else {
+			xu, yu := &x.unscaled, &y.unscaled
+			if x.isCompact() {
 				xu = big.NewInt(x.compact)
+			} else {
+				yu = big.NewInt(y.compact)
 			}
-			return zu.Cmp(xu)
+			return xu.Cmp(yu)
 		}
 	}
 
@@ -442,78 +418,74 @@ func (z *Big) Cmp(x *Big) int {
 	// integral parts; if they differ in length one number is larger.
 	// E.g., 1234.01
 	//        123.011
-	zl := int64(z.Precision() - int(z.scale))
-	xl := int64(x.Precision() - int(x.scale))
+	xl := x.Precision() - int(x.scale)
+	yl := y.Precision() - int(y.scale)
 
-	if zl < xl {
-		return -zs
-	}
-	if zl > xl {
-		return zs
+	if xl != yl {
+		if xl < yl {
+			return -xs
+		}
+		return xs
 	}
 
 	// We have to inflate one of the numbers. Designate z as hi and x as lo.
 	var (
 		// hi
-		hi = z.scale
-		zm = &z.unscaled
-		zc = z.compact
-
-		// lo
-		lo = x.scale
+		hi = x.scale
 		xm = &x.unscaled
 		xc = x.compact
+
+		// lo
+		lo = y.scale
+		ym = &y.unscaled
+		yc = y.compact
 	)
 
 	swap := hi < lo
 	if swap {
 		// z is now lo
-		zc, xc = xc, zc
-		zm, xm = xm, zm
+		xc, yc = yc, xc
+		xm, ym = ym, xm
 		hi, lo = lo, hi
 	}
 
-	diff, ok := checked.Sub32(hi, lo)
-	if debug && !ok {
-		// TODO(eric): I'm like 99% positive this can't be reached.
-		panic("should not be reached")
-	}
+	diff := uint64(hi - lo)
 
 	// Inflate lo.
-	if xc != c.Inflated {
-		if nx, ok := checked.MulPow10(xc, diff); !ok {
+	if yc != c.Inflated {
+		if nx, ok := checked.MulPow10(yc, diff); !ok {
 			// Can't fit in an int64, use big.Int.
-			xm = checked.MulBigPow10(big.NewInt(xc), diff)
-			xc = c.Inflated
+			ym = checked.MulBigPow10(big.NewInt(yc), diff)
+			yc = c.Inflated
 		} else {
-			xc = nx
+			yc = nx
 		}
 	} else {
-		xm = checked.MulBigPow10(new(big.Int).Set(xm), diff)
+		ym = checked.MulBigPow10(new(big.Int).Set(ym), diff)
 	}
 
 	// Swap back to original.
 	if swap {
-		zc, xc = xc, zc
-		zm, xm = xm, zm
+		xc, yc = yc, xc
+		xm, ym = ym, xm
 	}
 
-	if zc != c.Inflated {
-		if xc != c.Inflated {
-			if zc > xc {
+	if xc != c.Inflated {
+		if yc != c.Inflated {
+			if xc > yc {
 				return +1
 			}
-			if zc < xc {
+			if xc < yc {
 				return -1
 			}
 			return 0
 		}
-		return big.NewInt(zc).Cmp(xm)
+		return big.NewInt(xc).Cmp(ym)
 	}
-	if xc != c.Inflated {
-		return zm.Cmp(big.NewInt(xc))
+	if yc != c.Inflated {
+		return xm.Cmp(big.NewInt(yc))
 	}
-	return zm.Cmp(xm)
+	return xm.Cmp(ym)
 }
 
 // Copy sets z to a copy of x and returns z.
@@ -671,13 +643,12 @@ func (x *Big) Format(s fmt.State, c rune) {
 		}
 		// %f's precision means "number of digits after the radix"
 		if x.scale > 0 {
-			if trail := x.Precision() - int(x.scale); trail < f.prec {
-				f.prec += int(x.scale)
-			} else {
-				f.prec = int(x.scale) + trail
+			f.prec += int(x.scale)
+			if trail := int(x.Precision()) - int(x.scale); trail >= f.prec {
+				f.prec += trail
 			}
 		} else {
-			f.prec += x.Precision()
+			f.prec += int(x.Precision())
 		}
 		f.format(x, plain, noE)
 	case 'g':
@@ -796,9 +767,9 @@ func (x *Big) Int(z *big.Int) *big.Int {
 		return z
 	}
 	if x.scale < 0 {
-		return checked.MulBigPow10(z, -x.scale)
+		return checked.MulBigPow10(z, uint64(-x.scale))
 	}
-	return z.Quo(z, pow.BigTen(int64(x.scale)))
+	return z.Quo(z, pow.BigTen(uint64(x.scale)))
 }
 
 // Int64 returns x as an int64, truncating the fractional portion, if any. The
@@ -875,8 +846,8 @@ func (x *Big) IsInt() bool {
 		v := new(big.Int).Set(&x.unscaled)
 		r := new(big.Int)
 		for {
-			v.QuoRem(v, tenInt, r)
-			if r.Cmp(zeroInt) != 0 {
+			v.QuoRem(v, c.TenInt, r)
+			if r.Sign() != 0 {
 				break
 			}
 			xp--
@@ -1031,12 +1002,6 @@ func (x *Big) Precision() int {
 		}
 		return 0
 	}
-	// Implementation detail: the max value we can calculate is 4294967295,
-	// which corresponds to a big bit-length of 14267572532. Given
-	// 429496725 > MaxScale, int(int32(x.Precision())) == x.Precision() for all
-	// possible decimals.
-	//
-	// TODO(eric): should the above be a well-defined part of the API?
 	if x.isCompact() {
 		return arith.Length(x.compact)
 	}
@@ -1045,14 +1010,13 @@ func (x *Big) Precision() int {
 
 // Quo sets z to x / y and returns z.
 func (z *Big) Quo(x, y *Big) *Big {
-	// TODO(eric): rewrite Quo since it's... slow.
 	if x.form == finite && y.form == finite {
 		// set z.form == finite inside the quo* methods.
 		// x / y (common case)
 		if x.isCompact() && y.isCompact() {
 			return z.quoCompact(x, y)
 		}
-		return z.quoBig(x, y)
+		return z.quo(x, y)
 	}
 
 	// NaN / NaN
@@ -1098,14 +1062,17 @@ func (z *Big) Quo(x, y *Big) *Big {
 }
 
 func (z *Big) quoCompact(x, y *Big) *Big {
-	return z.quoCompactCore(
-		x.compact, x.scale, int32(x.Precision()),
-		y.compact, y.scale, int32(y.Precision()),
+	return z.quoCoreCompact(
+		x.compact, x.scale, x.Precision(),
+		y.compact, y.scale, y.Precision(),
 	)
 }
 
-// quoCompactCore implements division of two compact decimals.
-func (z *Big) quoCompactCore(x int64, xs, xp int32, y int64, ys, yp int32) *Big {
+// quoCoreCompact implements division of two compact decimals.
+func (z *Big) quoCoreCompact(
+	x int64, xs int32, xp int,
+	y int64, ys int32, yp int,
+) *Big {
 	sdiff, ok := checked.Sub32(xs, ys)
 	if !ok {
 		// -x - y ∈ [-1<<31, 1<<31-1]
@@ -1120,51 +1087,34 @@ func (z *Big) quoCompactCore(x int64, xs, xp int32, y int64, ys, yp int32) *Big 
 	zp := z.Context.Precision()
 	scale, ok := checked.Int32(int64(sdiff) + int64(yp) - int64(xp) + int64(zp))
 	if !ok {
-		// The wraparound from int32(int64(x)) where x ∉ [-1<<31, 1<<31-1]
-		// will swap its sign.
+		// The wraparound from int32(int64(x)) where x ∉ [-1<<31, 1<<31-1] will
+		// swap its sign.
 		return z.xflow(scale < 0, false)
 	}
 	z.scale = scale
 
-	shift, ok := checked.SumSub(zp, yp, xp)
-	if !ok {
-		return z.xflow(scale < 0, false)
-	}
-
-	if shift > 0 {
-		if sx, ok := checked.MulPow10(x, shift); ok {
-			return z.quoAndRound(sx, y)
+	shift := zp + yp - xp
+	if shift > 0 { // shift > 0
+		if sx, ok := checked.MulPow10(x, uint64(shift)); ok {
+			return z.quoAndRoundCompact(sx, y)
 		}
-		xb := checked.MulBigPow10(big.NewInt(x), shift)
-		return z.quoBigAndRound(xb, big.NewInt(y))
+		xb := checked.MulBigPow10(big.NewInt(x), uint64(shift))
+		return z.quoAndRoundBig(xb, big.NewInt(y))
 	}
-
-	// shift < 0
-	ns, ok := checked.Sub32(xp, zp)
-	if !ok {
-		// -x - y ∈ [-1<<31, 1<<31-1]
-		return z.xflow(zp > 0, true)
-	}
-
-	// No inflation needed.
+	ns := xp - zp
 	if ns == yp {
-		return z.quoAndRound(x, y)
+		return z.quoAndRoundCompact(x, y)
 	}
-
-	shift, ok = checked.Sub32(ns, yp)
-	if !ok {
-		// -x - y ∈ [-1<<31, 1<<31-1]
-		return z.xflow(yp > 0, true)
+	// shift < 0
+	shift = ns - yp
+	if sy, ok := checked.MulPow10(y, uint64(shift)); ok {
+		return z.quoAndRoundCompact(x, sy)
 	}
-
-	if sy, ok := checked.MulPow10(y, shift); ok {
-		return z.quoAndRound(x, sy)
-	}
-	yb := checked.MulBigPow10(big.NewInt(y), shift)
-	return z.quoBigAndRound(big.NewInt(x), yb)
+	yb := checked.MulBigPow10(big.NewInt(y), uint64(shift))
+	return z.quoAndRoundBig(big.NewInt(x), yb)
 }
 
-func (z *Big) quoAndRound(x, y int64) *Big {
+func (z *Big) quoAndRoundCompact(x, y int64) *Big {
 	z.form = finite
 
 	// Quotient
@@ -1172,6 +1122,7 @@ func (z *Big) quoAndRound(x, y int64) *Big {
 
 	// ToZero means we can ignore remainder.
 	if z.Context.RoundingMode == ToZero {
+		z.Context.Conditions |= Rounded | Inexact
 		return z
 	}
 
@@ -1180,8 +1131,16 @@ func (z *Big) quoAndRound(x, y int64) *Big {
 	if r == 0 {
 		return z.simplify()
 	}
-	if z.needsInc(y, r, sign > 0, z.compact&1 != 0) {
-		if (x < 0) == (y < 0) {
+
+	rc := 1
+	if r2, ok := checked.Mul(r, 2); ok {
+		rc = arith.AbsCmp(r2, y)
+	}
+
+	pos := (x < 0) == (y < 0)
+	if z.needsInc(rc, pos) {
+		z.Context.Conditions |= Rounded | Inexact
+		if pos {
 			z.compact++
 		} else {
 			z.compact--
@@ -1191,12 +1150,12 @@ func (z *Big) quoAndRound(x, y int64) *Big {
 }
 
 func (z *Big) simplify() *Big {
-	if z.scale == z.Context.Precision() {
+	if int(z.scale) == z.Context.Precision() {
 		return z
 	}
 	ok := false
 	prec := z.Context.Precision()
-	for arith.Abs(z.compact) >= 10 && z.scale > prec {
+	for arith.Abs(z.compact) >= 10 && int(z.scale) > prec {
 		if z.compact&1 != 0 || z.compact%10 != 0 {
 			break
 		}
@@ -1209,23 +1168,36 @@ func (z *Big) simplify() *Big {
 	return z
 }
 
-func (z *Big) quoBig(x, y *Big) *Big {
-	return z.quoBigCore(
-		&x.unscaled, x.compact, x.scale, int32(x.Precision()),
-		&y.unscaled, y.compact, y.scale, int32(y.Precision()),
+func (z *Big) quo(x, y *Big) *Big {
+	return z.quoCore(
+		&x.unscaled, x.compact, x.scale, x.Precision(),
+		&y.unscaled, y.compact, y.scale, y.Precision(),
 	)
 }
 
 // see quoCompactCore. xc and yc override xb and yb, respectively, if they !=
-// c.Inflated.
-func (z *Big) quoBigCore(
-	xb *big.Int, xc int64, xs, xp int32,
-	yb *big.Int, yc int64, ys, yp int32,
+// c.Inflated. If both xc and yc != c.Inflated quoCompactCore will be called.
+// This method should be used sparingly.
+func (z *Big) quoCore(
+	xb *big.Int, xc int64, xs int32, xp int,
+	yb *big.Int, yc int64, ys int32, yp int,
 ) *Big {
 	sdiff, ok := checked.Sub32(xs, ys)
 	if !ok {
 		// -x - y ∈ [-1<<31, 1<<31-1]
 		return z.xflow(ys > 0, true)
+	}
+
+	// TODO(eric): re-work this quo* methods. I don't like how they're laid out.
+
+	if xc != c.Inflated {
+		if yc != c.Inflated {
+			return z.quoCoreCompact(xc, xs, xp, yc, ys, yp)
+		}
+		xb = big.NewInt(xc)
+	}
+	if yc != c.Inflated {
+		yb = big.NewInt(yc)
 	}
 
 	// Multiply y by 10 if x' > y'
@@ -1242,83 +1214,61 @@ func (z *Big) quoBigCore(
 	}
 	z.scale = scale
 
-	shift, ok := checked.SumSub(zp, yp, xp)
-	if !ok {
-		return z.xflow(shift < 0, true)
-	}
-
-	// Inflate x.
+	shift := zp + yp - xp
 	if shift > 0 {
-		if yc != c.Inflated {
-			yb = big.NewInt(yc)
-		}
-		if xc == c.Inflated {
-			xb = checked.MulBigPow10(new(big.Int).Set(xb), shift)
-		} else {
-			if xcs, ok := checked.MulPow10(xc, shift); ok {
-				xb = big.NewInt(xcs)
-			} else {
-				xb = checked.MulBigPow10(big.NewInt(xc), shift)
-			}
-		}
-		return z.quoBigAndRound(xb, yb)
+		xb = checked.MulBigPow10(new(big.Int).Set(xb), uint64(shift))
+		return z.quoAndRoundBig(xb, yb)
 	}
 
-	// shift < 0
-	ns, ok := checked.Sub32(xp, zp)
-	if !ok {
-		// -x - y ∈ [-1<<31, ..., 1<<31-1]
-		return z.xflow(zp > 0, true)
+	ns := xp - zp
+	if ns == yp {
+		return z.quoAndRoundBig(xb, yb)
 	}
-	shift, ok = checked.Sub32(ns, yp)
-	if !ok {
-		// -x - y ∈ [-1<<31, ..., 1<<31-1]
-		return z.xflow(yp > 0, true)
-	}
-	if xc != c.Inflated {
-		xb = big.NewInt(xc)
-	}
-	// Inflate y.
-	if yc == c.Inflated {
-		yb = checked.MulBigPow10(new(big.Int).Set(yb), shift)
-	} else {
-		if ycs, ok := checked.MulPow10(yc, shift); ok {
-			yb = big.NewInt(ycs)
-		} else {
-			yb = checked.MulBigPow10(big.NewInt(yc), shift)
-		}
-	}
-	return z.quoBigAndRound(xb, yb)
+
+	shift = ns - yp
+	yb = checked.MulBigPow10(new(big.Int).Set(yb), uint64(shift))
+	return z.quoAndRoundBig(xb, yb)
 }
 
-func (z *Big) quoBigAndRound(x, y *big.Int) *Big {
+func (z *Big) quoAndRoundBig(x, y *big.Int) *Big {
 	z.form = finite
 	z.compact = c.Inflated
 
-	r := new(big.Int)
-	q, r := z.unscaled.QuoRem(x, y, r)
-
-	if z.Context.RoundingMode == ToZero && z.scale == z.Context.Precision() {
+	if z.Context.RoundingMode == ToZero {
+		z.Context.Conditions |= Rounded | Inexact
+		z.unscaled.Quo(x, y)
 		return z
 	}
 
+	// Can't use z.unscaled.Sign because it z might == 0
+	pos := x.Sign() == y.Sign()
+	_, r := z.unscaled.QuoRem(x, y, new(big.Int))
 	if r.Sign() == 0 {
 		return z.simplifyBig()
 	}
-	tmp := new(big.Int).And(q, oneInt)
-	odd := tmp.Sign() != 0
-	if z.needsIncBig(y, r, sign > 0, odd) {
-		if (x.Sign() < 0) == (y.Sign() < 0) {
-			z.unscaled.Add(&z.unscaled, tmp.SetInt64(+1))
+
+	var rc int
+	rv := r.Int64()
+	// Drop into integers if we can.
+	if r.IsInt64() && y.IsInt64() && (rv <= math.MaxInt64/2 && rv > -math.MaxInt64/2) {
+		rc = arith.AbsCmp(rv*2, y.Int64())
+	} else {
+		rc = arith.BigAbsCmp(r.Mul(r, c.TwoInt), y)
+	}
+
+	if z.needsInc(rc, pos) {
+		z.Context.Conditions |= Rounded | Inexact
+		if pos {
+			z.unscaled.Add(&z.unscaled, c.OneInt)
 		} else {
-			z.unscaled.Add(&z.unscaled, tmp.SetInt64(-1))
+			z.unscaled.Sub(&z.unscaled, c.OneInt)
 		}
 	}
 	return z
 }
 
 func (z *Big) simplifyBig() *Big {
-	if z.scale == z.Context.Precision() {
+	if int(z.scale) == z.Context.Precision() {
 		return z
 	}
 	if z.unscaled.IsInt64() {
@@ -1330,12 +1280,12 @@ func (z *Big) simplifyBig() *Big {
 		prec = z.Context.Precision()
 		tmp  = new(big.Int)
 	)
-	for arith.BigAbs(&z.unscaled).Cmp(tenInt) >= 0 && z.scale > prec {
-		if tmp.And(&z.unscaled, oneInt).Cmp(oneInt) != 0 ||
-			tmp.Mod(&z.unscaled, tenInt).Sign() != 0 {
+	// arith.BigAbsAlias won't work here.
+	for tmp.SetBits(z.unscaled.Bits()).Cmp(c.TenInt) >= 0 && int(z.scale) > prec {
+		if z.unscaled.Bit(0) != 0 || tmp.Mod(&z.unscaled, c.TenInt).Sign() != 0 {
 			break
 		}
-		z.unscaled.Div(&z.unscaled, tenInt)
+		z.unscaled.Div(&z.unscaled, c.TenInt)
 		z.Context.Conditions |= Rounded
 		if z.scale, ok = checked.Sub32(z.scale, 1); !ok {
 			return z.xflow(false, z.Sign() < 0)
@@ -1363,11 +1313,11 @@ func (x *Big) Rat(z *big.Rat) *big.Rat {
 
 	var denom *big.Int
 	if x.scale > 0 {
-		if shift, ok := pow.Ten64(int64(x.scale)); ok {
-			denom = big.NewInt(shift)
+		if shift, ok := pow.Ten(uint64(x.scale)); ok {
+			denom = new(big.Int).SetUint64(shift)
 		} else {
-			tmp := big.NewInt(int64(x.scale))
-			denom = new(big.Int).Exp(tenInt, tmp, nil)
+			tmp := new(big.Int).SetUint64(uint64(x.scale))
+			denom = tmp.Exp(c.TenInt, tmp, nil)
 		}
 	} else {
 		denom = big.NewInt(1)
@@ -1394,37 +1344,80 @@ func (z *Big) round() *Big {
 }
 
 // Round rounds z down to n digits of precision and returns z. The result is
-// undefined if n < 0 or z is not finite. No rounding will occur if n == 0. The
-// result of Round will always be within the interval [⌊z⌋, z].
-func (z *Big) Round(n int32) *Big {
+// undefined if z is not finite. No rounding will occur if n == 0. The result of
+// Round will always be within the interval [⌊z⌋, z].
+func (z *Big) Round(n int) *Big {
 	if n <= 0 || z.form != finite {
 		return z
 	}
 
 	zp := z.Precision()
-	if int(n) >= zp {
+	if n >= zp {
 		return z
 	}
 
-	shift, ok := checked.Sub(int64(zp), int64(n))
+	shift := zp - n
+	if shift > MaxScale {
+		return z.xflow(false, true)
+	}
+
+	scale, ok := checked.Sub32(z.scale, int32(shift))
 	if !ok {
-		return z.xflow(zp < 0, z.Signbit())
+		return z.xflow(false, true)
 	}
-	if shift <= 0 {
-		return z
-	}
+	z.scale = scale
 
-	z.Context.SetPrecision(n)
 	z.Context.Conditions |= Rounded
-	z.scale -= int32(shift)
 
 	if z.isCompact() {
-		if val, ok := pow.Ten64(shift); ok {
-			return z.quoAndRound(z.compact, val)
+		if val, ok := pow.TenInt(uint64(shift)); ok {
+			return z.quoAndRoundCompact(z.compact, val)
 		}
 		z.unscaled.SetInt64(z.compact)
 	}
-	return z.quoBigAndRound(&z.unscaled, pow.BigTen(shift))
+	return z.quoAndRoundBig(&z.unscaled, pow.BigTen(uint64(shift)))
+}
+
+// Quantize sets z to the number equal in value and sign to z with the scale, n.
+func (z *Big) Quantize(n int32) *Big {
+	if z.form != finite {
+		if z.form <= nzero {
+			z.scale = n
+		} else {
+			z.form = qnan
+		}
+		return z
+	}
+
+	n = -n
+	if z.scale == n {
+		return z
+	}
+
+	shift := n - z.scale
+	if shift == 0 {
+		return z
+	}
+	z.scale = n
+
+	if z.isCompact() {
+		if shift > 0 {
+			if zc, ok := checked.MulPow10(z.compact, uint64(shift)); ok {
+				z.compact = zc
+				return z
+			}
+			// shift < 0
+		} else if yc, ok := pow.TenInt(uint64(-shift)); ok {
+			return z.quoAndRoundCompact(z.compact, yc)
+		}
+		z.unscaled.SetInt64(z.compact)
+	}
+	if shift > 0 {
+		checked.MulBigPow10(&z.unscaled, uint64(shift))
+		z.compact = c.Inflated
+		return z
+	}
+	return z.quoAndRoundBig(&z.unscaled, pow.BigTen(uint64(-shift)))
 }
 
 // Scale returns x's scale.
@@ -1457,8 +1450,6 @@ func (z *Big) Set(x *Big) *Big {
 		if x.isInflated() {
 			z.unscaled.Set(&x.unscaled)
 		}
-
-		// TODO(eric): should we round even if z == x?
 		z.Round(z.Context.Precision())
 	}
 	return z
@@ -1502,7 +1493,7 @@ func (z *Big) SetFloat(x *big.Float) *Big {
 	if !x.IsInt() {
 		x0 = new(big.Float).Copy(x)
 		for !x0.IsInt() {
-			x0.Mul(x0, tenFloat)
+			x0.Mul(x0, c.TenFloat)
 			z.scale++
 		}
 	}
@@ -1616,9 +1607,9 @@ func (z *Big) SetRat(x *big.Rat) *Big {
 
 	z.form = finite
 	if xc == c.Inflated || yc == c.Inflated {
-		return z.quoBigCore(xb, xc, 0, int32(xp), yb, yc, 0, int32(yp))
+		return z.quoCore(xb, xc, 0, xp, yb, yc, 0, yp)
 	}
-	return z.quoCompactCore(xc, 0, int32(xp), yc, 0, int32(yp))
+	return z.quoCoreCompact(xc, 0, xp, yc, 0, yp)
 }
 
 // SetScale sets z's scale to scale and returns z.
@@ -1851,7 +1842,6 @@ func (x *Big) Signbit() bool {
 //  "-Inf"  if x.IsInf(-1)
 //
 func (x *Big) String() string {
-	// TODO(eric): use a pool?
 	var (
 		b bytes.Buffer
 		f = formatter{w: &b, prec: noPrec, width: noWidth}
@@ -1912,26 +1902,26 @@ func (z *Big) subCompact(x, y *Big) *Big {
 	xc, yc := x.compact, y.compact
 	ok := false
 	switch {
-	case x.scale == y.scale:
-		z.scale = x.scale
 	case x.scale < y.scale:
-		if xc, ok = checked.MulPow10(xc, y.scale-x.scale); !ok {
+		if xc, ok = checked.MulPow10(xc, uint64(y.scale-x.scale)); !ok {
 			return z.subBig(x, y)
 		}
 		z.scale = y.scale
 	case x.scale > y.scale:
-		if yc, ok = checked.MulPow10(yc, x.scale-y.scale); !ok {
+		if yc, ok = checked.MulPow10(yc, uint64(x.scale-y.scale)); !ok {
 			return z.subBig(x, y)
 		}
 		z.scale = x.scale
+	default: // x.scale == y.scale
+		z.scale = x.scale
 	}
-	if z.compact, ok = checked.Sub(xc, yc); ok {
-		if z.compact == 0 {
-			z.form = zero
-		}
-		return z
+	if z.compact, ok = checked.Sub(xc, yc); !ok {
+		return z.subBig(x, y)
 	}
-	return z.subBig(x, y)
+	if z.compact == 0 {
+		z.form = zero
+	}
+	return z
 }
 
 func (z *Big) subBig(x, y *Big) *Big {
@@ -1946,10 +1936,10 @@ func (z *Big) subBig(x, y *Big) *Big {
 	case x.scale == y.scale:
 		z.scale = x.scale
 	case x.scale < y.scale:
-		xb = checked.MulBigPow10(xb, y.scale-x.scale)
+		xb = checked.MulBigPow10(xb, uint64(y.scale-x.scale))
 		z.scale = y.scale
 	case x.scale > y.scale:
-		yb = checked.MulBigPow10(yb, x.scale-y.scale)
+		yb = checked.MulBigPow10(yb, uint64(x.scale-y.scale))
 		z.scale = x.scale
 	}
 	if z.unscaled.Sub(xb, yb).Sign() == 0 {

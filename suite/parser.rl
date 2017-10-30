@@ -100,6 +100,7 @@ func ParseCase(data []byte) (c Case, err error) {
             | '0'  # ToZero
             | '=0' # ToNearestEven
             | '=^' # ToNearestAway
+			| '^'  # AwayFromZero
         ) >mark %set_mode;
         exception = (
               'x'  # Inexact
