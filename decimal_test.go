@@ -336,7 +336,6 @@ func TestBig_Quantize(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		//x0, _ := new(Big).SetString(string(c.Inputs[0]))
 		x, _ := new(Big).SetString(string(c.Inputs[0]))
 		x.Context.SetPrecision(c.Prec)
 		x.Context.OperatingMode = GDA

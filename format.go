@@ -161,32 +161,39 @@ func (f *formatter) format(x *Big, format, e byte) {
 	}
 
 	if m := x.form; m != finite {
-		switch o := x.Context.OperatingMode; o {
-		case Go, GDA:
-			switch m {
-			case nzero:
+		o := x.Context.OperatingMode
+		// Go mode prints zeros different than GDA.
+		if m <= nzero && o == Go {
+			if m == nzero {
 				f.WriteByte('-')
-				fallthrough
-			case zero:
-				if f.width == noWidth {
-					f.WriteByte('0')
-				} else {
-					f.WriteString("0.")
-					io.CopyN(f, zeroReader{}, int64(f.width))
-				}
-			case snan:
-				f.WriteString(stringForms[o].snan)
-			case qnan:
-				f.WriteString(stringForms[o].qnan)
-			case pinf:
-				f.WriteString(stringForms[o].pinf)
-			case ninf:
-				f.WriteString(stringForms[o].ninf)
 			}
-		default:
-			x.signal(0, nil) // signal checks for InvalidContext
+			if f.width == noWidth {
+				f.WriteByte('0')
+			} else {
+				f.WriteString("0.")
+				io.CopyN(f, zeroReader{}, int64(f.width))
+			}
+			// All non-zero forms.
+		} else if m > nzero {
+			switch o {
+			case Go, GDA:
+				switch m {
+				case snan:
+					f.WriteString(stringForms[o].snan)
+				case qnan:
+					f.WriteString(stringForms[o].qnan)
+				case pinf:
+					f.WriteString(stringForms[o].pinf)
+				case ninf:
+					f.WriteString(stringForms[o].ninf)
+				}
+				return
+			default: // unknown OperatingMode
+				// TODO(eric): I don't like this
+				x.signal(0, nil) // signal checks for InvalidContext
+				return
+			}
 		}
-		return
 	}
 
 	neg := x.Signbit()
@@ -203,33 +210,33 @@ func (f *formatter) format(x *Big, format, e byte) {
 		b = formatCompact(x.compact)
 	}
 
-	scale := int(x.scale)
+	exp := -int(x.scale)
 	if f.prec > 0 {
 		orig := len(b)
 		b = roundString(b, x.Context.RoundingMode, !neg, f.prec)
-		scale -= orig - len(b)
+		exp += orig - len(b)
 	}
 
 	// "Next, the adjusted exponent is calculated; this is the exponent, plus
 	// the number of characters in the converted coefficient, less one. That
 	// is, exponent+(clength-1), where clength is the length of the coefficient
 	// in decimal digits.
-	adj := -scale + (len(b) - 1)
+	adj := exp + (len(b) - 1)
 	if format != sci {
-		if scale >= 0 && (format == plain || adj >= -6) {
+		if exp <= 0 && (format == plain || adj >= -6) {
 			// "If the exponent is less than or equal to zero and the adjusted
 			// exponent is greater than or equal to -6 the number will be
 			// converted to a character form without using exponential notation."
 			//
 			// - http://speleotrove.com/decimal/daconvs.html#reftostr
-			f.formatPlain(b, scale)
+			f.formatPlain(b, exp)
 			return
 		}
 
 		// No decimal places, write b and fill with zeros.
-		if format == plain && scale < 0 {
+		if format == plain && exp > 0 {
 			f.Write(b)
-			io.CopyN(f, zeroReader{}, -int64(scale))
+			io.CopyN(f, zeroReader{}, int64(exp))
 			return
 		}
 	}
@@ -242,48 +249,33 @@ func (f *formatter) formatSci(b []byte, adj int, e byte) {
 
 	if len(b) > 1 {
 		f.WriteByte('.')
-
-		b = b[1:]
-		if f.prec > len(b) {
-			f.prec = len(b)
-		}
-		i := trimIndex(b)
-		if i >= 0 && i < len(b) {
-			b = b[:i]
-		}
-		f.Write(b)
+		f.Write(b[1:])
 	}
-	if adj != 0 {
-		f.WriteByte(e)
 
-		// If negative, the following call to strconv.Append will add the minus
-		// sign for us.
-		if adj > 0 {
-			f.WriteByte('+')
-		}
-		f.WriteString(strconv.Itoa(adj))
+	// If negative, the call to strconv.Itoa will add the minus sign for us.
+	f.WriteByte(e)
+	if adj > 0 {
+		f.WriteByte('+')
 	}
+	f.WriteString(strconv.Itoa(adj))
 }
 
 // formatPlain returns the plain string version of b.
-func (f *formatter) formatPlain(b []byte, scale int) {
+func (f *formatter) formatPlain(b []byte, exp int) {
 	const zeroRadix = "0."
 
-	switch radix := len(b) - scale; {
+	switch radix := len(b) + exp; {
 	// log10(b) == scale, so immediately before b.
 	case radix == 0:
 		f.WriteString(zeroRadix)
-		if i := trimIndex(b); i > 0 {
-			b = b[:i]
-		}
 		f.Write(b)
 
 	// log10(b) > scale, so somewhere inside b.
 	case radix > 0:
 		f.Write(b[:radix])
-		if i := trimIndex(b[radix:]); i > 0 {
+		if radix < len(b) {
 			f.WriteByte('.')
-			f.Write(b[radix : radix+i])
+			f.Write(b[radix:])
 		}
 
 	// log10(b) < scale, so before p "0s" and before b.
