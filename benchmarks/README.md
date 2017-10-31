@@ -1,8 +1,21 @@
 ## Benchmarks for various decimal programs.
 
+## General notes
+
 - Times are measured in seconds, unless otherwise noted
 - Measured on a MacBook Pro, 2.9 GHz Intel Core i5, 8 GB 2133 MHz LPDDR3
 - Some benchmarks are adapted from www.bytereef.org/mpdecimal/benchmarks.html
+
+The benchmarks aim to be as fair as possible, but ultimately they do compare
+different libraries with different feature sets. For example, [go-inf/inf][8]
+boasts the fastest overall runtime of any library, but it also doesn't implement
+the GDA spec: it lacks contexts, non-finite NaN/Inf/±zero values, conditions,
+etc. Further, programs like [cocroachdb/apd][2] sacrifice speed to ensure strict
+compatibility with the GDA spec.
+
+In general, libraries that cannot fully complete a challenge will be unranked.
+For example, Go's `float64` type cannot provide 19 or more digits of precision,
+so it's unranked in the Pi test. Similarly so with [apmckinlay/dnum][3].
 
 ## Pi
 
@@ -10,9 +23,9 @@
 |-------------------------------------------|----------|-------------|-----------|------------|---------|
 | [go-inf/inf][8] (Go 1.9)                       | 0.10     | 0.23        | 0.53      | 1.43       | 0.572   |
 | [JDK BigDecimal][4] (Java 1.8, warm)           | 0.049    | 0.19        | 0.6       | 3.29       | 1.05    |
-| [ericlagergren/decimal][1] (Go 1.9, mode Go)   | 0.034    | 0.40        | 1.00      | 3.57       | 1.25    |
+| [ericlagergren/decimal][1] (Go 1.9, mode Go)   | 0.038    | 0.31        | 0.83      | 3.23       | 1.10    |
+| [ericlagergren/decimal][1] (Go 1.9, mode GDA)  | 0.045    | 0.38        | 1.01      | 3.97       | 1.35    |
 | [Python decimal][5] (Python 3.6.2)             | 0.27     | 0.58        | 1.32      | 4.52       | 1.67    |
-| [ericlagergren/decimal][1] (Go 1.9, mode GDA)  | 0.048    | 0.55        | 1.46      | 4.91       | 1.74    |
 | [JDK BigDecimal][4] (Java 1.8)                 | 0.29     | 0.96        | 1.79      | 3.99       | 1.76    |
 | [shopspring/decimal][7] decimal (Go 1.9)       | 0.38     | 0.94        | 1.95      | 5.26       | 2.13    |
 | [cockroachdb/apd][2] (Go 1.9)                  | 0.52     | 2.14        | 9.01      | 71.62      | 20.81   |

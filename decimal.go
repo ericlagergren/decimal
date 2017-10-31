@@ -272,57 +272,44 @@ func (z *Big) Add(x, y *Big) *Big {
 
 // addCompact sets z to x + y and returns z.
 func (z *Big) addCompact(x, y *Big) *Big {
-	// Fast path: if the scales are the same we can simply add without adjusting
-	// either number.
-	if x.scale == y.scale {
+	if debug {
+		if x.compact == 0 || y.compact == 0 {
+			panic("addCompact: operand == 0")
+		}
+	}
+
+	xc, yc := x.compact, y.compact
+	ok := false
+	switch {
+	case x.scale == y.scale:
 		z.scale = x.scale
-		if sum, ok := checked.Add(x.compact, y.compact); ok {
-			if sum == 0 {
-				z.form = zero
-			}
-			z.compact = sum
-		} else {
-			xt := big.NewInt(x.compact)
-			yt := big.NewInt(y.compact)
-			if z.unscaled.Add(xt, yt).Sign() == 0 {
-				z.form = zero
-			}
-			z.compact = c.Inflated
+	case x.scale < y.scale:
+		if xc, ok = checked.MulPow10(xc, uint64(y.scale-x.scale)); !ok {
+			return z.addBig(x, y)
+		}
+		z.scale = y.scale
+	case x.scale > y.scale:
+		if yc, ok = checked.MulPow10(yc, uint64(x.scale-y.scale)); !ok {
+			return z.addBig(x, y)
+		}
+		z.scale = x.scale
+	}
+	if z.compact, ok = checked.Add(xc, yc); ok {
+		if z.compact == 0 {
+			z.form = zero
 		}
 		return z
 	}
-
-	// Guess the scales. We need to inflate lo.
-	hi, lo := x, y
-	if hi.scale < lo.scale {
-		hi, lo = lo, hi
-	}
-
-	// Power of 10 we need to multiply our lo value by in order
-	// to equalize the scales.
-	inc := uint64(hi.scale - lo.scale)
-	z.scale = hi.scale
-
-	scaledLo, ok := checked.MulPow10(lo.compact, inc)
-	if ok {
-		if sum, ok := checked.Add(hi.compact, scaledLo); ok {
-			z.compact = sum
-			return z
-		}
-	}
-
-	scaled := checked.MulBigPow10(big.NewInt(lo.compact), inc)
-
-	unscaled := big.NewInt(hi.compact)
-	if z.unscaled.Add(scaled, unscaled).Sign() == 0 {
+	if arith.Add128(&z.unscaled, xc, yc).Sign() == 0 {
 		z.form = zero
 	}
-
 	z.compact = c.Inflated
 	return z
 }
 
 func (z *Big) addBig(x, y *Big) *Big {
+	// TODO(eric): if debug { }
+
 	xb, yb := &x.unscaled, &y.unscaled
 	if x.isCompact() {
 		xb = big.NewInt(x.compact)
@@ -331,27 +318,20 @@ func (z *Big) addBig(x, y *Big) *Big {
 		yb = big.NewInt(y.compact)
 	}
 
-	z.compact = c.Inflated
-	if x.scale == y.scale {
+	switch {
+	case x.scale == y.scale:
 		z.scale = x.scale
-		if z.unscaled.Add(xb, yb).Sign() == 0 {
-			z.form = zero
-		}
-		return z
+	case x.scale < y.scale:
+		xb = checked.MulBigPow10(xb, uint64(y.scale-x.scale))
+		z.scale = y.scale
+	case x.scale > y.scale:
+		yb = checked.MulBigPow10(yb, uint64(x.scale-y.scale))
+		z.scale = x.scale
 	}
-
-	his, los := x.scale, y.scale
-	hi, lo := xb, yb
-	if his < los {
-		hi, lo = lo, hi
-		his, los = los, his
-	}
-	// Inflate lo so we can add with matching scales.
-	lo = checked.MulBigPow10(new(big.Int).Set(lo), uint64(his-los))
-	if z.unscaled.Add(hi, lo).Sign() == 0 {
+	if z.unscaled.Add(xb, yb).Sign() == 0 {
 		z.form = zero
 	}
-	z.scale = his
+	z.compact = c.Inflated
 	return z
 }
 
@@ -916,6 +896,12 @@ func (z *Big) Mul(x, y *Big) *Big {
 }
 
 func (z *Big) mulCompact(x, y *Big) *Big {
+	if debug {
+		if x.compact == 0 || y.compact == 0 {
+			panic("mulCompact: zero operand")
+		}
+	}
+
 	scale, ok := checked.Add32(x.scale, y.scale)
 	if !ok {
 		// x + -y ∈ [-1<<31, 1<<31-1]
@@ -927,25 +913,29 @@ func (z *Big) mulCompact(x, y *Big) *Big {
 	if ok {
 		z.compact = prod
 	} else {
-		xt := big.NewInt(x.compact)
-		yt := big.NewInt(y.compact)
-		z.unscaled.Mul(xt, yt)
+		arith.Mul128(&z.unscaled, x.compact, y.compact)
 		z.compact = c.Inflated
 	}
 	z.form = finite
 	return z
 }
 
+// mulBig sets z to x * y. Both x or y or both should be inflated.
 func (z *Big) mulBig(x, y *Big) *Big {
-	xb, yb := &x.unscaled, &y.unscaled
-	if x.isCompact() {
-		xb = big.NewInt(x.compact)
-	}
-	if y.isCompact() {
-		yb = big.NewInt(y.compact)
+	if debug {
+		if x.isCompact() && y.isCompact() {
+			panic("mulBig: both are compact")
+		}
 	}
 
-	z.unscaled.Mul(xb, yb)
+	if x.isCompact() {
+		arith.MulInt64(&z.unscaled, &y.unscaled, x.compact)
+	} else if y.isCompact() {
+		arith.MulInt64(&z.unscaled, &x.unscaled, y.compact)
+	} else {
+		z.unscaled.Mul(&x.unscaled, &y.unscaled)
+	}
+
 	z.compact = c.Inflated
 	scale, ok := checked.Add32(x.scale, y.scale)
 	if !ok {
@@ -1916,9 +1906,17 @@ func (z *Big) Sub(x, y *Big) *Big {
 
 // subCompact sets z to x - y and returns z.
 func (z *Big) subCompact(x, y *Big) *Big {
+	if debug {
+		if x.compact == 0 || y.compact == 0 {
+			panic("subCompact: operand == 0")
+		}
+	}
+
 	xc, yc := x.compact, y.compact
 	ok := false
 	switch {
+	case x.scale == y.scale:
+		z.scale = x.scale
 	case x.scale < y.scale:
 		if xc, ok = checked.MulPow10(xc, uint64(y.scale-x.scale)); !ok {
 			return z.subBig(x, y)
@@ -1929,19 +1927,23 @@ func (z *Big) subCompact(x, y *Big) *Big {
 			return z.subBig(x, y)
 		}
 		z.scale = x.scale
-	default: // x.scale == y.scale
-		z.scale = x.scale
 	}
-	if z.compact, ok = checked.Sub(xc, yc); !ok {
-		return z.subBig(x, y)
+	if z.compact, ok = checked.Sub(xc, yc); ok {
+		if z.compact == 0 {
+			z.form = zero
+		}
+		return z
 	}
-	if z.compact == 0 {
+	if arith.Sub128(&z.unscaled, xc, yc).Sign() == 0 {
 		z.form = zero
 	}
+	z.compact = c.Inflated
 	return z
 }
 
 func (z *Big) subBig(x, y *Big) *Big {
+	// TODO(eric): if debug { }
+
 	xb, yb := &x.unscaled, &y.unscaled
 	if x.isCompact() {
 		xb = big.NewInt(x.compact)
@@ -1949,6 +1951,7 @@ func (z *Big) subBig(x, y *Big) *Big {
 	if y.isCompact() {
 		yb = big.NewInt(y.compact)
 	}
+
 	switch {
 	case x.scale == y.scale:
 		z.scale = x.scale
@@ -1976,3 +1979,7 @@ func (z *Big) UnmarshalText(data []byte) error {
 }
 
 var _ encoding.TextUnmarshaler = (*Big)(nil)
+
+func (x *Big) validate() {
+	// TODO(eric): this
+}

@@ -74,15 +74,15 @@ func TestBigLength(t *testing.T) {
 		}
 	}
 
-	if testing.Short() {
-		return
-	}
-
 	// Test a really long one.
 	x := new(big.Int).Exp(big.NewInt(10), big.NewInt(1e5), nil)
 	n := len(x.String())
 	if l := BigLength(x); l != n {
 		t.Fatalf("exp(10, 1e5): wanted %d, got %d", n, l)
+	}
+
+	if testing.Short() {
+		return
 	}
 
 	const overflowCutoff = 14267572532
