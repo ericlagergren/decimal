@@ -206,6 +206,7 @@ func (z *Big) Abs(x *Big) *Big {
 		if x.isCompact() {
 			z.compact = arith.Abs(x.compact)
 		} else {
+			z.compact = c.Inflated
 			z.unscaled.Abs(&x.unscaled)
 		}
 		z.scale = x.scale
@@ -220,7 +221,8 @@ func (z *Big) Abs(x *Big) *Big {
 	}
 
 	// |±Inf|
-	x.form &= ^sign
+	// |±0|
+	z.form &= ^sign
 	return z
 }
 
@@ -600,6 +602,7 @@ func (x *Big) Format(s fmt.State, c rune) {
 		plus    = s.Flag('+')
 		space   = s.Flag(' ')
 		f       = formatter{prec: prec, width: width}
+		e       = x.Context.OperatingMode.get().e
 	)
 
 	// If we need to left pad then we need to first write our string into an
@@ -621,10 +624,6 @@ func (x *Big) Format(s fmt.State, c rune) {
 	const noE = 0
 	switch c {
 	case 's', 'd':
-		e := byte('e')
-		if x.Context.OperatingMode == GDA {
-			e = 'E'
-		}
 		f.format(x, normal, e)
 	case 'q':
 		// The fmt package's docs specify that the '+' flag
@@ -638,10 +637,6 @@ func (x *Big) Format(s fmt.State, c rune) {
 			quote = '`'
 		}
 		f.WriteByte(quote)
-		e := byte('e')
-		if x.Context.OperatingMode == GDA {
-			e = 'E'
-		}
 		f.format(x, normal, e)
 		f.WriteByte(quote)
 	case 'e', 'E':
@@ -1866,8 +1861,9 @@ func (x *Big) String() string {
 	var (
 		b bytes.Buffer
 		f = formatter{w: &b, prec: noPrec, width: noWidth}
+		e = x.Context.OperatingMode.get().e
 	)
-	f.format(x, normal, 'e')
+	f.format(x, normal, e)
 	return b.String()
 }
 

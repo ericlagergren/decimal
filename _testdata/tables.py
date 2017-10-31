@@ -12,6 +12,8 @@ ops = {
     "/": "division",
     "qC": "comparison",
     "quant": "quantize",
+    "A": "abs",
+    "cfd": "convert-to-string",
 }
 
 modes = {
@@ -36,7 +38,7 @@ DEC_TEN = decimal.Decimal(10)
 
 def rand_dec(quant = False):
     if quant:
-        x = random.randint(0, 250)
+        x = random.randint(0, 6)
         if rand_bool():
             d = DEC_TEN ** x
         else:
@@ -55,34 +57,67 @@ def rand_dec(quant = False):
         # else: == 0
     return d
 
+def write_line(out, prec, op, mode, r, x, y = None):
+    if x is not None:
+        if y is not None:
+            str = "d{}{} {} {} {} -> {}\n".format(prec, op, mode, x, y, r)
+        else:
+            str = "d{}{} {} {} -> {}\n".format(prec, op, mode, x, r)
+    else:
+        raise ValueError("bad args")
+    out.write(str)
+
+def perform_op(op):
+    x = rand_dec()
+    y = None # possibly unused
+
+    # Binary
+    if op == "*":
+        y = rand_dec()
+        r = x * y
+    elif op == "+":
+        y = rand_dec()
+        r = x + y
+    elif op == "-":
+        y = rand_dec()
+        r = x - y
+    elif op == "/":
+        y = rand_dec()
+        r = x / y
+    elif op == "qC":
+        y = rand_dec()
+        r = x.compare(y)
+    elif op == "quant":
+        y = rand_dec(True)
+        with decimal.localcontext() as c:
+            c.prec = decimal.MAX_PREC
+            r = c.quantize(x, y)
+        y = -y.as_tuple().exponent
+
+    # Unary
+    elif op == "A":
+        r = x.copy_abs()
+    elif op == "cfd":
+        r = str(x)
+    else:
+        raise ValueError("bad op")
+    return (r, x, y)
+
 # set N higher for local testing.
 N = 5000
 
-for op, name in ops.items():
-    with gzip.open("{}-tables.gzip".format(name), "wt") as f:
-        for i in range(1, N):
-            prec = random.randint(1, 5000)
-            decimal.getcontext().prec = prec
+def make_tables():
+    for op, name in ops.items():
+        with gzip.open("{}-tables.gz".format(name), "wt") as f:
+            for i in range(1, N):
+                mode = random.choice(list(modes.keys()));
 
-            mode = random.choice(list(modes.keys()));
-            decimal.getcontext().rounding = modes[mode]
+                ctx = decimal.getcontext()
+                ctx.rounding = modes[mode]
+                ctx.prec = random.randint(1, 5000)
+               
+                t = perform_op(op)
+                write_line(f, ctx.prec, op, mode, *t[:3])
 
-            x = rand_dec()
-            y = rand_dec(op == "quant")
-            if op == "*":
-                r = x * y
-            elif op == "+":
-                r = x + y
-            elif op == "-":
-                r = x - y
-            elif op == "/":
-                r = x / y
-            elif op == "qC":
-                r = x.compare(y)
-            elif op == "quant":
-                decimal.getcontext().prec = decimal.MAX_PREC
-                r = x.quantize(y)
-                y = -y.as_tuple().exponent
-            else:
-                raise ValueError("bad op")
-            f.write("d{}{} {} {} {} -> {}\n".format(prec, op, mode, x, y, r))
+
+make_tables()
