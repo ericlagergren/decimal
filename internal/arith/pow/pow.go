@@ -36,7 +36,7 @@ func BigTen(n uint64) *big.Int {
 	}
 
 	// Too large for our table.
-	if n > BigTabLen {
+	if n >= BigTabLen {
 		// Optimization: we don't need to start from scratch each time. Start
 		// from the largest term we've found so far.
 		partial := tab[tabLen-1]
@@ -50,7 +50,7 @@ func growBigTen(n uint64, tab []*big.Int) *big.Int {
 	// We need to expand our table to contain the value for 10 ** n.
 	bigMu.Lock()
 
-	// n >= BigTabLen
+	// n < BigTabLen
 
 	tableLen := uint64(len(tab))
 	newLen := tableLen * 2

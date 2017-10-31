@@ -15,4 +15,5 @@ install:
 
 script:
   - go build .
-  - go test -race ./{.,suite} && go test -short -v ./internal...
+  - go test -short ./{.,suite} -tags=ddebug
+  - go test -tags=ddebug -short -rance -v ./internal...

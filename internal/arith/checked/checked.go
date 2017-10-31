@@ -10,15 +10,6 @@ import (
 	"github.com/ericlagergren/decimal/internal/c"
 )
 
-func UAdd(x, y uint) (sum uint, ok bool) {
-	sum = x + y
-	return sum, sum >= x
-}
-
-func UAdd64(x, y uint64) (sum uint64, ok bool) {
-	return x + y, arith.LeadingZeros64(x) < 32 && arith.LeadingZeros64(y) < 32
-}
-
 // Add returns x + y and a bool indicating whether the addition was successful.
 func Add(x, y int64) (sum int64, ok bool) {
 	sum = x + y
@@ -51,10 +42,6 @@ func Mul32(x, y int32) (prod int32, ok bool) {
 // Sub returns x - y and a bool indicating whether the subtraction was successful.
 func Sub(x, y int64) (diff int64, ok bool) {
 	return Add(x, -y)
-}
-
-func USub(x, y uint) (diff uint, ok bool) {
-	return x - y, x >= y
 }
 
 // Sub32 returns x - y and a bool indicating whether the subtraction was
