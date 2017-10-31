@@ -1,6 +1,7 @@
 language: go
 
 go:
+  - 1.7.x
   - 1.8.x
   - 1.9.x
   - master
@@ -16,4 +17,4 @@ install:
 script:
   - go build .
   - go test -short ./{.,suite} -tags=ddebug
-  - go test -tags=ddebug -short -rance -v ./internal...
+  - go test -tags=ddebug -short -race -v ./internal...
