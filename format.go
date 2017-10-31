@@ -148,13 +148,25 @@ func (f *formatter) Write(p []byte) (n int, err error) {
 	return n, err
 }
 
-var stringForms = [...]struct{ snan, qnan, pinf, ninf string }{
-	Go:  {"NaN", "NaN", "+Inf", "-Inf"},
-	GDA: {"sNaN", "NaN", "Infinity", "-Infinity"},
+func (o OperatingMode) get() *fmtConfig {
+	if int(o) < len(fmtConfigs) {
+		return fmtConfigs[o]
+	}
+	return fmtConfigs[Go]
+}
+
+type fmtConfig struct {
+	snan, qnan string
+	pinf, ninf string
+	e          byte
+}
+
+var fmtConfigs = [...]*fmtConfig{
+	Go:  &fmtConfig{"NaN", "NaN", "+Inf", "-Inf", 'e'},
+	GDA: &fmtConfig{"sNaN", "NaN", "Infinity", "-Infinity", 'E'},
 }
 
 func (f *formatter) format(x *Big, format, e byte) {
-	// Special cases.
 	if x == nil {
 		f.WriteString("<nil>")
 		return
@@ -173,26 +185,21 @@ func (f *formatter) format(x *Big, format, e byte) {
 				f.WriteString("0.")
 				io.CopyN(f, zeroReader{}, int64(f.width))
 			}
+			return
 			// All non-zero forms.
 		} else if m > nzero {
-			switch o {
-			case Go, GDA:
-				switch m {
-				case snan:
-					f.WriteString(stringForms[o].snan)
-				case qnan:
-					f.WriteString(stringForms[o].qnan)
-				case pinf:
-					f.WriteString(stringForms[o].pinf)
-				case ninf:
-					f.WriteString(stringForms[o].ninf)
-				}
-				return
-			default: // unknown OperatingMode
-				// TODO(eric): I don't like this
-				x.signal(0, nil) // signal checks for InvalidContext
-				return
+			cfg := o.get()
+			switch m {
+			case snan:
+				f.WriteString(cfg.snan)
+			case qnan:
+				f.WriteString(cfg.qnan)
+			case pinf:
+				f.WriteString(cfg.pinf)
+			case ninf:
+				f.WriteString(cfg.ninf)
 			}
+			return
 		}
 	}
 

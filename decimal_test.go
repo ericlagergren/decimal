@@ -15,10 +15,12 @@ import (
 	"github.com/ericlagergren/decimal/suite"
 )
 
+// -run='Add|Sub|Quo|Cmp|Mul|Quantize|Abs|String'
+
 func getTests(t *testing.T, name string) (s *bufio.Scanner, close func()) {
 	t.Helper()
 
-	fpath := filepath.Join("_testdata", fmt.Sprintf("%s-tables.gzip", name))
+	fpath := filepath.Join("_testdata", fmt.Sprintf("%s-tables.gz", name))
 	file, err := os.Open(fpath)
 	if err != nil {
 		t.Fatal(err)
@@ -62,13 +64,29 @@ func testFormZero(t *testing.T, z *Big, name string) {
 }
 
 func TestBig_Abs(t *testing.T) {
-	for i, test := range [...]string{"-1", "1", "50", "-50", "0", "-0"} {
-		x := newbig(t, test)
-		if test[0] == '-' {
-			test = test[1:]
+	s, close := getTests(t, "abs")
+	defer close()
+
+	for i := 0; s.Scan(); i++ {
+		c, err := suite.ParseCase(s.Bytes())
+		if err != nil {
+			t.Fatal(err)
 		}
-		if xs := x.Abs(x).String(); xs != test {
-			t.Fatalf("#%d: wanted %s, got %s", i, test, xs)
+
+		z := new(Big)
+		z.Context.SetPrecision(c.Prec)
+		z.Context.OperatingMode = GDA
+		z.Context.RoundingMode = RoundingMode(c.Mode)
+
+		x, _ := new(Big).SetString(string(c.Inputs[0]))
+		r, _ := new(Big).SetString(string(c.Output))
+
+		z.Abs(x)
+		if z.Cmp(r) != 0 {
+			t.Fatalf(`#%d: %s
+wanted: %q
+got   : %q
+`, i+1, c, r, z)
 		}
 	}
 }
@@ -417,11 +435,12 @@ func TestBig_Round(t *testing.T) {
 		7: {"1.58089722856961873690377135139876745465351534188711107066818e+12288", 50, "1.5808972285696187369037713513987674546535153418871e+12288"},
 	} {
 		bd := newbig(t, test.v)
-		if rs := bd.Round(test.to).String(); rs != test.res {
+		r := newbig(t, test.res)
+		if bd.Round(test.to).Cmp(r) != 0 {
 			t.Fatalf(`#%d:
 wanted: %q
 got   : %q
-`, i, test.res, rs)
+`, i, test.res, bd)
 		}
 	}
 }
@@ -454,22 +473,7 @@ got   : %g
 }
 
 func TestBig_SetString(t *testing.T) {
-	tests := []struct {
-		dec string
-		s   string
-	}{
-		0: {"0", "0"},
-		1: {"00000000000000000000", "0"},
-	}
-	for i, v := range tests {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			dec := newbig(t, v.dec)
-			s := dec.String()
-			if v.s != s {
-				t.Fatalf("wanted %s, got %s", v.s, s)
-			}
-		})
-	}
+	// Tested in TestBig_String
 }
 
 func TestBig_Sign(t *testing.T) {
@@ -517,24 +521,28 @@ func TestBig_SignBit(t *testing.T) {
 }
 
 func TestBig_String(t *testing.T) {
-	x := New(1<<63-1, 0)
-	tests := [...]struct {
-		a *Big
-		b string
-	}{
-		0: {a: New(10, 1), b: "1"},                  // Trim trailing zeros
-		1: {a: New(12345, 3), b: "12.345"},          // Normal decimal
-		2: {a: New(-9876, 2), b: "-98.76"},          // Negative
-		3: {a: New(-1e5, 0), b: strconv.Itoa(-1e5)}, // Large number
-		4: {a: New(0, -50), b: "0"},                 // "0"
-		5: {a: x.Mul(x, x), b: "85070591730234615847396907784232501249"},
-		6: {a: newbig(t, "-1.4e-52"), b: "-1.4e-52"},
-		7: {a: newbig(t, "-500.444312301"), b: "-500.444312301"},
-	}
-	for i, s := range tests {
-		str := s.a.String()
-		if str != s.b {
-			t.Fatalf("#%d: wanted %q, got %q", i, s.b, str)
+	s, close := getTests(t, "convert-to-string")
+	defer close()
+
+	for i := 0; s.Scan(); i++ {
+		c, err := suite.ParseCase(s.Bytes())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		x := new(Big)
+		x.Context.SetPrecision(c.Prec)
+		x.Context.OperatingMode = GDA
+		x.Context.RoundingMode = RoundingMode(c.Mode)
+		x.SetString(string(c.Inputs[0]))
+		r := string(c.Output)
+
+		xs := x.String()
+		if xs != r {
+			t.Fatalf(`#%d: %s
+wanted: %q
+got   : %q
+`, i+1, c, r, xs)
 		}
 	}
 }
