@@ -6,6 +6,7 @@ import (
 	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/arith/checked"
 	"github.com/ericlagergren/decimal/internal/arith/pow"
+	"github.com/ericlagergren/decimal/internal/compat"
 )
 
 // cmpNorm compares x and y in the range [0.1, 0.999...] and returns true if x
@@ -40,7 +41,7 @@ func cmpNormBig(x *big.Int, xs int, y *big.Int, ys int) (ok bool) {
 			y = checked.MulBigPow10(new(big.Int).Set(y), uint64(diff))
 		}
 	}
-	return arith.BigAbsCmp(x, y) > 0
+	return compat.BigCmpAbs(x, y) > 0
 }
 
 // scalex adjusts x by scale. If scale < 0, x = x * 10^-scale, otherwise
