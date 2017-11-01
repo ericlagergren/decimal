@@ -30,7 +30,7 @@ func TestDecimal_Value(t *testing.T) {
 
 		dec, ok := new(decimal.Big).SetString(fmt.Sprintf("%s.%s", ip, fp))
 		if !ok {
-			t.Fatal(dec.Err())
+			t.Fatal(dec.Context.Err)
 		}
 		d := Decimal{V: dec, Round: i%2 == 0}
 

@@ -152,10 +152,10 @@ func _checkedAdd2(x, y int64) (sum int64) {
 	return sum
 }
 
-// This returns two values, but only requires one branch and does
-// not mess with escape analysis.
+// This returns two values, but only requires one branch and does not mess with
+// escape analysis.
 //
-// Currently this is the fastest. It is
+// Currently this is the fastest.
 func _checkedAdd3(x, y int64) (sum int64, ok bool) {
 	return Add(x, y)
 }

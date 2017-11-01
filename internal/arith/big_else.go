@@ -2,7 +2,17 @@
 
 package arith
 
-import "math/big"
+import (
+	"math/big"
+)
+
+func Words(x int64) []big.Word {
+	ux := Abs(x)
+	if w := Word(ux); uint64(w) == ux {
+		return []big.Word{ux}
+	}
+	return []big.Word{ux, ux >> 32}
+}
 
 func Add128(z *big.Int, x, y int64) *big.Int {
 	return z.Add(big.NewInt(x), big.NewInt(y))

@@ -129,11 +129,12 @@ func TestBig_Cmp(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		z := new(Big)
-		z.Context.SetPrecision(c.Prec)
-		z.Context.OperatingMode = GDA
-		z.Context.RoundingMode = RoundingMode(c.Mode)
-		x, _ := new(Big).SetString(string(c.Inputs[0]))
+		x := new(Big)
+		x.Context.SetPrecision(c.Prec)
+		x.Context.OperatingMode = GDA
+		x.Context.RoundingMode = RoundingMode(c.Mode)
+		x.SetString(string(c.Inputs[0]))
+
 		y, _ := new(Big).SetString(string(c.Inputs[1]))
 
 		r, err := strconv.Atoi(string(c.Output))
@@ -141,11 +142,11 @@ func TestBig_Cmp(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if x.Cmp(y) != r {
+		if rv := x.Cmp(y); rv != r {
 			t.Fatalf(`#%d: %s
 wanted: %d
 got   : %d
-`, i+1, c, r, z)
+`, i+1, c, r, rv)
 		}
 	}
 }
