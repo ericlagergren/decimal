@@ -20,6 +20,10 @@ précision arbitrarie que mettre en œuvre la spécification
 
 http://godoc.org/github.com/ericlagergren/decimal
 
+## Gestion de versions
+
+`decimal` utilise le gestion sémantique de version.
+
 ## Licence
 
 La [BSD 3-clause](https://github.com/ericlagergren/decimal/blob/master/LICENSE)
