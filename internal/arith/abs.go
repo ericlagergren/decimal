@@ -1,12 +1,8 @@
 package arith
 
-import "math/big"
-
-// Abs32 returns |x|.
-func Abs32(x int32) int32 {
-	mask := -int32(uint32(x) >> 31)
-	return (x + mask) ^ mask
-}
+import (
+	"math/big"
+)
 
 // Abs returns |x|.
 func Abs(x int64) int64 {
@@ -27,13 +23,28 @@ func AbsCmp(x, y int64) int {
 	return -1
 }
 
-// BigAbsCmp compares |x| and |y|.
-func BigAbsCmp(x, y *big.Int) (r int) {
-	return cmp(x.Bits(), y.Bits())
+// AbsCmp128 compares |x| and |y|*shift in 128 bits.
+func AbsCmp128(x, y int64, shift uint64) int {
+	// x is unchanged so its high bits are always 0.
+	const xh = 0
+	yh, yl := mulWW(Word(y), big.Word(shift))
+	if xh != yh {
+		if xh > yh {
+			return +1
+		}
+		return -1
+	}
+	xl := Word(x)
+	if xl != yl {
+		if xl > yl {
+			return +1
+		}
+		return -1
+	}
+	return 0
 }
 
-// TODO(eric): create a request for a CmpAbs method.
-func cmp(x, y []big.Word) (r int) {
+func CmpBits(x, y []big.Word) (r int) {
 	// Copied from math/big.nat.go
 	m := len(x)
 	n := len(y)

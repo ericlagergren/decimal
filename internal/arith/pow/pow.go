@@ -18,7 +18,28 @@ const (
 )
 
 var (
-	pow10tab    [TabLen]uint64
+	pow10tab = [TabLen]uint64{
+		0:  1,
+		1:  10,
+		2:  100,
+		3:  1000,
+		4:  10000,
+		5:  100000,
+		6:  1000000,
+		7:  10000000,
+		8:  100000000,
+		9:  1000000000,
+		10: 10000000000,
+		11: 100000000000,
+		12: 1000000000000,
+		13: 10000000000000,
+		14: 100000000000000,
+		15: 1000000000000000,
+		16: 10000000000000000,
+		17: 100000000000000000,
+		18: 1000000000000000000,
+		19: 10000000000000000000,
+	}
 	bigMu       sync.Mutex // protects writes to bigPow10Tab
 	bigPow10Tab atomic.Value
 )
@@ -69,6 +90,8 @@ func growBigTen(n uint64, tab []*big.Int) *big.Int {
 	return tab[n]
 }
 
+func Safe(e uint64) bool { return e < TabLen }
+
 // Ten returns 10 ** e and a boolean indicating whether the result fits into
 // an uint64.
 func Ten(e uint64) (uint64, bool) {
@@ -88,17 +111,27 @@ func TenInt(e uint64) (int64, bool) {
 }
 
 func init() {
-	pow10tab[0] = 1
-	pow10tab[1] = 10
-
-	tab := make([]*big.Int, TabLen)
-	tab[0] = c.OneInt
-	tab[1] = c.TenInt
-	for i := 2; i < TabLen; i++ {
-		m := i / 2
-		pow10tab[i] = pow10tab[m] * pow10tab[i-m]
-		tab[i] = new(big.Int).SetUint64(pow10tab[i])
-	}
-	// Set first power of 10 so our calculations don't have to handle that case.
-	storeBigTable(&tab)
+	// Can we move this into a var decl without copylock freaking out?
+	storeBigTable(&[]*big.Int{
+		0:  c.OneInt,
+		1:  c.TenInt,
+		2:  new(big.Int).SetUint64(100),
+		3:  new(big.Int).SetUint64(1000),
+		4:  new(big.Int).SetUint64(10000),
+		5:  new(big.Int).SetUint64(100000),
+		6:  new(big.Int).SetUint64(1000000),
+		7:  new(big.Int).SetUint64(10000000),
+		8:  new(big.Int).SetUint64(100000000),
+		9:  new(big.Int).SetUint64(1000000000),
+		10: new(big.Int).SetUint64(10000000000),
+		11: new(big.Int).SetUint64(100000000000),
+		12: new(big.Int).SetUint64(1000000000000),
+		13: new(big.Int).SetUint64(10000000000000),
+		14: new(big.Int).SetUint64(100000000000000),
+		15: new(big.Int).SetUint64(1000000000000000),
+		16: new(big.Int).SetUint64(10000000000000000),
+		17: new(big.Int).SetUint64(100000000000000000),
+		18: new(big.Int).SetUint64(1000000000000000000),
+		19: new(big.Int).SetUint64(10000000000000000000),
+	})
 }

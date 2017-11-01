@@ -44,17 +44,18 @@ def rand_dec(quant = False):
         else:
             d = DEC_TEN ** -x
     else:
-        q = random.randint(0, 4)
         d = make_dec()
-        if q == 1:
-            d *= make_dec()
-        elif q == 2:
-            d /= make_dec()
-        elif q == 3:
-            d -= make_dec()
-        elif q == 4:
-            d += make_dec()
-        # else: == 0
+        for _ in range(random.randint(0, 3)):
+            q = random.randint(0, 4)
+            if q == 1:
+                d *= make_dec()
+            elif q == 2:
+                d /= make_dec()
+            elif q == 3:
+                d -= make_dec()
+            elif q == 4:
+                d += make_dec()
+            # else: == 0
     return d
 
 def write_line(out, prec, op, mode, r, x, y = None):

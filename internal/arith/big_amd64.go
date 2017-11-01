@@ -2,15 +2,18 @@
 
 package arith
 
-import "math/big"
+import (
+	"math/big"
+)
 
-func w(x int64) big.Word { return big.Word(Abs(x)) }
+func Word(x int64) big.Word    { return big.Word(Abs(x)) }
+func Words(x int64) []big.Word { return []big.Word{Word(x)} }
 
 type uint128 [2]big.Word
 
 // Add128 sets z to x + y and returns z.
 func Add128(z *big.Int, x, y int64) *big.Int {
-	ww := uint128{w(x), w(y)}
+	ww := uint128{Word(x), Word(y)}
 	neg := x < 0
 	if (x < 0) == (y < 0) {
 		ww[1], ww[0] = addWW(ww[0], ww[1])
@@ -31,7 +34,7 @@ func Add128(z *big.Int, x, y int64) *big.Int {
 
 // Sub128 sets z to x - y and returns z.
 func Sub128(z *big.Int, x, y int64) *big.Int {
-	ww := uint128{w(x), w(y)}
+	ww := uint128{Word(x), Word(y)}
 	neg := x < 0
 	if (x < 0) != (y < 0) {
 		ww[1], ww[0] = addWW(ww[0], ww[1])
@@ -53,7 +56,7 @@ func Sub128(z *big.Int, x, y int64) *big.Int {
 // Mul128 sets z to x * y and returns z.
 func Mul128(z *big.Int, x, y int64) *big.Int {
 	var ww uint128
-	ww[1], ww[0] = mulWW(w(x), w(y))
+	ww[1], ww[0] = mulWW(Word(x), Word(y))
 	z.SetBits(ww[:])
 	if (x < 0) != (y < 0) {
 		z.Neg(z)
@@ -66,14 +69,15 @@ func MulInt64(z, x *big.Int, y int64) *big.Int {
 	if y == 0 || x.Sign() == 0 {
 		return z.SetUint64(0)
 	}
-	z.SetBits(mulAddWW(z.Bits(), x.Bits(), w(y)))
+	z.SetBits(mulAddWW(z.Bits(), x.Bits(), Word(y)))
 	if (x.Sign() < 0) != (y < 0) { // no len check since x != 0 && y != 0
 		z.Neg(z)
 	}
 	return z
 }
 
-// The following is (mostly) copied from math/big/arith.go
+// The following is (mostly) copied from math/big/arith.go, licensed under the
+// BSD 3-clause license: https://github.com/golang/go/blob/master/LICENSE
 
 const (
 	_W  = 64       // word size in bits
@@ -93,7 +97,7 @@ func norm(z []big.Word) []big.Word {
 	return z[0:i]
 }
 
-func makew(z []big.Word, n int) []big.Word {
+func makeWord(z []big.Word, n int) []big.Word {
 	if n <= cap(z) {
 		return z[:n]
 	}
@@ -103,7 +107,7 @@ func makew(z []big.Word, n int) []big.Word {
 
 func mulAddWW(z, x []big.Word, y big.Word) []big.Word {
 	m := len(x)
-	z = makew(z, m+1)
+	z = makeWord(z, m+1)
 	z[m] = mulAddVWW(z[0:m], x, y)
 	return norm(z)
 }

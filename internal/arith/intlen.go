@@ -4,6 +4,7 @@ import (
 	"math/big"
 
 	"github.com/ericlagergren/decimal/internal/arith/pow"
+	"github.com/ericlagergren/decimal/internal/compat"
 )
 
 // Length returns the number of digits in x.
@@ -83,7 +84,7 @@ func logLength(x *big.Int) int {
 
 	// 10**r can be _very_ costly when r is large, so in order to speed up
 	// calculations return the estimate + 1.
-	if BigAbsCmp(x, pow.BigTen(uint64(r))) < 0 {
+	if compat.BigCmpAbs(x, pow.BigTen(uint64(r))) < 0 {
 		return r
 	}
 	return r + 1
