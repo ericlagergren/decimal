@@ -20,7 +20,7 @@ func BigLength(x *big.Int) int {
 	if x.Sign() == 0 {
 		return 1
 	}
-	if x.IsInt64() {
+	if compat.IsInt64(x) {
 		return Length(x.Int64())
 	}
 	return bigIlog10(x) // no need to pass in |x|

@@ -93,6 +93,11 @@ func ParseCase(data []byte) (c Case, err error) {
             | 'Nu'     # NextUp
             | 'Nd'     # NextDown
             | 'eq'     # Equiv
+			
+			# Custom
+			| 'rat'     # ToRat
+			| 'sign'    # Sign
+			| 'signbit' # Signbit
         ) >mark %set_op; 
         mode = (
               '>'  # ToPositiveInf
@@ -114,14 +119,16 @@ func ParseCase(data []byte) (c Case, err error) {
         trap = exception >mark %set_trap;
         excep = exception >mark %set_excep;
 
-		sign = '+' | '-';
+		sign      = '+' | '-';
 		indicator = 'e' | 'E';
-		exponent = indicator? sign? digit+;
-        number = sign? digit+ ('.' digit+)? exponent?;
-        numeric_string = (
-              ('S' | 'Q')              # S, Q
-            | (sign? 'inf'i 'inity'i?) # +inf, -inf, ...
-            | number                   # 10, 10.1, +0e-392, ...
+		exponent  = indicator? sign? digit+;
+        number    = digit+ ('.' digit+)? exponent?;
+		nan_prefix = [sSqQ];
+        numeric_string = sign? (
+			  ('true'i | 'false'i)
+        	| (nan_prefix | nan_prefix? 'nan'i) # S, Q, NaN, sNaN, ...
+            | ('inf'i 'inity'i?)                # +inf, -inf, ...
+            | number                            # 10, 10.1, +0e-392, ...
         );
         input = numeric_string >mark %add_input;
         output = (numeric_string | '#') >mark %set_output;

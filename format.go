@@ -156,14 +156,15 @@ func (o OperatingMode) get() *fmtConfig {
 }
 
 type fmtConfig struct {
-	snan, qnan string
-	pinf, ninf string
-	e          byte
+	snan, qnan   string
+	ssnan, sqnan string
+	pinf, ninf   string
+	e            byte
 }
 
 var fmtConfigs = [...]*fmtConfig{
-	Go:  &fmtConfig{"NaN", "NaN", "+Inf", "-Inf", 'e'},
-	GDA: &fmtConfig{"sNaN", "NaN", "Infinity", "-Infinity", 'E'},
+	Go:  &fmtConfig{"NaN", "NaN", "NaN", "NaN", "+Inf", "-Inf", 'e'},
+	GDA: &fmtConfig{"sNaN", "NaN", "-sNaN", "-NaN", "Infinity", "-Infinity", 'E'},
 }
 
 func (f *formatter) format(x *Big, format, e byte) {
@@ -176,9 +177,6 @@ func (f *formatter) format(x *Big, format, e byte) {
 		o := x.Context.OperatingMode
 		// Go mode prints zeros different than GDA.
 		if m <= nzero && o == Go {
-			if m == nzero {
-				f.WriteByte('-')
-			}
 			if f.width == noWidth {
 				f.WriteByte('0')
 			} else {
@@ -192,8 +190,12 @@ func (f *formatter) format(x *Big, format, e byte) {
 			switch m {
 			case snan:
 				f.WriteString(cfg.snan)
+			case ssnan:
+				f.WriteString(cfg.ssnan)
 			case qnan:
 				f.WriteString(cfg.qnan)
+			case sqnan:
+				f.WriteString(cfg.sqnan)
 			case pinf:
 				f.WriteString(cfg.pinf)
 			case ninf:

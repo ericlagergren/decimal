@@ -8,8 +8,7 @@ const (
 	Invalid Special = iota
 	QNaN 
 	SNaN 
-	PInf
-	NInf
+	Inf
 )
 
 func (s Special) String() string {
@@ -17,37 +16,31 @@ func (s Special) String() string {
 	case Invalid: return "invalid"
 	case QNaN:    return "qNaN"
 	case SNaN:    return "sNaN"
-	case PInf:    return "+inf"
-	case NInf:    return "-inf"
+	case Inf:     return "+inf"
 	default:      panic(fmt.Sprintf("unknown(%d)", s))
 	}
 }
 
-func ParseSpecial(data []byte) Special {
+func ParseSpecial(data string) (s Special, sign bool) {
+	sign = len(data) > 0 && data[0] == '-'
 	cs, p, pe := 0, 0, len(data)
 
 	%%{
 		machine parser;
-		
-		sign           = [-+];
-		indicator      = [eE];
-		decimal_part   = digit+ '.' digit* | '.'? digit+;
-		exponent_part  = indicator sign? digit+;
-		infinity       = 'inf'i 'inity'i?;
-		nan            = [sSqQ]? 'nan'i digit*;
-		numeric_value  = decimal_part exponent_part? | infinity;
-		numeric_string = sign? numeric_value | sign? nan;
+
+		sign     = ('-' | '+');
+		infinity = 'inf'i 'inity'i?;
+		nan      = 'nan'i;
 
 		main := (
-			  '+'?  infinity @{ return PInf }
-			| '-'   infinity @{ return NInf }
-			| 'q'i? nan      @{ return QNaN }
-			| 's'i  nan      @{ return SNaN }
+			  sign? infinity   @{ return Inf,  sign }
+			| sign? 'q'i? nan  @{ return QNaN, sign }
+			| sign? 's'i  nan  @{ return SNaN, sign }
 		);
 
 		write data;
 		write init;
 		write exec;
 	}%%
-	return Invalid
+	return Invalid, sign 
 }

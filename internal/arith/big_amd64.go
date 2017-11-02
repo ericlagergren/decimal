@@ -15,7 +15,7 @@ type uint128 [2]big.Word
 func Add128(z *big.Int, x, y int64) *big.Int {
 	ww := uint128{Word(x), Word(y)}
 	neg := x < 0
-	if (x < 0) == (y < 0) {
+	if neg == (y < 0) {
 		ww[1], ww[0] = addWW(ww[0], ww[1])
 	} else {
 		if ww[0] >= ww[1] {
@@ -144,13 +144,13 @@ func mulWW(x, y big.Word) (z1, z0 big.Word) {
 }
 
 func addWW(x, y big.Word) (z1, z0 big.Word) {
-	z1 = x + y
-	z0 = (x&y | (x|y)&^z1) >> (_W - 1)
+	z0 = x + y
+	z1 = (x&y | (x|y)&^z0) >> (_W - 1)
 	return
 }
 
 func subWW(x, y big.Word) (z1, z0 big.Word) {
-	z1 = x - y
-	z0 = (y&^x | (y|^x)&z1) >> (_W - 1)
+	z0 = x - y
+	z1 = (y&^x | (y|^x)&z0) >> (_W - 1)
 	return
 }
