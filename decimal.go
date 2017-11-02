@@ -88,7 +88,7 @@ const (
 	// always have a value of 0.
 	zero form = 0
 
-	sign form = 1 // do not assign this; used to check for ninf and nzero.
+	sign form = 1 // do not assign this; used to check for ninf, nzero, nnans.
 
 	// nzero == sign so v <= nzero == true for nzero and zero. An alternative
 	// way of thinking about it is nzero = zero | sign. Nothing assinable should
@@ -97,18 +97,19 @@ const (
 
 	finite form = 1 << 1
 
-	snan form = 1 << 2
-	qnan form = 1 << 3
-	nan  form = snan | qnan // do not assign this; used to check for either NaN.
+	snan  form = 1 << 2      // compare with bitwise & only due to ssnan
+	qnan  form = 1 << 3      // compare with bitwise & only due to sqnan
+	nan   form = snan | qnan // do not assign this; used to check for either NaN.
+	ssnan form = snan | sign // primarily for printing, signbit
+	sqnan form = qnan | sign // primarily for printing, signbit
 
-	pinf form = 1 << 4
-	ninf form = pinf | sign
-	inf  form = pinf // do not assign this; used to check for either infinity.
+	pinf form = 1 << 4      // may compare with ==, &, etc.
+	ninf form = pinf | sign // may compare with ==, &, etc.
+	inf  form = pinf        // do not assign this; used to check for either infinity.
 )
 
 // String is for internal use only.
 func (f form) String() string {
-	const debug = false
 	if !debug {
 		return strconv.Itoa(int(f))
 	}
@@ -121,8 +122,12 @@ func (f form) String() string {
 		return "finite"
 	case snan:
 		return "sNaN"
+	case snan | sign:
+		return "-sNaN"
 	case qnan:
 		return "qNaN"
+	case qnan | sign:
+		return "-qNaN"
 	case pinf:
 		return "+Inf"
 	case ninf:
@@ -136,8 +141,8 @@ func (f form) String() string {
 
 // TODO(eric): Perhaps use math/big.ErrNaN if possible in the future?
 
-// An ErrNaN panic is raised by a decimal operation that would lead to a NaN
-// under IEEE-754 rules. An ErrNaN implements the error interface.
+// An ErrNaN is used when a decimal operation would lead to a NaN under IEEE-754
+// rules. An ErrNaN implements the error interface.
 type ErrNaN struct {
 	Msg string
 }
@@ -201,6 +206,14 @@ func (z *Big) xflow(over, neg bool) *Big {
 func (x *Big) isCompact() bool  { return x.compact != c.Inflated }
 func (x *Big) isInflated() bool { return !x.isCompact() }
 
+// norm normalizes x's mantissa and returns true if successful.
+func (x *Big) norm() bool {
+	if x.form == finite && x.isInflated() && compat.IsInt64(&x.unscaled) {
+		x.compact = x.unscaled.Int64()
+	}
+	return x.isCompact()
+}
+
 // Abs sets z to the absolute value of x and returns z.
 func (z *Big) Abs(x *Big) *Big {
 	if debug {
@@ -227,7 +240,7 @@ func (z *Big) Abs(x *Big) *Big {
 
 	// |±Inf|
 	// |±0|
-	z.form &= ^sign
+	z.form = x.form & ^sign
 	return z
 }
 
@@ -342,6 +355,7 @@ func (z *Big) addBig(x, y *Big) *Big {
 		z.form = zero
 	}
 	z.compact = c.Inflated
+	z.norm()
 	return z
 }
 
@@ -372,8 +386,8 @@ func (x *Big) Cmp(y *Big) int {
 	}
 
 	// Fast path: different signs. Catches non-finite forms like zero and ±Inf.
-	xs := x.Sign()
-	ys := y.Sign()
+	xs := x.ord()
+	ys := y.ord()
 	switch {
 	case xs > ys:
 		return +1
@@ -399,15 +413,23 @@ func (x *Big) Cmp(y *Big) int {
 		case x.isInflated() && y.isInflated():
 			return x.unscaled.Cmp(&y.unscaled)
 		default:
-			// The inflated number is more than likely larger, but I'm not 100%
-			// certain that inflated > compact is an invariant.
-			xu, yu := &x.unscaled, &y.unscaled
-			if x.isCompact() {
-				xu = big.NewInt(x.compact)
-			} else {
-				yu = big.NewInt(y.compact)
-			}
-			return xu.Cmp(yu)
+			// TODO: in the future we can write something like
+			//
+			// if x.isCompact() {
+			//     if y.isCompact() {
+			//         // compare
+			//     }
+			//     return -1
+			// }
+			// if y.isCompact() {
+			//     return +1
+			// }
+			// return x.unscaled.Cmp(&y.unscaled)
+			//
+			// But we can't right now since compact x < inflated y isn't an
+			// invariant. Once it is, this can be greatly simplified. For now,
+			// break down into our other cases to handle the case where one
+			// operand needs to be inflated.
 		}
 	}
 
@@ -482,7 +504,7 @@ func (x *Big) Float64() float64 {
 		switch x.form {
 		case pinf, ninf:
 			return math.Inf(int(x.form & sign))
-		case snan, qnan:
+		case snan, qnan, ssnan, sqnan:
 			return math.NaN()
 		case nzero:
 			return math.Copysign(0, -1)
@@ -525,7 +547,7 @@ func (x *Big) Float(z *big.Float) *big.Float {
 	case finite:
 		// TODO(eric): is there a more efficient way?
 		z.SetRat(x.Rat(nil))
-	case zero, snan, qnan:
+	case zero, snan, qnan, ssnan, sqnan:
 		z.SetInt64(0)
 	case nzero:
 		z.SetInt64(0).Neg(z)
@@ -807,7 +829,7 @@ func (x *Big) IsInf(sign int) bool {
 // If sign <  0, IsNaN reports whether x is signaling NaN.
 // If sign == 0, IsNaN reports whether x is either NaN.
 func (x *Big) IsNaN(quiet int) bool {
-	return quiet >= 0 && x.form == qnan || quiet <= 0 && x.form == snan
+	return quiet >= 0 && x.form&qnan != 0 || quiet <= 0 && x.form&snan != 0
 }
 
 // IsInt reports whether x is an integer. Infinity and NaN values are not
@@ -1306,6 +1328,7 @@ func (z *Big) quoAndRoundBig(x, y *big.Int) *Big {
 			z.form = nzero
 		}
 	}
+	z.norm()
 	return z
 }
 
@@ -1313,25 +1336,29 @@ func (z *Big) simplifyBig() *Big {
 	if int(z.scale) == z.Context.Precision() {
 		return z
 	}
-	if compat.IsInt64(&z.unscaled) {
-		z.compact = z.unscaled.Int64()
+	if z.norm() {
 		return z.simplify()
 	}
 	var (
 		ok   = false
 		prec = z.Context.Precision()
-		tmp  = new(big.Int)
+		r    big.Int
 	)
-	// arith.BigAbsAlias won't work here.
-	for tmp.SetBits(z.unscaled.Bits()).Cmp(c.TenInt) >= 0 && int(z.scale) > prec {
-		if z.unscaled.Bit(0) != 0 || tmp.Mod(&z.unscaled, c.TenInt).Sign() != 0 {
+	for compat.BigCmpAbs(&z.unscaled, c.TenInt) >= 0 && int(z.scale) > prec {
+		if z.unscaled.Bit(0) != 0 {
 			break
 		}
-		z.unscaled.Div(&z.unscaled, c.TenInt)
+		_, r := z.unscaled.QuoRem(&z.unscaled, c.TenInt, &r)
+		if r.Sign() != 0 {
+			break
+		}
 		z.Context.Conditions |= Rounded
 		if z.scale, ok = checked.Sub32(z.scale, 1); !ok {
 			return z.xflow(false, z.Sign() < 0)
 		}
+	}
+	if compat.IsInt64(&z.unscaled) {
+		z.compact = z.unscaled.Int64()
 	}
 	return z
 }
@@ -1524,10 +1551,15 @@ func (z *Big) SetBigMantScale(value *big.Int, scale int32) *Big {
 		z.form = zero
 		return z
 	}
+	// Hope the compiler optimizes both calls to Int64 out...
+	if compat.IsInt64(value) && value.Int64() < c.Inflated {
+		z.compact = value.Int64()
+	} else {
+		z.unscaled.Set(value)
+		z.compact = c.Inflated
+	}
 	z.scale = scale
-	z.unscaled.Set(value)
 	z.form = finite
-	z.compact = c.Inflated
 	return z
 }
 
@@ -1731,18 +1763,19 @@ func (z *Big) SetString(s string) (*Big, bool) {
 	// We deviate a little by being a tad bit more forgiving. For instance,
 	// we allow case-insensitive nan and infinity values.
 
-	switch parse.ParseSpecial(s) {
-	case parse.QNaN:
-		z.form = qnan
-		return z, true
-	case parse.SNaN:
-		z.form = snan
-		return z, true
-	case parse.PInf:
-		z.form = pinf
-		return z, true
-	case parse.NInf:
-		z.form = ninf
+	spec, signb := parse.ParseSpecial(s)
+	if spec != parse.Invalid {
+		switch spec {
+		case parse.QNaN:
+			z.form = qnan
+		case parse.SNaN:
+			z.form = snan
+		case parse.Inf:
+			z.form = inf
+		}
+		if signb {
+			z.form |= sign
+		}
 		return z, true
 	}
 
@@ -1757,7 +1790,7 @@ func (z *Big) SetString(s string) (*Big, bool) {
 				return z.signal(ConversionSyntax, err), false
 			}
 			// strconv.ErrRange.
-			return z.xflow(eint < 0, s[0] == '-'), false
+			return z.xflow(eint < 0, signb), false
 		}
 		s = s[:i]
 		scale = -int32(eint)
@@ -1773,7 +1806,7 @@ func (z *Big) SetString(s string) (*Big, bool) {
 		if !ok {
 			// It's impossible for the scale to underflow here since the rhs will
 			// always be [0, len(s)]
-			return z.xflow(true, s[0] == '-'), false
+			return z.xflow(true, signb), false
 		}
 		scale = sc
 	default:
@@ -1795,7 +1828,7 @@ func (z *Big) SetString(s string) (*Big, bool) {
 			}
 			err = nerr.Err
 		} else if z.compact == 0 {
-			if s[0] == '-' {
+			if signb {
 				z.form = nzero
 			} else {
 				z.form = zero
@@ -1815,7 +1848,7 @@ func (z *Big) SetString(s string) (*Big, bool) {
 		}
 		z.compact = c.Inflated
 		if z.unscaled.Sign() == 0 {
-			if s[0] == '-' {
+			if signb {
 				z.form = nzero
 			} else {
 				z.form = zero
@@ -1824,6 +1857,17 @@ func (z *Big) SetString(s string) (*Big, bool) {
 	}
 	z.scale = scale
 	return z, true
+}
+
+// ord returns similar to Sign except -Inf is -2 and +Inf is +2.
+func (x *Big) ord() int {
+	if x.form&inf != 0 {
+		if x.form == pinf {
+			return +2
+		}
+		return -2
+	}
+	return x.Sign()
 }
 
 // Sign returns:
@@ -1891,14 +1935,15 @@ func (x *Big) signal(c Condition, err error) *Big {
 	return x
 }
 
-// Signbit returns true if x is negative, negative infinity, or negative zero.
+// Signbit returns true if x is negative, negative infinity, negative zero, or
+// negative NaN.
 func (x *Big) Signbit() bool {
 	if debug {
 		x.validate()
 	}
 
 	if x.form != finite {
-		return x.form == ninf || x.form == nzero
+		return x.form&sign != 0
 	}
 	if x.isCompact() {
 		return x.compact < 0
@@ -2039,6 +2084,7 @@ func (z *Big) subBig(x, y *Big) *Big {
 		z.form = zero
 	}
 	z.compact = c.Inflated
+	z.norm()
 	return z
 }
 
@@ -2062,12 +2108,20 @@ func (x *Big) validate() {
 			panic(err)
 		}
 	}()
-	if x.form == finite {
+	switch x.form {
+	case finite:
 		if x.isCompact() && x.compact == 0 {
 			panic("finite and compact == 0")
 		}
 		if x.isInflated() && x.unscaled.Sign() == 0 {
 			panic("finite and unscaled == 0")
 		}
+		if x.isInflated() && compat.IsInt64(&x.unscaled) && x.unscaled.Int64() != c.Inflated {
+			panic(fmt.Sprintf("inflated but usncaled == %d", x.unscaled.Int64()))
+		}
+	case zero, nzero, snan, ssnan, qnan, sqnan, nan, pinf, ninf:
+		// OK
+	default:
+		panic(fmt.Sprintf("invalid form %s", x.form))
 	}
 }

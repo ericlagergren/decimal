@@ -1,9 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import gzip
 import decimal
 import random
 import sys
+import math
 
 ops = {
     "*": "multiplication",
@@ -14,6 +15,12 @@ ops = {
     "quant": "quantize",
     "A": "abs",
     "cfd": "convert-to-string",
+    "~": "neg",
+
+    # Custom
+    "rat": "convert-to-rat",
+    "sign": "sign",
+    "signbit": "signbit",
 }
 
 modes = {
@@ -32,7 +39,14 @@ def rand_bool():
 
 def make_dec():
     sign = "+" if rand_bool() else "-"
-    return decimal.Decimal("{}{}".format(sign, random.uniform(1, sys.float_info.max)))
+    f = random.uniform(1, sys.float_info.max)
+
+    r = random.randint(0, 25)
+    if r == 0:
+        f = math.nan
+    elif r == 1:
+        f = math.inf
+    return decimal.Decimal("{}{}".format(sign, f))
 
 DEC_TEN = decimal.Decimal(10)
 
@@ -58,14 +72,26 @@ def rand_dec(quant = False):
             # else: == 0
     return d
 
+def conv(x):
+    if x is None:
+        return None
+    if not isinstance(x, decimal.Decimal):
+        return x
+    if x.is_infinite():
+        return '-Inf' if x.is_signed() else 'Inf'
+    return x
+
 def write_line(out, prec, op, mode, r, x, y = None):
-    if x is not None:
-        if y is not None:
-            str = "d{}{} {} {} {} -> {}\n".format(prec, op, mode, x, y, r)
-        else:
-            str = "d{}{} {} {} -> {}\n".format(prec, op, mode, x, r)
-    else:
+    if x is None:
         raise ValueError("bad args")
+
+    x = conv(x)
+    y = conv(y)
+    r = conv(r)
+    if y is not None:
+        str = "d{}{} {} {} {} -> {}\n".format(prec, op, mode, x, y, r)
+    else:
+        str = "d{}{} {} {} -> {}\n".format(prec, op, mode, x, r)
     out.write(str)
 
 def perform_op(op):
@@ -100,12 +126,35 @@ def perform_op(op):
         r = x.copy_abs()
     elif op == "cfd":
         r = str(x)
+    elif op == "rat":
+        while True:
+            try:
+              n, d = x.as_integer_ratio()
+              break
+            except Exception: # OverflowError, ValueError, ...
+                x = rand_dec()
+                continue
+        x, y = n, d
+        # 'suite' can't parse the following:
+        # r = "{}/{}".format(n, d)
+        r = "#"
+    elif op == "sign":
+        if x < 0:
+            r = -1
+        elif x > 0:
+            r = +1
+        else:
+            r = 0
+    elif op == "signbit":
+        r = x.is_signed()
+    elif op == "~":
+        r = -x
     else:
-        raise ValueError("bad op")
+        raise ValueError("bad op {}".format(op))
     return (r, x, y)
 
 # set N higher for local testing.
-N = 5000
+N = 50000
 
 def make_tables():
     for op, name in ops.items():
@@ -116,9 +165,10 @@ def make_tables():
                 ctx = decimal.getcontext()
                 ctx.rounding = modes[mode]
                 ctx.prec = random.randint(1, 5000)
-               
-                t = perform_op(op)
-                write_line(f, ctx.prec, op, mode, *t[:3])
+                ctx.clear_traps()
+              
+                r, x, y = perform_op(op)
+                write_line(f, ctx.prec, op, mode, r, x, y)
 
 
 make_tables()

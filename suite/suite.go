@@ -3,7 +3,6 @@
 package suite
 
 //go:generate go run getcases.go
-//go:generate go run makejson.go
 
 import (
 	"bufio"
@@ -115,10 +114,18 @@ type Data string
 // not "return" any data.
 const NoData Data = "#"
 
-// IsNaN returns two booleans indicating whether the data is a NaN value
-// and whether it's signaling or not.
+// IsNaN returns two booleans indicating whether the data is a NaN value and
+// whether it's signaling or not.
 func (i Data) IsNaN() (nan, signal bool) {
-	return (i == "S" || i == "Q"), i == "S"
+	if len(i) == 1 {
+		return (i == "S" || i == "Q"), i == "S"
+	}
+	if i[0] == '-' {
+		i = i[1:]
+	}
+	return strings.EqualFold(string(i), "nan") ||
+		strings.EqualFold(string(i), "qnan") ||
+		strings.EqualFold(string(i), "snan"), i[0] == 's' || i[0] == 'S'
 }
 
 // IsInf returns a boolean indicating whether the data is an Infinity and an
@@ -238,13 +245,12 @@ const (
 	NextUp                // next up
 	NextDown              // next down
 	Equiv                 // equivalent
-)
 
-func init() {
-	if len(valToOp) != int(Equiv)+1 /* +1 since Add is 0 */ {
-		panic(fmt.Sprintf("wanted %d toks, got %d", Equiv, len(valToOp)))
-	}
-}
+	// Custom
+	Rat
+	Sign
+	Signbit
+)
 
 const maxOpLen = 6
 
@@ -289,6 +295,11 @@ var valToOp = map[string]Op{
 	"Nu":     NextUp,
 	"Nd":     NextDown,
 	"eq":     Equiv,
+
+	// Custom
+	"rat":     Rat,
+	"sign":    Sign,
+	"signbit": Signbit,
 }
 
 //go:generate stringer -type=Op
