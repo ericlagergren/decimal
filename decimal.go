@@ -47,7 +47,6 @@ import (
 	"github.com/ericlagergren/decimal/internal/arith/pow"
 	"github.com/ericlagergren/decimal/internal/c"
 	"github.com/ericlagergren/decimal/internal/compat"
-	"github.com/ericlagergren/decimal/internal/parse"
 )
 
 // NOTE(eric): For +/-inf/nan checks: https://play.golang.org/p/RtH3UCt5IH
@@ -206,12 +205,15 @@ func (z *Big) xflow(over, neg bool) *Big {
 func (x *Big) isCompact() bool  { return x.compact != c.Inflated }
 func (x *Big) isInflated() bool { return !x.isCompact() }
 
-// norm normalizes x's mantissa and returns true if successful.
-func (x *Big) norm() bool {
+// norm normalizes x's mantissa and returns x.
+func (x *Big) norm() *Big {
 	if x.form == finite && x.isInflated() && compat.IsInt64(&x.unscaled) {
 		x.compact = x.unscaled.Int64()
+		if x.compact == 0 {
+			x.form = zero
+		}
 	}
-	return x.isCompact()
+	return x
 }
 
 // Abs sets z to the absolute value of x and returns z.
@@ -224,8 +226,8 @@ func (z *Big) Abs(x *Big) *Big {
 		if x.isCompact() {
 			z.compact = arith.Abs(x.compact)
 		} else {
-			z.compact = c.Inflated
 			z.unscaled.Abs(&x.unscaled)
+			z.compact = c.Inflated
 		}
 		z.scale = x.scale
 		z.form = finite
@@ -331,8 +333,6 @@ func (z *Big) addCompact(x, y *Big) *Big {
 }
 
 func (z *Big) addBig(x, y *Big) *Big {
-	// TODO(eric): if debug { }
-
 	xb, yb := &x.unscaled, &y.unscaled
 	if x.isCompact() {
 		xb = big.NewInt(x.compact)
@@ -393,44 +393,28 @@ func (x *Big) Cmp(y *Big) int {
 		return +1
 	case xs < ys:
 		return -1
-	case xs == 0 && ys == 0:
+	case xs == 0, xs == +2, xs == -2:
 		return 0
 	}
 
-	// zs == xs
-
 	// Same scales means we can compare straight across.
 	if x.scale == y.scale {
-		switch {
-		case x.isCompact() && y.isCompact():
-			if x.compact > y.compact {
-				return +1
+		if x.isCompact() {
+			if y.isCompact() {
+				if x.compact != y.compact {
+					if x.compact > y.compact {
+						return +1
+					}
+					return -1
+				}
+				return 0
 			}
-			if x.compact < y.compact {
-				return -1
-			}
-			return 0
-		case x.isInflated() && y.isInflated():
-			return x.unscaled.Cmp(&y.unscaled)
-		default:
-			// TODO: in the future we can write something like
-			//
-			// if x.isCompact() {
-			//     if y.isCompact() {
-			//         // compare
-			//     }
-			//     return -1
-			// }
-			// if y.isCompact() {
-			//     return +1
-			// }
-			// return x.unscaled.Cmp(&y.unscaled)
-			//
-			// But we can't right now since compact x < inflated y isn't an
-			// invariant. Once it is, this can be greatly simplified. For now,
-			// break down into our other cases to handle the case where one
-			// operand needs to be inflated.
+			return xs * -1 // !y.isInflated
 		}
+		if y.isCompact() {
+			return xs * +1
+		}
+		return x.unscaled.Cmp(&y.unscaled)
 	}
 
 	// Signs are the same and the scales differ. Compare the lengths of their
@@ -504,8 +488,10 @@ func (x *Big) Float64() float64 {
 		switch x.form {
 		case pinf, ninf:
 			return math.Inf(int(x.form & sign))
-		case snan, qnan, ssnan, sqnan:
+		case snan, qnan:
 			return math.NaN()
+		case ssnan, sqnan:
+			return math.Copysign(math.NaN(), -1)
 		case nzero:
 			return math.Copysign(0, -1)
 		default: // zero
@@ -547,12 +533,10 @@ func (x *Big) Float(z *big.Float) *big.Float {
 	case finite:
 		// TODO(eric): is there a more efficient way?
 		z.SetRat(x.Rat(nil))
-	case zero, snan, qnan, ssnan, sqnan:
-		z.SetInt64(0)
-	case nzero:
-		z.SetInt64(0).Neg(z)
 	case pinf, ninf:
 		z.SetInf(x.form == pinf)
+	default: // zero, nzero, snan, qnan, ssnan, sqnan:
+		z.SetInt64(0)
 	}
 	return z
 }
@@ -1172,15 +1156,32 @@ func (z *Big) quoAndRoundCompact(x, y int64) *Big {
 	// Quotient
 	z.compact = x / y
 
+	pos := (x < 0) == (y < 0)
+
 	// ToZero means we can ignore remainder.
 	if z.Context.RoundingMode == ToZero {
 		z.Context.Conditions |= Rounded | Inexact
+		if z.compact == 0 {
+			if pos {
+				z.form = zero
+			} else {
+				z.form = nzero
+			}
+		}
 		return z
 	}
 
 	// Remainder
 	r := x % y
 	if r == 0 {
+		if z.compact == 0 {
+			if pos {
+				z.form = zero
+			} else {
+				z.form = nzero
+			}
+			return z
+		}
 		return z.simplify()
 	}
 
@@ -1189,7 +1190,6 @@ func (z *Big) quoAndRoundCompact(x, y int64) *Big {
 		rc = arith.AbsCmp(r2, y)
 	}
 
-	pos := (x < 0) == (y < 0)
 	if z.needsInc(rc, pos) {
 		z.Context.Conditions |= Rounded | Inexact
 		if pos {
@@ -1208,7 +1208,7 @@ func (z *Big) quoAndRoundCompact(x, y int64) *Big {
 }
 
 func (z *Big) simplify() *Big {
-	if int(z.scale) == z.Context.Precision() {
+	if z.Precision() == z.Context.Precision() {
 		return z
 	}
 	ok := false
@@ -1292,16 +1292,31 @@ func (z *Big) quoAndRoundBig(x, y *big.Int) *Big {
 	z.form = finite
 	z.compact = c.Inflated
 
+	pos := x.Sign() == y.Sign()
+
 	if z.Context.RoundingMode == ToZero {
 		z.Context.Conditions |= Rounded | Inexact
-		z.unscaled.Quo(x, y)
-		return z
+		if z.unscaled.Quo(x, y).Sign() == 0 {
+			if pos {
+				z.form = zero
+			} else {
+				z.form = nzero
+			}
+			return z
+		}
+		return z.norm()
 	}
 
-	// Can't use z.unscaled.Sign because it z might == 0
-	pos := x.Sign() == y.Sign()
 	_, r := z.unscaled.QuoRem(x, y, new(big.Int))
 	if r.Sign() == 0 {
+		if z.unscaled.Sign() == 0 {
+			if pos {
+				z.form = zero
+			} else {
+				z.form = nzero
+			}
+			return z
+		}
 		return z.simplifyBig()
 	}
 
@@ -1328,16 +1343,15 @@ func (z *Big) quoAndRoundBig(x, y *big.Int) *Big {
 			z.form = nzero
 		}
 	}
-	z.norm()
-	return z
+	return z.norm()
 }
 
 func (z *Big) simplifyBig() *Big {
-	if int(z.scale) == z.Context.Precision() {
-		return z
-	}
-	if z.norm() {
+	if z.norm().isCompact() {
 		return z.simplify()
+	}
+	if z.Precision() == z.Context.Precision() {
+		return z
 	}
 	var (
 		ok   = false
@@ -1410,7 +1424,7 @@ func Raw(x *Big) (int64, *big.Int) {
 
 func (z *Big) round() *Big {
 	zp := z.Context.Precision()
-	if zp != 0 && z.Context.OperatingMode == GDA {
+	if zp != UnlimitedPrecision && z.Context.OperatingMode == GDA {
 		return z.Round(zp)
 	}
 	return z
@@ -1506,20 +1520,7 @@ func (x *Big) Scale() int32 { return x.scale }
 
 // Scan implements fmt.Scanner.
 func (z *Big) Scan(state fmt.ScanState, verb rune) error {
-	toks, err := state.Token(true, func(c rune) bool {
-		// Small enough range that we balance speed with accuracy.
-		return c >= '+' && c <= 'e'
-	})
-	if err != nil {
-		return err
-	}
-	if _, ok := z.SetString(string(toks)); !ok {
-		if z.Context.Err != nil {
-			return z.Context.Err
-		}
-		return errors.New("Big.Scan: SetString failed")
-	}
-	return nil
+	return z.scan(byteReader{state})
 }
 
 var _ fmt.Scanner = (*Big)(nil)
@@ -1551,8 +1552,8 @@ func (z *Big) SetBigMantScale(value *big.Int, scale int32) *Big {
 		z.form = zero
 		return z
 	}
-	// Hope the compiler optimizes both calls to Int64 out...
-	if compat.IsInt64(value) && value.Int64() < c.Inflated {
+	// Hope the compiler optimizes out one call to Int64.
+	if compat.IsInt64(value) && value.Int64() != c.Inflated {
 		z.compact = value.Int64()
 	} else {
 		z.unscaled.Set(value)
@@ -1726,136 +1727,19 @@ var Regexp = regexp.MustCompile(`(?i)(((\+|-)?(\d+\.\d*|\.?\d+)([eE][+-]?\d+)?)|
 // 	1.234E-5
 // 	0.000001234
 // 	Inf
-// 	+Inf
-// 	-Inf
 // 	NaN
 // 	qNaN
 // 	sNaN
 //
-// ``Inf'' and ``NaN'' map to ``+Inf'' and ``qNaN', respectively. NaN values may
-// have optional diagnostic information, represented as trailing digits; for
-// example, ``NaN123''. These digits are otherwise ignored but are included for
+// Each value may be preceded by an optional sign, ``-'' or ``+''. ``Inf'' and
+// ``NaN'' map to ``+Inf'' and ``qNaN', respectively. NaN values may have
+// optional diagnostic information, represented as trailing digits; for example,
+// ``NaN123''. These digits are otherwise ignored but are included for
 // robustness.
 func (z *Big) SetString(s string) (*Big, bool) {
-	// TODO(eric): write a scan(io.Reader) method.
-	if debug {
-		defer func() { z.validate() }()
+	if err := z.scan(strings.NewReader(s)); err != nil {
+		return nil, false
 	}
-
-	if s == "" {
-		return z.signal(ConversionSyntax, errors.New(`SetString("")`)), false
-	}
-
-	// http://speleotrove.com/decimal/daconvs.html#refnumsyn
-	//
-	//   sign           ::=  '+' | '-'
-	//   digit          ::=  '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' |
-	//                       '8' | '9'
-	//   indicator      ::=  'e' | 'E'
-	//   digits         ::=  digit [digit]...
-	//   decimal-part   ::=  digits '.' [digits] | ['.'] digits
-	//   exponent-part  ::=  indicator [sign] digits
-	//   infinity       ::=  'Infinity' | 'Inf'
-	//   nan            ::=  'NaN' [digits] | 'sNaN' [digits]
-	//   numeric-value  ::=  decimal-part [exponent-part] | infinity
-	//   numeric-string ::=  [sign] numeric-value | [sign] nan
-	//
-	// We deviate a little by being a tad bit more forgiving. For instance,
-	// we allow case-insensitive nan and infinity values.
-
-	spec, signb := parse.ParseSpecial(s)
-	if spec != parse.Invalid {
-		switch spec {
-		case parse.QNaN:
-			z.form = qnan
-		case parse.SNaN:
-			z.form = snan
-		case parse.Inf:
-			z.form = inf
-		}
-		if signb {
-			z.form |= sign
-		}
-		return z, true
-	}
-
-	var scale int32
-
-	// Check for a scientific string.
-	if i := strings.LastIndexAny(s, "Ee"); i > 0 {
-		eint, err := strconv.ParseInt(s[i+1:], 10, 32)
-		if err != nil {
-			if err.(*strconv.NumError).Err == strconv.ErrSyntax {
-				z.form = qnan
-				return z.signal(ConversionSyntax, err), false
-			}
-			// strconv.ErrRange.
-			return z.xflow(eint < 0, signb), false
-		}
-		s = s[:i]
-		scale = -int32(eint)
-	}
-
-	switch strings.Count(s, ".") {
-	case 0:
-		// OK
-	case 1:
-		i := strings.IndexByte(s, '.')
-		s = s[:i] + s[i+1:]
-		sc, ok := checked.Add32(scale, int32(len(s)-i))
-		if !ok {
-			// It's impossible for the scale to underflow here since the rhs will
-			// always be [0, len(s)]
-			return z.xflow(true, signb), false
-		}
-		scale = sc
-	default:
-		return z.signal(
-			ConversionSyntax,
-			errors.New("SetString: too many '.' in input"),
-		), false
-	}
-
-	var err error
-	z.form = finite
-	// Numbers == 19 can be out of range, but try the edge case anyway.
-	if len(s) <= 19 {
-		if z.compact, err = strconv.ParseInt(s, 10, 64); err != nil {
-			nerr, ok := err.(*strconv.NumError)
-			if !ok || nerr.Err == strconv.ErrSyntax {
-				z.form = qnan
-				return z.signal(ConversionSyntax, err), false
-			}
-			err = nerr.Err
-		} else if z.compact == 0 {
-			if signb {
-				z.form = nzero
-			} else {
-				z.form = zero
-			}
-		}
-		if z.compact == c.Inflated {
-			z.unscaled.SetInt64(z.compact)
-		}
-	}
-	if (err == strconv.ErrRange && len(s) == 19) || len(s) > 19 {
-		if _, ok := z.unscaled.SetString(s, 10); !ok {
-			return z.signal(
-				ConversionSyntax,
-				// TODO(eric): a better error message?
-				errors.New("SetString: invalid syntax"),
-			), false
-		}
-		z.compact = c.Inflated
-		if z.unscaled.Sign() == 0 {
-			if signb {
-				z.form = nzero
-			} else {
-				z.form = zero
-			}
-		}
-	}
-	z.scale = scale
 	return z, true
 }
 
@@ -2084,17 +1968,12 @@ func (z *Big) subBig(x, y *Big) *Big {
 		z.form = zero
 	}
 	z.compact = c.Inflated
-	z.norm()
-	return z
+	return z.norm()
 }
 
 // UnmarshalText implements encoding.TextUnmarshaler.
 func (z *Big) UnmarshalText(data []byte) error {
-	// TODO(eric): get rid of the allocation here.
-	if _, ok := z.SetString(string(data)); !ok {
-		return errors.New("Big.UnmarshalText: invalid decimal format")
-	}
-	return nil
+	return z.scan(bytes.NewReader(data))
 }
 
 var _ encoding.TextUnmarshaler = (*Big)(nil)
@@ -2103,8 +1982,12 @@ var _ encoding.TextUnmarshaler = (*Big)(nil)
 // have good performance since it's for debug == true only.
 func (x *Big) validate() {
 	defer func() {
-		if err, ok := recover().(error); ok {
-			fmt.Printf("%#v\n", x)
+		if err := recover(); err != nil {
+			pc, _, _, ok := runtime.Caller(4)
+			if caller := runtime.FuncForPC(pc); ok && caller != nil {
+				fmt.Println("called by:", caller.Name())
+			}
+			fmt.Println(*x)
 			panic(err)
 		}
 	}()
@@ -2116,8 +1999,8 @@ func (x *Big) validate() {
 		if x.isInflated() && x.unscaled.Sign() == 0 {
 			panic("finite and unscaled == 0")
 		}
-		if x.isInflated() && compat.IsInt64(&x.unscaled) && x.unscaled.Int64() != c.Inflated {
-			panic(fmt.Sprintf("inflated but usncaled == %d", x.unscaled.Int64()))
+		if x.isInflated() && compat.IsInt64(&x.unscaled) {
+			panic(fmt.Sprintf("inflated but unscaled == %d", x.unscaled.Int64()))
 		}
 	case zero, nzero, snan, ssnan, qnan, sqnan, nan, pinf, ninf:
 		// OK

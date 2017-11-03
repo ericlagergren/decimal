@@ -154,7 +154,7 @@ def perform_op(op):
     return (r, x, y)
 
 # set N higher for local testing.
-N = 50000
+N = 500
 
 def make_tables():
     for op, name in ops.items():

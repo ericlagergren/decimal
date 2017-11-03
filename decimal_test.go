@@ -30,12 +30,6 @@ func getTests(t *testing.T, name string) (s *bufio.Scanner, close func()) {
 	return bufio.NewScanner(gzr), func() { gzr.Close(); file.Close() }
 }
 
-func didPanic(f func()) (ok bool) {
-	defer func() { ok = recover() != nil }()
-	f()
-	return ok
-}
-
 func newbig(t *testing.T, s string) *Big {
 	x, ok := new(Big).SetString(s)
 	if !ok {
@@ -582,7 +576,7 @@ func TestBig_String(t *testing.T) {
 			t.Fatalf(`#%d: %s
 wanted: %q
 got   : %q
-`, i+1, c, r, xs)
+`, i+1, c.ShortString(20), r, xs)
 		}
 	}
 }
@@ -601,6 +595,7 @@ func TestBig_Sub(t *testing.T) {
 		z.Context.SetPrecision(c.Prec)
 		z.Context.OperatingMode = GDA
 		z.Context.RoundingMode = RoundingMode(c.Mode)
+
 		x, _ := new(Big).SetString(string(c.Inputs[0]))
 		y, _ := new(Big).SetString(string(c.Inputs[1]))
 		r, _ := new(Big).SetString(string(c.Output))
