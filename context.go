@@ -286,5 +286,3 @@ func (c Condition) String() string {
 	}
 	return strings.Join(a, ", ")
 }
-
-var one = New(1, 0)

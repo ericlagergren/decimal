@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/ericlagergren/decimal/suite"
@@ -66,19 +65,6 @@ func TestSuiteCases(t *testing.T) {
 			}
 		}
 	}
-}
-
-func precision(s suite.Data) (p int32) {
-	j := strings.IndexAny(string(s), "eE")
-	if j < 0 {
-		j = len(s)
-	}
-	for i := 0; i < j; i++ {
-		if s[i] >= '0' && s[i] < '9' {
-			p++
-		}
-	}
-	return p
 }
 
 var convs = [...]struct {
@@ -200,8 +186,6 @@ got   : "%e"
 		}
 	}
 }
-
-var testZero = New(0, 0)
 
 func makeNaN(signal bool, ctx Context) *Big {
 	z := new(Big)

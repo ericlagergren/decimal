@@ -341,17 +341,6 @@ func (s spaceReader) Read(p []byte) (n int, err error) {
 	return n, nil
 }
 
-// trimIndex returns the index in b where b should be trimmed to remove
-// trailing '0's.
-func trimIndex(b []byte) int {
-	for i := len(b) - 1; i >= 0; i-- {
-		if b[i] != '0' {
-			return i + 1
-		}
-	}
-	return -1
-}
-
 // stateWrapper is a wrapper around an io.Writer to add WriteByte and
 // WriteString methods.
 type stateWrapper struct{ fmt.State }
