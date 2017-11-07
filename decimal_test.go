@@ -66,7 +66,7 @@ func TestBig_Abs(t *testing.T) {
 		}
 
 		z := new(Big)
-		z.Context.SetPrecision(c.Prec)
+		z.Context.Precision = c.Prec
 		z.Context.OperatingMode = GDA
 		z.Context.RoundingMode = RoundingMode(c.Mode)
 
@@ -84,6 +84,7 @@ got   : %q
 }
 
 func TestBig_Add(t *testing.T) {
+	t.Parallel()
 	s, close := getTests(t, "addition")
 	defer close()
 
@@ -94,7 +95,7 @@ func TestBig_Add(t *testing.T) {
 		}
 
 		z := new(Big)
-		z.Context.SetPrecision(c.Prec)
+		z.Context.Precision = c.Prec
 		z.Context.OperatingMode = GDA
 		z.Context.RoundingMode = RoundingMode(c.Mode)
 		x, _ := new(Big).SetString(string(c.Inputs[0]))
@@ -111,7 +112,13 @@ got   : %q
 	}
 }
 
+func TestBig_Class(t *testing.T) {
+	// visually check form.String since the tests for this would be essentially
+	// re-writing form.String...
+}
+
 func TestBig_Cmp(t *testing.T) {
+	t.Parallel()
 	s, close := getTests(t, "comparison")
 	defer close()
 
@@ -122,7 +129,7 @@ func TestBig_Cmp(t *testing.T) {
 		}
 
 		x := new(Big)
-		x.Context.SetPrecision(c.Prec)
+		x.Context.Precision = c.Prec
 		x.Context.OperatingMode = GDA
 		x.Context.RoundingMode = RoundingMode(c.Mode)
 		x.SetString(string(c.Inputs[0]))
@@ -162,6 +169,36 @@ func TestBig_Float(t *testing.T) {
 		xf := new(Big).SetFloat(flt).Float(fv)
 		if xf.String() != flt.String() {
 			t.Fatalf("#%d: wanted %f, got %f", i, flt, xf)
+		}
+	}
+}
+
+func TestBig_FMA(t *testing.T) {
+	t.Parallel()
+	s, close := getTests(t, "fused-multiply-add")
+	defer close()
+
+	for i := 0; s.Scan(); i++ {
+		c, err := suite.ParseCase(s.Bytes())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		z := new(Big)
+		z.Context.Precision = c.Prec
+		z.Context.OperatingMode = GDA
+		z.Context.RoundingMode = RoundingMode(c.Mode)
+		x, _ := new(Big).SetString(string(c.Inputs[0]))
+		y, _ := new(Big).SetString(string(c.Inputs[1]))
+		z0, _ := new(Big).SetString(string(c.Inputs[2]))
+		r, _ := new(Big).SetString(string(c.Output))
+
+		z.FMA(x, y, z0)
+		if z.Cmp(r) != 0 {
+			t.Fatalf(`#%d: %s
+wanted: %q
+got   : %q
+`, i+1, c, r, z)
 		}
 	}
 }
@@ -313,6 +350,7 @@ func TestBig_Neg(t *testing.T) {
 }
 
 func TestBig_Mul(t *testing.T) {
+	t.Parallel()
 	s, close := getTests(t, "multiplication")
 	defer close()
 
@@ -323,7 +361,7 @@ func TestBig_Mul(t *testing.T) {
 		}
 
 		z := new(Big)
-		z.Context.SetPrecision(c.Prec)
+		z.Context.Precision = c.Prec
 		z.Context.OperatingMode = GDA
 		z.Context.RoundingMode = RoundingMode(c.Mode)
 		x, _ := new(Big).SetString(string(c.Inputs[0]))
@@ -345,6 +383,7 @@ func TestBig_Prec(t *testing.T) {
 }
 
 func TestBig_Quantize(t *testing.T) {
+	t.Parallel()
 	s, close := getTests(t, "quantize")
 	defer close()
 
@@ -355,7 +394,7 @@ func TestBig_Quantize(t *testing.T) {
 		}
 
 		x, _ := new(Big).SetString(string(c.Inputs[0]))
-		x.Context.SetPrecision(c.Prec)
+		x.Context.Precision = c.Prec
 		x.Context.OperatingMode = GDA
 		x.Context.RoundingMode = RoundingMode(c.Mode)
 
@@ -377,6 +416,7 @@ got   : "%g"
 }
 
 func TestBig_Quo(t *testing.T) {
+	t.Parallel()
 	s, close := getTests(t, "division")
 	defer close()
 
@@ -387,7 +427,7 @@ func TestBig_Quo(t *testing.T) {
 		}
 
 		z := new(Big)
-		z.Context.SetPrecision(c.Prec)
+		z.Context.Precision = c.Prec
 		z.Context.OperatingMode = GDA
 		z.Context.RoundingMode = RoundingMode(c.Mode)
 		x, _ := new(Big).SetString(string(c.Inputs[0]))
@@ -405,6 +445,7 @@ got   : %q
 }
 
 func TestBig_Rat(t *testing.T) {
+	t.Parallel()
 	s, close := getTests(t, "convert-to-rat")
 	defer close()
 
@@ -420,7 +461,7 @@ func TestBig_Rat(t *testing.T) {
 		r := new(big.Rat).SetFrac(&n, &d)
 
 		x := new(Big)
-		x.Context.SetPrecision(c.Prec)
+		x.Context.Precision = c.Prec
 		x.Context.OperatingMode = GDA
 		x.Context.RoundingMode = RoundingMode(c.Mode)
 		xr := x.SetRat(r).Rat(nil)
@@ -467,7 +508,7 @@ func TestBig_Scan(t *testing.T) {
 func TestBig_SetFloat64(t *testing.T) {
 	z := new(Big)
 	z.Context.OperatingMode = GDA
-	z.Context.SetPrecision(25)
+	z.Context.Precision = 25
 
 	var start, end uint32
 	if testing.Short() {
@@ -492,6 +533,7 @@ func TestBig_SetString(t *testing.T) {
 }
 
 func TestBig_Sign(t *testing.T) {
+	t.Parallel()
 	s, close := getTests(t, "sign")
 	defer close()
 
@@ -502,7 +544,7 @@ func TestBig_Sign(t *testing.T) {
 		}
 
 		x := new(Big)
-		x.Context.SetPrecision(c.Prec)
+		x.Context.Precision = c.Prec
 		x.Context.OperatingMode = GDA
 		x.Context.RoundingMode = RoundingMode(c.Mode)
 		x.SetString(string(c.Inputs[0]))
@@ -523,6 +565,7 @@ got   : %d
 }
 
 func TestBig_SignBit(t *testing.T) {
+	t.Parallel()
 	s, close := getTests(t, "signbit")
 	defer close()
 
@@ -533,7 +576,7 @@ func TestBig_SignBit(t *testing.T) {
 		}
 
 		x := new(Big)
-		x.Context.SetPrecision(c.Prec)
+		x.Context.Precision = c.Prec
 		x.Context.OperatingMode = GDA
 		x.Context.RoundingMode = RoundingMode(c.Mode)
 		x.SetString(string(c.Inputs[0]))
@@ -554,6 +597,7 @@ got   : %t
 }
 
 func TestBig_String(t *testing.T) {
+	t.Parallel()
 	s, close := getTests(t, "convert-to-string")
 	defer close()
 
@@ -564,7 +608,7 @@ func TestBig_String(t *testing.T) {
 		}
 
 		x := new(Big)
-		x.Context.SetPrecision(c.Prec)
+		x.Context.Precision = c.Prec
 		x.Context.OperatingMode = GDA
 		x.Context.RoundingMode = RoundingMode(c.Mode)
 		x.SetString(string(c.Inputs[0]))
@@ -582,6 +626,7 @@ got   : %q
 }
 
 func TestBig_Sub(t *testing.T) {
+	t.Parallel()
 	s, close := getTests(t, "subtraction")
 	defer close()
 
@@ -592,7 +637,7 @@ func TestBig_Sub(t *testing.T) {
 		}
 
 		z := new(Big)
-		z.Context.SetPrecision(c.Prec)
+		z.Context.Precision = c.Prec
 		z.Context.OperatingMode = GDA
 		z.Context.RoundingMode = RoundingMode(c.Mode)
 

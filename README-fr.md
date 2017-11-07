@@ -1,6 +1,6 @@
 # decimal [![Build Status](https://travis-ci.org/ericlagergren/decimal.png?branch=master)](https://travis-ci.org/ericlagergren/decimal) [![GoDoc](https://godoc.org/github.com/ericlagergren/decimal?status.svg)](https://godoc.org/github.com/ericlagergren/decimal)
 
-Decimal est un logithèque décimal virgule fixe, avec haute performance et
+Decimal est un logithèque décimal virgule flottante, avec haute performance et
 précision arbitrarie que mettre en œuvre la spécification
 [General Decimal Arithmetic](http://speleotrove.com/decimal/).
 

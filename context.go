@@ -13,20 +13,36 @@ const (
 	MaxScale = math.MaxInt32 // largest allowed scale.
 	MinScale = math.MinInt32 // smallest allowed scale.
 
-	MaxPrecision       = int(^uint(0) >> 1) // largest allowed Context precision.
-	MinPrecision       = 1                  // smallest allowed Context precision.
-	UnlimitedPrecision = -1                 // no precision, but may error.
-	DefaultPrecision   = 16                 // default precision for literals.
+	// MaxPrecision and UnlimitedPrecision relies on the relationship
+	// MaxPrecision = -(UnlimitedPrecision + 1)
+
+	maxInt = int(^uint(0) >> 1) // max machine-defined integer
+
+	MaxPrecision       = maxInt        // largest allowed Context precision.
+	MinPrecision       = 1             // smallest allowed Context precision.
+	UnlimitedPrecision = -MaxPrecision // no precision, but may error.
+	DefaultPrecision   = 16            // default precision for literals.
 )
 
-// Context is a per-decimal contextual object that governs specific operations
-// such as how lossy operations (e.g. division) round.
+// Context is a per-decimal contextual object that governs specific operations.
 type Context struct {
 	// OperatingMode which dictates how the decimal operates under certain
 	// conditions. See OperatingMode for more information.
 	OperatingMode OperatingMode
 
-	precision int
+	// Precision is the Context's precision; that is, the maximum number of
+	// significant digits that may result from any arithmetic operation.
+	// Excluding any package-defined constants (e.g., ``UnlimitedPrecision''),
+	// precision not in the range [1, MaxPrecision] will interpreted as
+	// their negated value. A precision of 0 will be interpreted as
+	// DefaultPrecision. For example,
+	//
+	//   precision ==  4 // 4
+	//   precision == -4 // 4
+	//   precision ==  0 // DefaultPrecision
+	//   precision == 12 // 12
+	//
+	Precision int
 
 	// Traps are a set of exceptional conditions that should result in an error.
 	Traps Condition
@@ -49,25 +65,6 @@ func WithContext(c Context) *Big {
 	return x
 }
 
-// Precision returns the Context's precision. By default a Context literal will
-// have a precision of DefaultPrecision.
-func (c Context) Precision() int {
-	if c.precision == 0 {
-		return DefaultPrecision
-	}
-	return c.precision
-}
-
-// SetPrecision sets the Context's precision. A precision value not in the range
-// [1, MaxPrecision] will be set to DefaultPrecision.
-func (c *Context) SetPrecision(prec int) {
-	if prec <= UnlimitedPrecision {
-		c.precision = DefaultPrecision
-	} else {
-		c.precision = prec
-	}
-}
-
 // The following are called ContextXX instead of DecimalXX
 // to reserve the DecimalXX namespace for future decimal types.
 
@@ -77,7 +74,7 @@ func (c *Context) SetPrecision(prec int) {
 var (
 	// Context32 is the IEEE 754R Decimal32 format.
 	Context32 = Context{
-		precision:     7,
+		Precision:     7,
 		RoundingMode:  ToNearestEven,
 		OperatingMode: GDA,
 		Traps:         ^(Inexact | Rounded | Subnormal),
@@ -85,7 +82,7 @@ var (
 
 	// Context64 is the IEEE 754R Decimal64 format.
 	Context64 = Context{
-		precision:     16,
+		Precision:     16,
 		RoundingMode:  ToNearestEven,
 		OperatingMode: GDA,
 		Traps:         ^(Inexact | Rounded | Subnormal),
@@ -93,7 +90,7 @@ var (
 
 	// Context128 is the IEEE 754R Decimal128 format.
 	Context128 = Context{
-		precision:     34,
+		Precision:     34,
 		RoundingMode:  ToNearestEven,
 		OperatingMode: GDA,
 		Traps:         ^(Inexact | Rounded | Subnormal),
@@ -141,7 +138,7 @@ func (z *Big) needsInc(r int, pos bool) bool {
 	case ToNearestAway:
 		return r >= 0
 	default:
-		z.signal(
+		z.Signal(
 			InvalidContext,
 			fmt.Errorf("invalid rounding mode: %d", z.Context.RoundingMode),
 		)
@@ -162,6 +159,7 @@ const (
 	//  - traps are ignored; it does not set Context.Err or Context.Conditions
 	//  - its string forms of qNaN, sNaN, +Inf, and -Inf are "NaN", "NaN",
 	//     "+Inf", and "-Inf", respectively
+	//  - Set is analogous to Copy (i.e., no rounding)
 	//
 	Go OperatingMode = iota
 
@@ -174,6 +172,7 @@ const (
 	//  - it utilizes traps to set both Context.Err and Context.Conditions
 	//  - its string forms of qNaN, sNaN, +Inf, and -Inf are "NaN", "sNaN",
 	//    "Infinity", and "-Infinity", respectively
+	//  - Set rounds if the precisions differ
 	//
 	GDA
 )

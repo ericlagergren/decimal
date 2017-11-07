@@ -95,7 +95,7 @@ func testCase(fname string, i int, c suite.Case, mode OperatingMode, t *testing.
 
 	z := new(Big)
 	z.Context.RoundingMode = RoundingMode(c.Mode)
-	z.Context.SetPrecision(50)
+	z.Context.Precision = 50
 	z.Context.OperatingMode = mode
 	z.Context.Traps = convException(c.Trap)
 
@@ -171,7 +171,7 @@ func testCase(fname string, i int, c suite.Case, mode OperatingMode, t *testing.
 
 	if badNaN || (neitherNaN && want.Cmp(z) != 0 && mode == GDA) {
 		t.Parallel()
-		pywant := shellOut(args[0], args[1], c.Op, z.Context.Precision())
+		pywant := shellOut(args[0], args[1], c.Op, precision(z))
 		if prec != 0 {
 			pywant.Round(prec)
 		}

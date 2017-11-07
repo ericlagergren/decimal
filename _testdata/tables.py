@@ -16,6 +16,7 @@ ops = {
     "A": "abs",
     "cfd": "convert-to-string",
     "~": "neg",
+    "*-": "fused-multiply-add",
 
     # Custom
     "rat": "convert-to-rat",
@@ -81,22 +82,27 @@ def conv(x):
         return '-Inf' if x.is_signed() else 'Inf'
     return x
 
-def write_line(out, prec, op, mode, r, x, y = None):
+def write_line(out, prec, op, mode, r, x, y = None, z0 = None):
     if x is None:
         raise ValueError("bad args")
 
-    x = conv(x)
-    y = conv(y)
-    r = conv(r)
+    x  = conv(x)
+    y  = conv(y)
+    z0 = conv(z0)
+    r  = conv(r)
     if y is not None:
-        str = "d{}{} {} {} {} -> {}\n".format(prec, op, mode, x, y, r)
+        if z0 is not None:
+            str = "d{}{} {} {} {} {} -> {}\n".format(prec, op, mode, x, y, z0, r)
+        else:
+            str = "d{}{} {} {} {} -> {}\n".format(prec, op, mode, x, y, r)
     else:
         str = "d{}{} {} {} -> {}\n".format(prec, op, mode, x, r)
     out.write(str)
 
 def perform_op(op):
-    x = rand_dec()
-    y = None # possibly unused
+    x  = rand_dec()
+    y  = None # possibly unused
+    z0 = None # possibly unused
 
     # Binary
     if op == "*":
@@ -149,12 +155,18 @@ def perform_op(op):
         r = x.is_signed()
     elif op == "~":
         r = -x
+
+    # Ternary
+    elif op == "*-":
+        y = rand_dec()
+        z0 = rand_dec()
+        r = x.fma(y, z0)
     else:
         raise ValueError("bad op {}".format(op))
-    return (r, x, y)
+    return (r, x, y, z0)
 
 # set N higher for local testing.
-N = 500
+N = 100
 
 def make_tables():
     for op, name in ops.items():
@@ -167,8 +179,8 @@ def make_tables():
                 ctx.prec = random.randint(1, 5000)
                 ctx.clear_traps()
               
-                r, x, y = perform_op(op)
-                write_line(f, ctx.prec, op, mode, r, x, y)
+                r, x, y, z0 = perform_op(op)
+                write_line(f, ctx.prec, op, mode, r, x, y, z0)
 
 
 make_tables()

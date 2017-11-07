@@ -45,7 +45,7 @@ func TestPiBenchmarks(t *testing.T) {
 			name := test.name
 
 			x := new(decimal.Big)
-			x.Context.SetPrecision(int(prec))
+			x.Context.Precision = int(prec)
 			if _, ok := x.SetString(str); !ok {
 				t.Fatalf("%s (%d): bad input: %q", name, prec, str)
 			}
@@ -65,7 +65,7 @@ got : %q
 
 func newd(c int64, m int32, p int32, mode decimal.OperatingMode) *decimal.Big {
 	d := decimal.New(c, m)
-	d.Context.SetPrecision(int(p))
+	d.Context.Precision = int(p)
 	d.Context.OperatingMode = mode
 	return d
 }
