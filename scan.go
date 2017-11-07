@@ -59,7 +59,7 @@ func (z *Big) scan(r io.ByteScanner) error {
 	if err := z.scanMant(r); err != nil {
 		if err == strconv.ErrSyntax {
 			z.form = qnan
-			z.signal(ConversionSyntax, err)
+			z.Signal(ConversionSyntax, err)
 			return err
 		}
 		// Can only overflow
@@ -87,7 +87,7 @@ func (z *Big) scan(r io.ByteScanner) error {
 			}
 		default:
 			z.form = qnan
-			z.signal(ConversionSyntax, strconv.ErrSyntax)
+			z.Signal(ConversionSyntax, strconv.ErrSyntax)
 			return strconv.ErrSyntax
 		}
 	} else if err != io.EOF {

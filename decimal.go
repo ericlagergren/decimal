@@ -1,5 +1,5 @@
 // Package decimal provides a high-performance, arbitrary precision,
-// fixed-point decimal library.
+// floating-point decimal library.
 //
 // The following type is supported:
 //
@@ -51,13 +51,22 @@ import (
 
 // NOTE(eric): For +/-inf/nan checks: https://play.golang.org/p/RtH3UCt5IH
 
-// Big is a fixed-point, arbitrary-precision decimal number.
+// Big is a floating-point, arbitrary-precision decimal.
 //
-// A Big decimal is a number and a scale, the latter representing the number
-// of digits following the radix if the scale is >= 0. Otherwise, it's the
-// number * 10 ^ -scale.
+// It is represented as a number and a scale. If the scale is >= 0, it indicates
+// the number of decimal digits after the radix. Otherwise, the number is
+// multiplied by 10 to the power of the negation of the scale. More formally,
+//
+//   Big = number × 10**-scale
+//
+// with MinScale <= scale <= MaxScale. A Big may also be ±0, ±Infinity, or ±NaN
+// (either quiet or signaling). Non-NaN Big values are ordered, defined as the
+// result of x.Cmp(y).
+//
+// Additionally, each Big value has a contextual object which governs arithmetic
+// operations.
 type Big struct {
-	// Big is laid out like this so it takes up as little memory as possible.
+	// Big is laid out like this to take up as little memory as possible.
 
 	// Context is the decimal's unique contextual object.
 	Context Context
@@ -107,11 +116,7 @@ const (
 	inf  form = pinf        // do not assign this; used to check for either infinity.
 )
 
-// String is for internal use only.
 func (f form) String() string {
-	if !debug {
-		return strconv.Itoa(int(f))
-	}
 	switch f {
 	case zero:
 		return "+zero"
@@ -152,8 +157,34 @@ func (e ErrNaN) Error() string {
 
 var _ error = ErrNaN{}
 
+// CheckNaNs provides a method for returning a Condition, error pair that can
+// be passed to Signal. It follows the rules of NaN handling set forth in the
+// GDA specification. The second argument, y, may to be nil. The name of the
+// operating may == "", in which case ``operation'' will be used in place. The
+// only error type returned is ErrNaN.
+func CheckNaNs(x, y *Big, name string) (Condition, error) {
+	var yf form
+	if y != nil {
+		yf = y.form
+	}
+	f := (x.form | yf) & nan
+	if f == 0 {
+		return 0, nil
+	}
+	var cond Condition
+	if f&snan != 0 {
+		cond = InvalidOperation
+	}
+	op := name
+	if name == "" {
+		name = "operation"
+	}
+	return cond, ErrNaN{Msg: op + " with NaN as an operand"}
+}
+
 // checkNaNs checks if either x or y is NaN. If so, it sets z's form to either
-// qnan or snan and returns the peoper Condition along with ErrNaN.
+// qnan or snan and returns the proper Condition along with ErrNaN. It's
+// analogous to CheckNaNs, but stripped down for internal use only.
 func (z *Big) checkNaNs(x, y *Big, op string) (Condition, error) {
 	f := (x.form | y.form) & nan
 	if f == 0 {
@@ -188,7 +219,7 @@ func (z *Big) xflow(over, neg bool) *Big {
 		} else {
 			z.form = pinf
 		}
-		return z.signal(Overflow|Inexact|Rounded, errOverflow)
+		return z.Signal(Overflow|Inexact|Rounded, errOverflow)
 	}
 
 	z.scale = MinScale
@@ -197,7 +228,7 @@ func (z *Big) xflow(over, neg bool) *Big {
 	} else {
 		z.form = zero
 	}
-	return z.signal(Underflow|Inexact|Rounded|Subnormal, errUnderflow)
+	return z.Signal(Underflow|Inexact|Rounded|Subnormal, errUnderflow)
 }
 
 // These methods are here to prevent typos.
@@ -237,7 +268,7 @@ func (z *Big) Abs(x *Big) *Big {
 	// |NaN|
 	c, err := z.checkNaNs(x, x, "abs")
 	if err != nil {
-		return z.signal(c, err)
+		return z.Signal(c, err)
 	}
 
 	// |±Inf|
@@ -256,23 +287,23 @@ func (z *Big) Add(x, y *Big) *Big {
 	if x.form == finite && y.form == finite {
 		z.form = finite
 		if x.isCompact() && y.isCompact() {
-			return z.addCompact(x, y).round()
+			return z.addCompact(x, y).round(true)
 		}
-		return z.addBig(x, y).round()
+		return z.addBig(x, y).round(true)
 	}
 
 	// NaN + NaN
 	// NaN + y
 	// x + NaN
 	if c, err := z.checkNaNs(x, y, "addition"); err != nil {
-		return z.signal(c, err)
+		return z.Signal(c, err)
 	}
 
 	if x.form&y.form == inf && x.form^y.form == sign {
 		// +Inf + -Inf
 		// -Inf + +Inf
 		z.form = qnan
-		return z.signal(
+		return z.Signal(
 			InvalidOperation,
 			ErrNaN{"addition of infinities with opposing signs"},
 		)
@@ -355,8 +386,32 @@ func (z *Big) addBig(x, y *Big) *Big {
 		z.form = zero
 	}
 	z.compact = c.Inflated
-	z.norm()
-	return z
+	return z.norm()
+}
+
+// Class returns the ``class'' of x, which is as follows:
+//
+//  sNaN
+//  NaN
+//  -Infinity
+//  -Normal
+//  -Subnormal
+//  -Zero
+//  +Zero
+//  +Subnormal
+//  +Normal
+//  +Infinity
+//
+func (x *Big) Class() string {
+	// TODO(eric): subnormal?
+
+	if x.form != finite {
+		return x.form.String()
+	}
+	if x.Signbit() {
+		return "-Normal"
+	}
+	return "+Normal"
 }
 
 // Cmp compares x and y and returns:
@@ -365,8 +420,7 @@ func (z *Big) addBig(x, y *Big) *Big {
 //    0 if x == y
 //   +1 if x >  y
 //
-// It does not modify x or y. The result is undefined if either x or y are not
-// a number values.
+// It does not modify x or y. The result is undefined if either x or y are NaN.
 func (x *Big) Cmp(y *Big) int {
 	if debug {
 		x.validate()
@@ -381,7 +435,7 @@ func (x *Big) Cmp(y *Big) int {
 	// z cmp NaN
 	// NaN cmp NaN
 	if c, err := x.checkNaNs(x, y, "comparison"); err != nil {
-		x.signal(c, err)
+		x.Signal(c, err)
 		return 0
 	}
 
@@ -409,10 +463,10 @@ func (x *Big) Cmp(y *Big) int {
 				}
 				return 0
 			}
-			return xs * -1 // !y.isInflated
+			return -xs // !y.isInflated
 		}
 		if y.isCompact() {
-			return xs * +1
+			return xs
 		}
 		return x.unscaled.Cmp(&y.unscaled)
 	}
@@ -451,9 +505,9 @@ func (x *Big) Cmp(y *Big) int {
 
 	var tmp big.Int
 	if diff < 0 {
-		xw = checked.MulBigPow10(tmp.SetBits(xw), shift).Bits()
+		xw = checked.MulBigPow10(tmp.SetBits(copybits(xw)), shift).Bits()
 	} else {
-		yw = checked.MulBigPow10(tmp.SetBits(yw), shift).Bits()
+		yw = checked.MulBigPow10(tmp.SetBits(copybits(yw)), shift).Bits()
 	}
 	return xs * arith.CmpBits(xw, yw)
 }
@@ -591,7 +645,8 @@ func (x *Big) Format(s fmt.State, c rune) {
 
 	// If we need to left pad then we need to first write our string into an
 	// empty buffer.
-	if lpZero || lpSpace {
+	tmpbuf := lpZero || lpSpace
+	if tmpbuf {
 		f.w = new(bytes.Buffer)
 	} else {
 		f.w = stateWrapper{s}
@@ -682,25 +737,33 @@ func (x *Big) Format(s fmt.State, c rune) {
 		return
 	}
 
-	needPad := f.n < int64(width)
-	if !needPad {
-		return
+	// Need padding out to width.
+	if f.n < int64(width) {
+		switch pad := int64(width) - f.n; {
+		case dash:
+			io.CopyN(s, spaceReader{}, pad)
+		case lpZero:
+			io.CopyN(s, zeroReader{}, pad)
+		case lpSpace:
+			io.CopyN(s, spaceReader{}, pad)
+		}
 	}
 
-	if lpZero || lpSpace {
-		if lpZero {
-			io.CopyN(s, zeroReader{}, int64(width)-f.n)
-		} else {
-			io.CopyN(s, spaceReader{}, int64(width)-f.n)
-		}
-		// If we had to write into a temp buffer, copy it over to the State.
+	if tmpbuf {
 		io.Copy(s, f.w.(*bytes.Buffer))
-	} else if dash {
-		io.CopyN(s, spaceReader{}, int64(width)-f.n)
 	}
 }
 
 var _ fmt.Formatter = (*Big)(nil)
+
+// FMA sets z to (x * y) + z0 without any intermediate rounding.
+func (z *Big) FMA(x, y, z0 *Big) *Big {
+	z.mul(x, y, false)
+	if z.Context.Conditions&InvalidOperation != 0 {
+		return z
+	}
+	return z.Add(z, z0)
+}
 
 // IsBig returns true if x, with its fractional part truncated, cannot fit
 // inside an int64. If x is an infinity or a NaN value the result is undefined.
@@ -869,13 +932,20 @@ func (x *Big) MarshalText() ([]byte, error) {
 	var (
 		b bytes.Buffer
 		f = formatter{w: &b, prec: noPrec, width: noWidth}
+		e = x.Context.OperatingMode.get().e
 	)
-	f.format(x, normal, 'e')
+	f.format(x, normal, e)
 	return b.Bytes(), nil
 }
 
 // Mul sets z to x * y and returns z.
 func (z *Big) Mul(x, y *Big) *Big {
+	return z.mul(x, y, true)
+}
+
+// mul is the implementation of Mul, but with a boolean to toggle rounding. This
+// is useful for FMA.
+func (z *Big) mul(x, y *Big, round bool) *Big {
 	if debug {
 		x.validate()
 		y.validate()
@@ -884,9 +954,9 @@ func (z *Big) Mul(x, y *Big) *Big {
 	if x.form == finite && y.form == finite {
 		z.form = finite
 		if x.isCompact() && y.isCompact() {
-			return z.mulCompact(x, y).round()
+			return z.mulCompact(x, y).round(round)
 		}
-		return z.mulBig(x, y).round()
+		return z.mulBig(x, y).round(round)
 	}
 
 	// NaN * NaN
@@ -894,14 +964,14 @@ func (z *Big) Mul(x, y *Big) *Big {
 	// x * NaN
 	c, err := z.checkNaNs(x, y, "multiplication")
 	if err != nil {
-		return z.signal(c, err)
+		return z.Signal(c, err)
 	}
 
 	if x.form <= nzero && y.form&inf != 0 || x.form&inf != 0 && y.form <= nzero {
 		// 0 * ±Inf
 		// ±Inf * 0
 		z.form = qnan
-		return z.signal(
+		return z.Signal(
 			InvalidOperation,
 			ErrNaN{"multiplication of zero with infinity"},
 		)
@@ -998,7 +1068,7 @@ func (z *Big) Neg(x *Big) *Big {
 
 	// - NaN
 	if c, err := z.checkNaNs(x, x, "negation"); err != nil {
-		return z.signal(c, err)
+		return z.Signal(c, err)
 	}
 
 	// - ±Inf
@@ -1060,14 +1130,14 @@ func (z *Big) Quo(x, y *Big) *Big {
 	// x / NaN
 	c, err := z.checkNaNs(x, y, "division")
 	if err != nil {
-		return z.signal(c, err)
+		return z.Signal(c, err)
 	}
 
 	if x.form <= nzero && y.form <= nzero || (x.form&inf != 0 && y.form&inf != 0) {
 		// 0 / 0
 		// ±Inf / ±Inf
 		z.form = qnan
-		return z.signal(
+		return z.Signal(
 			InvalidOperation,
 			ErrNaN{"division of zero by zero or infinity by infinity"},
 		)
@@ -1094,7 +1164,7 @@ func (z *Big) Quo(x, y *Big) *Big {
 		return z
 	}
 	// x / 0
-	return z.signal(DivisionByZero, errors.New("division by zero"))
+	return z.Signal(DivisionByZero, errors.New("division by zero"))
 }
 
 func (z *Big) quoCompact(x, y *Big) *Big {
@@ -1120,7 +1190,7 @@ func (z *Big) quoCoreCompact(
 		yp--
 	}
 
-	zp := z.Context.Precision()
+	zp := precision(z)
 	scale, ok := checked.Int32(int64(sdiff) + int64(yp) - int64(xp) + int64(zp))
 	if !ok {
 		// The wraparound from int32(int64(x)) where x ∉ [-1<<31, 1<<31-1] will
@@ -1208,11 +1278,11 @@ func (z *Big) quoAndRoundCompact(x, y int64) *Big {
 }
 
 func (z *Big) simplify() *Big {
-	if z.Precision() == z.Context.Precision() {
+	if z.Precision() == precision(z) {
 		return z
 	}
 	ok := false
-	prec := z.Context.Precision()
+	prec := precision(z)
 	for arith.Abs(z.compact) >= 10 && int(z.scale) > prec {
 		if z.compact&1 != 0 || z.compact%10 != 0 {
 			break
@@ -1263,7 +1333,7 @@ func (z *Big) quoCore(
 		yp--
 	}
 
-	zp := z.Context.Precision()
+	zp := precision(z)
 	scale, ok := checked.Int32(int64(sdiff) + int64(yp) - int64(xp) + int64(zp))
 	if !ok {
 		// The wraparound from int32(int64(x)) where x ∉ [-1<<31, 1<<31-1] will
@@ -1350,12 +1420,12 @@ func (z *Big) simplifyBig() *Big {
 	if z.norm().isCompact() {
 		return z.simplify()
 	}
-	if z.Precision() == z.Context.Precision() {
+	if z.Precision() == precision(z) {
 		return z
 	}
 	var (
 		ok   = false
-		prec = z.Context.Precision()
+		prec = precision(z)
 		r    big.Int
 	)
 	for compat.BigCmpAbs(&z.unscaled, c.TenInt) >= 0 && int(z.scale) > prec {
@@ -1422,10 +1492,11 @@ func Raw(x *Big) (int64, *big.Int) {
 	return x.compact, &x.unscaled
 }
 
-func (z *Big) round() *Big {
-	zp := z.Context.Precision()
-	if zp != UnlimitedPrecision && z.Context.OperatingMode == GDA {
-		return z.Round(zp)
+func (z *Big) round(round bool) *Big {
+	if round && mode(z) == GDA {
+		if zp := precision(z); zp != UnlimitedPrecision {
+			return z.Round(zp)
+		}
 	}
 	return z
 }
@@ -1526,7 +1597,7 @@ func (z *Big) Scan(state fmt.ScanState, verb rune) error {
 var _ fmt.Scanner = (*Big)(nil)
 
 // Set sets z to x and returns z. The result might be rounded depending on z's
-// Context.
+// Context, and even if z aliases x.
 func (z *Big) Set(x *Big) *Big {
 	if debug {
 		x.validate()
@@ -1541,7 +1612,12 @@ func (z *Big) Set(x *Big) *Big {
 		if x.isInflated() {
 			z.unscaled.Set(&x.unscaled)
 		}
-		z.Round(z.Context.Precision())
+	}
+
+	if mode(z) == GDA {
+		if zp := precision(z); zp != UnlimitedPrecision {
+			z.Round(zp)
+		}
 	}
 	return z
 }
@@ -1615,7 +1691,7 @@ func (z *Big) SetFloat64(x float64) *Big {
 	}
 	if math.IsNaN(x) {
 		z.form = qnan
-		return z.signal(InvalidOperation, ErrNaN{"SetFloat64(NaN)"})
+		return z.Signal(InvalidOperation, ErrNaN{"SetFloat64(NaN)"})
 	}
 	if math.IsInf(x, 0) {
 		if math.IsInf(x, 1) {
@@ -1623,7 +1699,7 @@ func (z *Big) SetFloat64(x float64) *Big {
 		} else {
 			z.form = ninf
 		}
-		return z.signal(InvalidOperation, errors.New("SetFloat(Inf)"))
+		return z.Signal(InvalidOperation, errors.New("SetFloat(Inf)"))
 	}
 	return z.SetRat(new(big.Rat).SetFloat64(x))
 }
@@ -1799,8 +1875,11 @@ func (x *Big) Sign() int {
 	return x.unscaled.Sign()
 }
 
-func (x *Big) signal(c Condition, err error) *Big {
-	switch ctx := &x.Context; ctx.OperatingMode {
+// Signal provides a way for external libraries to signal some sort of invalid
+// condition. It should be used with care, as the results depend on z's
+// OperatingMode. It adjusts z and then returns z.
+func (z *Big) Signal(c Condition, err error) *Big {
+	switch ctx := &z.Context; ctx.OperatingMode {
 	case Go:
 		// Go mode always panics on NaNs.
 		if _, ok := err.(ErrNaN); ok {
@@ -1814,9 +1893,9 @@ func (x *Big) signal(c Condition, err error) *Big {
 	default:
 		ctx.Conditions = c | InvalidContext
 		ctx.Err = fmt.Errorf("invalid OperatingMode: %d", ctx.OperatingMode)
-		x.form = qnan
+		z.form = qnan
 	}
-	return x
+	return z
 }
 
 // Signbit returns true if x is negative, negative infinity, negative zero, or
@@ -1866,9 +1945,9 @@ func (z *Big) Sub(x, y *Big) *Big {
 	if x.form == finite && y.form == finite {
 		z.form = finite
 		if x.isCompact() && y.isCompact() {
-			return z.subCompact(x, y).round()
+			return z.subCompact(x, y).round(true)
 		}
-		return z.subBig(x, y).round()
+		return z.subBig(x, y).round(true)
 	}
 
 	// NaN - NaN
@@ -1876,14 +1955,14 @@ func (z *Big) Sub(x, y *Big) *Big {
 	// x - NaN
 	c, err := z.checkNaNs(x, y, "subtraction")
 	if err != nil {
-		return z.signal(c, err)
+		return z.Signal(c, err)
 	}
 
 	if x.form&inf != 0 && x.form == y.form {
 		// +Inf - +Inf
 		// -Inf - -Inf
 		z.form = qnan
-		return z.signal(
+		return z.Signal(
 			InvalidOperation,
 			ErrNaN{"subtraction of infinities with equal signs"},
 		)
@@ -1892,7 +1971,7 @@ func (z *Big) Sub(x, y *Big) *Big {
 	if x.form <= nzero && y.form <= nzero {
 		// ±0 - ±0
 		z.form = zero
-		return z
+		return z.round(true)
 	}
 
 	if x.form&inf != 0 || y.form <= nzero {
@@ -2002,8 +2081,10 @@ func (x *Big) validate() {
 		if x.isInflated() && compat.IsInt64(&x.unscaled) {
 			panic(fmt.Sprintf("inflated but unscaled == %d", x.unscaled.Int64()))
 		}
-	case zero, nzero, snan, ssnan, qnan, sqnan, nan, pinf, ninf:
+	case zero, nzero, snan, ssnan, qnan, sqnan, pinf, ninf:
 		// OK
+	case nan:
+		panic(x.form.String())
 	default:
 		panic(fmt.Sprintf("invalid form %s", x.form))
 	}

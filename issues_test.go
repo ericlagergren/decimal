@@ -11,14 +11,14 @@ func Test_Issue15(t *testing.T) {
 	b1 := &Big{
 		compact:  c.Inflated,
 		scale:    5,
-		Context:  Context{precision: 0, RoundingMode: 0},
+		Context:  Context{Precision: 0, RoundingMode: 0},
 		form:     finite,
 		unscaled: *new(big.Int).SetInt64(181050000),
 	}
 	b2 := &Big{
 		compact: 18105,
 		scale:   1,
-		Context: Context{precision: 0, RoundingMode: 0},
+		Context: Context{Precision: 0, RoundingMode: 0},
 		form:    finite,
 	}
 	if b1.Cmp(b2) != 0 {

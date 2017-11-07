@@ -113,11 +113,15 @@ const (
 	noPrec = -1
 )
 
+type format byte
+
 const (
-	normal = iota // either sci or plain, depending on x
-	plain         // forced plain
-	sci           // forced sci
+	normal format = iota // either sci or plain, depending on x
+	plain                // forced plain
+	sci                  // forced sci
 )
+
+//go:generate stringer -type=format
 
 type formatter struct {
 	w interface {
@@ -167,7 +171,7 @@ var fmtConfigs = [...]*fmtConfig{
 	GDA: &fmtConfig{"sNaN", "NaN", "-sNaN", "-NaN", "Infinity", "-Infinity", 'E'},
 }
 
-func (f *formatter) format(x *Big, format, e byte) {
+func (f *formatter) format(x *Big, format format, e byte) {
 	if x == nil {
 		f.WriteString("<nil>")
 		return
