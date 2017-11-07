@@ -96,7 +96,15 @@ func (z *Big) scan(r io.ByteScanner) error {
 
 	// Adjust for negative values.
 	if neg {
-		z.Neg(z)
+		if z.IsFinite() {
+			if z.isCompact() {
+				z.compact = -z.compact
+			} else {
+				z.unscaled.Neg(&z.unscaled)
+			}
+		} else {
+			z.form |= sign
+		}
 	}
 	return nil
 }

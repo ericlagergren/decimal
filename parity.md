@@ -10,15 +10,15 @@
 - [x] fused-multiply-add
 - [ ] ln
 - [ ] log10
-- [ ] max
-- [ ] max-magnitude
-- [ ] min
-- [ ] min-magnitude
-- [ ] minus
-- [ ] multiply
+- [x] max
+- [x] max-magnitude
+- [x] min
+- [x] min-magnitude
+- [x] minus // Neg
+- [x] multiply
 - [ ] next-minus
 - [ ] next-toward
-- [ ] plus
+- [x] plus // Set
 - [ ] power
 - [x] quantize
 - [ ] reduce
@@ -32,24 +32,24 @@
 ## Miscellaneous operations
 
 - [ ] and
-- [ ] canonical
+- [x] canonical
 - [x] class
 - [x] compare-total
-- [ ] compare-total-magnitude
+- [x] compare-total-magnitude
 - [x] copy
-- [ ] copy-abs
+- [x] copy-abs
 - [x] copy-negate
-- [ ] copy-sign
+- [x] copy-sign
 - [ ] invert
-- [ ] is-canonical
+- [x] is-canonical
 - [x] is-finite
 - [x] is-infinite
 - [x] is-NaN
-- [ ] is-normal
+- [x] is-normal
 - [x] is-qNaN
 - [x] is-signed
 - [x] is-sNaN
-- [ ] is-subnormal
+- [x] is-subnormal
 - [x] is-zero
 - [ ] logb
 - [ ] or

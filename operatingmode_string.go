@@ -4,9 +4,9 @@ package decimal
 
 import "fmt"
 
-const _OperatingMode_name = "GoGDA"
+const _OperatingMode_name = "GDAGo"
 
-var _OperatingMode_index = [...]uint8{0, 2, 5}
+var _OperatingMode_index = [...]uint8{0, 3, 5}
 
 func (i OperatingMode) String() string {
 	if i >= OperatingMode(len(_OperatingMode_index)-1) {

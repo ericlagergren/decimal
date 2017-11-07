@@ -10,17 +10,17 @@ func Abs(x int64) int64 {
 	return (x + mask) ^ mask
 }
 
-// AbsCmp compares |x| and |y|
+// AbsCmp compares |x| and |y|.
 func AbsCmp(x, y int64) int {
 	x = Abs(x)
 	y = Abs(y)
-	if x > y {
-		return +1
+	if x != y {
+		if x > y {
+			return +1
+		}
+		return -1
 	}
-	if x == y {
-		return 0
-	}
-	return -1
+	return 0
 }
 
 // AbsCmp128 compares |x| and |y|*shift in 128 bits.
