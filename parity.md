@@ -1,13 +1,13 @@
 ## Arithmetic operations
 
-- [ ] abs
-- [ ] add
-- [ ] compare
+- [x] abs
+- [x] add
+- [x] compare
 - [ ] compare-signal
-- [ ] divide
+- [x] divide
 - [ ] divide-integer
 - [ ] exp
-- [ ] fused-multiply-add
+- [x] fused-multiply-add
 - [ ] ln
 - [ ] log10
 - [ ] max
@@ -20,44 +20,42 @@
 - [ ] next-toward
 - [ ] plus
 - [ ] power
-- [ ] quantize
+- [x] quantize
 - [ ] reduce
 - [ ] remainder
 - [ ] remainder-near
 - [ ] round-to-integral-exact
 - [ ] round-to-integral-value
 - [ ] square-root
-- [ ] subtract
+- [x] subtract
 
 ## Miscellaneous operations
 
 - [ ] and
 - [ ] canonical
-- [ ] class
-- [ ] compare-total
+- [x] class
+- [x] compare-total
 - [ ] compare-total-magnitude
-- [ ] copy
+- [x] copy
 - [ ] copy-abs
-- [ ] copy-negate
+- [x] copy-negate
 - [ ] copy-sign
 - [ ] invert
 - [ ] is-canonical
-- [ ] is-finite
-- [ ] is-infinite
-- [ ] is-NaN
+- [x] is-finite
+- [x] is-infinite
+- [x] is-NaN
 - [ ] is-normal
-- [ ] is-qNaN
-- [ ] is-signed
-- [ ] is-sNaN
+- [x] is-qNaN
+- [x] is-signed
+- [x] is-sNaN
 - [ ] is-subnormal
-- [ ] is-zero
+- [x] is-zero
 - [ ] logb
 - [ ] or
 - [ ] radix
 - [ ] rotate
-- [ ] same-quantum
+- [x] same-quantum
 - [ ] scaleb
-- [ ] shift
+- [x] shift
 - [ ] xor 
-
-
