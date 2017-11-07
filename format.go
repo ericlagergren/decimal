@@ -167,8 +167,8 @@ type fmtConfig struct {
 }
 
 var fmtConfigs = [...]*fmtConfig{
-	Go:  &fmtConfig{"NaN", "NaN", "NaN", "NaN", "+Inf", "-Inf", 'e'},
 	GDA: &fmtConfig{"sNaN", "NaN", "-sNaN", "-NaN", "Infinity", "-Infinity", 'E'},
+	Go:  &fmtConfig{"NaN", "NaN", "NaN", "NaN", "+Inf", "-Inf", 'e'},
 }
 
 func (f *formatter) format(x *Big, format format, e byte) {

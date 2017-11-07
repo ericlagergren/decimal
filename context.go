@@ -11,17 +11,17 @@ import (
 // Precision and scale limits.
 const (
 	MaxScale = math.MaxInt32 // largest allowed scale.
-	MinScale = math.MinInt32 // smallest allowed scale.
+	MinScale = -MaxScale     // smallest allowed scale.
 
 	// MaxPrecision and UnlimitedPrecision relies on the relationship
 	// MaxPrecision = -(UnlimitedPrecision + 1)
 
 	maxInt = int(^uint(0) >> 1) // max machine-defined integer
 
-	MaxPrecision       = maxInt        // largest allowed Context precision.
-	MinPrecision       = 1             // smallest allowed Context precision.
-	UnlimitedPrecision = -MaxPrecision // no precision, but may error.
-	DefaultPrecision   = 16            // default precision for literals.
+	MaxPrecision       = maxInt            // largest allowed Context precision.
+	MinPrecision       = 1                 // smallest allowed Context precision.
+	UnlimitedPrecision = -MaxPrecision - 1 // no precision, but may error.
+	DefaultPrecision   = 16                // default precision for literals.
 )
 
 // Context is a per-decimal contextual object that governs specific operations.
@@ -33,12 +33,11 @@ type Context struct {
 	// Precision is the Context's precision; that is, the maximum number of
 	// significant digits that may result from any arithmetic operation.
 	// Excluding any package-defined constants (e.g., ``UnlimitedPrecision''),
-	// precision not in the range [1, MaxPrecision] will interpreted as
-	// their negated value. A precision of 0 will be interpreted as
-	// DefaultPrecision. For example,
+	// precision not in the range [1, MaxPrecision] will result in an error. A
+	// precision of 0 will be interpreted as DefaultPrecision. For example,
 	//
 	//   precision ==  4 // 4
-	//   precision == -4 // 4
+	//   precision == -4 // error
 	//   precision ==  0 // DefaultPrecision
 	//   precision == 12 // 12
 	//
@@ -151,18 +150,6 @@ func (z *Big) needsInc(r int, pos bool) bool {
 type OperatingMode uint8
 
 const (
-	// Go adheres to typical Go idioms. In particular:
-	//
-	//  - it panics on NaN values
-	//  - has lossless (i.e., without rounding) addition, subtraction, and
-	//    multiplication
-	//  - traps are ignored; it does not set Context.Err or Context.Conditions
-	//  - its string forms of qNaN, sNaN, +Inf, and -Inf are "NaN", "NaN",
-	//     "+Inf", and "-Inf", respectively
-	//  - Set is analogous to Copy (i.e., no rounding)
-	//
-	Go OperatingMode = iota
-
 	// GDA strictly adheres to the General Decimal Arithmetic Specification
 	// Version 1.70. In particular:
 	//
@@ -174,7 +161,18 @@ const (
 	//    "Infinity", and "-Infinity", respectively
 	//  - Set rounds if the precisions differ
 	//
-	GDA
+	GDA OperatingMode = iota
+	// Go adheres to typical Go idioms. In particular:
+	//
+	//  - it panics on NaN values
+	//  - has lossless (i.e., without rounding) addition, subtraction, and
+	//    multiplication
+	//  - traps are ignored; it does not set Context.Err or Context.Conditions
+	//  - its string forms of qNaN, sNaN, +Inf, and -Inf are "NaN", "NaN",
+	//     "+Inf", and "-Inf", respectively
+	//  - Set is analogous to Copy (i.e., no rounding)
+	//
+	Go
 )
 
 //go:generate stringer -type OperatingMode

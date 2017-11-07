@@ -52,7 +52,7 @@ func ExampleBig_Precision() {
 	// Output:
 	//
 	// 12 has a precision of 2
-	// 4.2e+3 has a precision of 2
+	// 4.2E+3 has a precision of 2
 	// 12.345 has a precision of 5
 	// 0.00003 has a precision of 1
 }

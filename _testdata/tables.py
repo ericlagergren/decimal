@@ -129,7 +129,7 @@ def perform_op(op):
 
     # Unary
     elif op == "A":
-        r = x.copy_abs()
+        r = decimal.getcontext().abs(x)
     elif op == "cfd":
         r = str(x)
     elif op == "rat":
@@ -166,7 +166,7 @@ def perform_op(op):
     return (r, x, y, z0)
 
 # set N higher for local testing.
-N = 100
+N = 1000
 
 def make_tables():
     for op, name in ops.items():

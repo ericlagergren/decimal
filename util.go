@@ -1,6 +1,7 @@
 package decimal
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/ericlagergren/decimal/internal/arith"
@@ -11,13 +12,14 @@ import (
 
 func precision(x *Big) (p int) {
 	p = x.Context.Precision
+	if p > 0 || p == UnlimitedPrecision {
+		return p
+	}
 	if p == 0 {
 		return DefaultPrecision
 	}
-	if p < 0 && p != UnlimitedPrecision {
-		p = -p
-	}
-	return p
+	x.Signal(InvalidContext, fmt.Errorf("invalid precision: %d", p))
+	return -1
 }
 
 func mode(x *Big) OperatingMode { return x.Context.OperatingMode }

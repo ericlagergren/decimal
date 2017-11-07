@@ -247,6 +247,9 @@ func (x *Big) norm() *Big {
 	return x
 }
 
+// adj returns the adjusted scale of x.
+func (x *Big) adj() int { return -int(x.scale) + (x.Precision() - 1) }
+
 // Abs sets z to the absolute value of x and returns z.
 func (z *Big) Abs(x *Big) *Big {
 	if debug {
@@ -262,7 +265,7 @@ func (z *Big) Abs(x *Big) *Big {
 		}
 		z.scale = x.scale
 		z.form = finite
-		return z
+		return z.round(true)
 	}
 
 	// |NaN|
@@ -421,7 +424,25 @@ func (x *Big) Class() string {
 //   +1 if x >  y
 //
 // It does not modify x or y. The result is undefined if either x or y are NaN.
+// For an abstract comparison with NaN values, see misc,CmpTotal.
 func (x *Big) Cmp(y *Big) int {
+	return cmp(x, y, false)
+}
+
+// CmpAbs compares |x| and |y| and returns:
+//
+//   -1 if |x| <  |y|
+//    0 if |x| == |y|
+//   +1 if |x| >  |y|
+//
+// It does not modify x or y. The result is undefined if either x or y are NaN.
+// For an abstract comparison with NaN values, see misc.CmpTotalAbs.
+func (x *Big) CmpAbs(y *Big) int {
+	return cmp(x, y, true)
+}
+
+// cmp is the implementation for both Cmp and CmpAbs.
+func cmp(x, y *Big, abs bool) int {
 	if debug {
 		x.validate()
 		y.validate()
@@ -439,36 +460,40 @@ func (x *Big) Cmp(y *Big) int {
 		return 0
 	}
 
-	// Fast path: different signs. Catches non-finite forms like zero and ±Inf.
-	xs := x.ord()
-	ys := y.ord()
-	switch {
-	case xs > ys:
-		return +1
-	case xs < ys:
+	// Fast path: Catches non-finite forms like zero and ±Inf, possibly signed.
+	xs := x.ord(abs)
+	ys := y.ord(abs)
+	if xs != ys {
+		if xs > ys {
+			return +1
+		}
 		return -1
-	case xs == 0, xs == +2, xs == -2:
-		return 0
 	}
+	switch xs {
+	case 0, +2, -2:
+		return 0
+	default:
+		r := cmpabs(x, y)
+		if xs < 0 && !abs {
+			r = -r
+		}
+		return r
+	}
+}
 
+func cmpabs(x, y *Big) int {
 	// Same scales means we can compare straight across.
 	if x.scale == y.scale {
 		if x.isCompact() {
 			if y.isCompact() {
-				if x.compact != y.compact {
-					if x.compact > y.compact {
-						return +1
-					}
-					return -1
-				}
-				return 0
+				return arith.AbsCmp(x.compact, y.compact)
 			}
-			return -xs // !y.isInflated
+			return -1 // y.isInflateed
 		}
 		if y.isCompact() {
-			return xs
+			return +1 // !x.isCompact
 		}
-		return x.unscaled.Cmp(&y.unscaled)
+		return compat.BigCmpAbs(&x.unscaled, &y.unscaled)
 	}
 
 	// Signs are the same and the scales differ. Compare the lengths of their
@@ -480,9 +505,9 @@ func (x *Big) Cmp(y *Big) int {
 
 	if xl != yl {
 		if xl < yl {
-			return -xs
+			return -1
 		}
-		return xs
+		return +1
 	}
 
 	diff := int64(x.scale) - int64(y.scale)
@@ -490,9 +515,9 @@ func (x *Big) Cmp(y *Big) int {
 	if pow.Safe(shift) && x.isCompact() && y.isCompact() {
 		p, _ := pow.Ten(shift)
 		if diff < 0 {
-			return -(xs * arith.AbsCmp128(y.compact, x.compact, p))
+			return -arith.AbsCmp128(y.compact, x.compact, p)
 		}
-		return xs * arith.AbsCmp128(x.compact, y.compact, p)
+		return arith.AbsCmp128(x.compact, y.compact, p)
 	}
 
 	xw, yw := x.unscaled.Bits(), y.unscaled.Bits()
@@ -509,7 +534,7 @@ func (x *Big) Cmp(y *Big) int {
 	} else {
 		yw = checked.MulBigPow10(tmp.SetBits(copybits(yw)), shift).Bits()
 	}
-	return xs * arith.CmpBits(xw, yw)
+	return arith.CmpBits(xw, yw)
 }
 
 // Copy sets z to a copy of x and returns z.
@@ -530,6 +555,31 @@ func (z *Big) Copy(x *Big) *Big {
 		}
 	}
 	return z
+}
+
+// CopySign sets z to x with the sign of y and returns z. It accepts NaN values.
+func (z *Big) CopySign(x, y *Big) *Big {
+	if debug {
+		x.validate()
+		y.validate()
+	}
+
+	// - ±x
+	if x.form == finite {
+		if x.Sign() != y.Sign() {
+			z.Neg(x)
+		} else {
+			z.Set(x)
+		}
+		return z
+	}
+
+	// - ±NaN
+	// - ±Inf
+	// - ±0
+	z.form = x.form | (y.form & sign)
+	return z
+
 }
 
 // Float64 returns x as a float64.
@@ -863,6 +913,16 @@ func (x *Big) Int64() int64 {
 // IsFinite returns true if x is finite.
 func (x *Big) IsFinite() bool { return x.form == finite }
 
+// IsNormal returns true if x is normal.
+func (x *Big) IsNormal() bool {
+	return x.IsFinite() && x.adj() >= MinScale
+}
+
+// IsSubnormal returns true if x is subnormal.
+func (x *Big) IsSubnormal() bool {
+	return x.IsFinite() && x.adj() < MinScale
+}
+
 // IsInf returns true if x is an infinity according to sign.
 // If sign >  0, IsInf reports whether x is positive infinity.
 // If sign <  0, IsInf reports whether x is negative infinity.
@@ -1048,12 +1108,13 @@ func (z *Big) mulBig(x, y *Big) *Big {
 
 // Neg sets z to -x and returns z. If x is positive infinity, z will be set to
 // negative infinity and visa versa. If x == 0, z will be set to zero as well.
-// NaN has no negative representation, and will result in an error.
+// NaN will result in an error.
 func (z *Big) Neg(x *Big) *Big {
 	if debug {
 		x.validate()
 	}
 
+	// - ±x
 	if x.form == finite {
 		if x.isCompact() {
 			z.compact = -x.compact
@@ -1063,7 +1124,7 @@ func (z *Big) Neg(x *Big) *Big {
 		}
 		z.scale = x.scale
 		z.form = x.form
-		return z
+		return z.round(true)
 	}
 
 	// - NaN
@@ -1690,6 +1751,7 @@ func (z *Big) SetFloat64(x float64) *Big {
 		return z
 	}
 	if math.IsNaN(x) {
+		// TODO(eric): signbit
 		z.form = qnan
 		return z.Signal(InvalidOperation, ErrNaN{"SetFloat64(NaN)"})
 	}
@@ -1820,14 +1882,18 @@ func (z *Big) SetString(s string) (*Big, bool) {
 }
 
 // ord returns similar to Sign except -Inf is -2 and +Inf is +2.
-func (x *Big) ord() int {
+func (x *Big) ord(abs bool) int {
 	if x.form&inf != 0 {
-		if x.form == pinf {
+		if x.form == pinf || abs {
 			return +2
 		}
 		return -2
 	}
-	return x.Sign()
+	r := x.Sign()
+	if abs && r < 0 {
+		r = -r
+	}
+	return r
 }
 
 // Sign returns:
