@@ -115,8 +115,6 @@ func CopyNegate(z, x *decimal.Big) *decimal.Big {
 	return z
 }
 
-
-
 // Max returns the greater of the provided values. The result is undefined if no
 // values are are provided.
 func Max(x ...*decimal.Big) *decimal.Big {
@@ -217,7 +215,7 @@ func Shift(z, x *decimal.Big, shift int) *decimal.Big {
 	}
 
 	if !x.IsFinite() {
-		if cond, err := decimal.CheckNaNs(x, nil, "shift"); err != nil {
+	if cond, err := decimal.CheckNaNs(x, nil, "shift"); err != nil {
 			return z.Signal(cond, err) // nan
 		}
 		if x.IsInf(0) {

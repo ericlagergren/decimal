@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"unicode"
 
-	"github.com/ericlagergren/decimal/internal/arith/checked"
 	"github.com/ericlagergren/decimal/internal/c"
 )
 
@@ -39,72 +38,56 @@ func (z *Big) scan(r io.ByteScanner) error {
 		return err
 	}
 
-	// Special values (inf, nan, ...)
-	form, err := scanSpecial(r)
+	z.form, err = scanForm(r)
 	if err != nil {
+		if err == strconv.ErrSyntax {
+			z.Signal(ConversionSyntax, err)
+		}
 		return err
 	}
-	if form != 0 { // explicit 0, but yes, != zero would work
+
+	if z.form&special != 0 {
 		if neg {
-			form |= sign
+			z.form |= signbit
 		}
-		z.form = form
 		return nil
 	}
 
-	// Assume we're finite at this point unless scanMant tells us otherwise.
-	z.form = finite
-
 	// Mantissa (as a unsigned integer)
 	if err := z.scanMant(r); err != nil {
-		if err == strconv.ErrSyntax {
+		switch err {
+		case io.EOF:
+			z.form = qnan
+			return io.ErrUnexpectedEOF
+		case strconv.ErrSyntax:
 			z.form = qnan
 			z.Signal(ConversionSyntax, err)
-			return err
-		}
 		// Can only overflow
-		if err == errOverflow {
+		case errOverflow:
 			z.xflow(true, neg)
-			return err
 		}
-		return err
+		return nil
 	}
 
 	// Exponent
-	ch, err := r.ReadByte()
-	if err == nil {
-		switch ch {
-		case 'e', 'E':
-			switch z.scanExponent(r) {
-			case nil:
-				// OK
-			case errUnderflow:
-				z.xflow(false, neg)
-				return err
-			case errOverflow:
-				z.xflow(true, neg)
-				return err
-			}
-		default:
+	if err := z.scanExponent(r); err != nil && err != io.EOF {
+		switch err {
+		case errUnderflow:
+			z.xflow(false, neg)
+		case errOverflow:
+			z.xflow(true, neg)
+		case strconv.ErrSyntax:
 			z.form = qnan
-			z.Signal(ConversionSyntax, strconv.ErrSyntax)
-			return strconv.ErrSyntax
+			z.Signal(ConversionSyntax, err)
+		default:
+			return err
 		}
-	} else if err != io.EOF {
-		return err
+		return nil
 	}
 
 	// Adjust for negative values.
 	if neg {
-		if z.IsFinite() {
-			if z.isCompact() {
-				z.compact = -z.compact
-			} else {
-				z.unscaled.Neg(&z.unscaled)
-			}
-		} else {
-			z.form |= sign
-		}
+		z.form |= signbit
 	}
 	return nil
 }
@@ -124,14 +107,14 @@ func scanSign(r io.ByteScanner) (bool, error) {
 	}
 }
 
-func scanSpecial(r io.ByteScanner) (form, error) {
+func scanForm(r io.ByteScanner) (form, error) {
 	ch, err := r.ReadByte()
 	if err != nil {
 		return 0, err
 	}
 
-	if ch >= '0' && ch <= '9' {
-		return 0, r.UnreadByte()
+	if (ch >= '0' && ch <= '9') || ch == '.' {
+		return finite, r.UnreadByte()
 	}
 
 	// Likely infinity.
@@ -296,61 +279,68 @@ func (f *fakeState) Read(_ []byte) (int, error) {
 func (z *Big) scanMant(r io.ByteScanner) (err error) {
 	const noScale = -1
 
-	// Scan the first 20 or fewer bytes into a buffer. Should we hit io.EOF
-	// sooner, we know to try to parse it as an int64. Otherwise, we read from
-	// small—followed by r—into z.uncaled.
+	// Scan the first 21 or fewer bytes into a buffer. Should we hit io.EOF
+	// sooner, we know to try to parse it as a uint64. Otherwise, we read from
+	// small—followed by our io.ByteScanner—into z.uncaled.
 	var (
-		small  [20]byte
+		small  [20 + 1]byte
 		scale  int = noScale
 		length int
 		i      int
 	)
 
+Loop:
 	for ; i < len(small); i++ {
 		ch, err := r.ReadByte()
 		if err != nil {
 			if err == io.EOF {
+				// Hit the end of our input: we're done here.
 				break
 			}
 			return err
 		}
 
+		// Common case.
 		if ch >= '0' && ch <= '9' {
 			small[i] = ch
 			length++
-		} else if ch == '.' {
-			if scale > noScale {
+			continue
+		}
+
+		switch ch {
+		case '.':
+			if scale != noScale { // found two '.'s
 				return strconv.ErrSyntax
 			}
 			scale = i
 			i--
-		} else if ch == 'e' || ch == 'E' {
+		case 'e', 'E':
+			// Hit the exponent: we're done here.
 			if err := r.UnreadByte(); err != nil {
 				return err
 			}
-			break
-		} else {
+			break Loop
+		default:
 			return strconv.ErrSyntax
 		}
 	}
 
-	// We can tentatively fit into an int64 if we didn't fill the buffer.
+	// We can tentatively fit into a uint64 if we didn't fill the buffer.
 	if i < len(small) {
-		z.compact, err = strconv.ParseInt(string(small[:i]), 10, 64)
+		z.compact, err = strconv.ParseUint(string(small[:i]), 10, 64)
 		if err != nil {
 			err = err.(*strconv.NumError).Err
 			if err == strconv.ErrSyntax {
 				return err
 			}
-			// strconv.ErrRange
-		} else if z.compact == 0 {
-			z.form = zero
+			// else strconv.ErrRange
 		}
 	}
 
 	// Either we filled the buffer or we hit the edge case where len(s) == 19
 	// but it's too large to fit into an int64.
 	if i >= len(small) || (err == strconv.ErrRange && i == len(small)-1) {
+		err = nil
 		fs := fakeState{
 			small:  small[:i],
 			r:      r,
@@ -363,18 +353,17 @@ func (z *Big) scanMant(r io.ByteScanner) (err error) {
 
 		z.compact = c.Inflated
 		if z.unscaled.Sign() == 0 {
-			z.form = zero
+			z.compact = 0
 		}
 
 		if scale == noScale {
 			scale = fs.scale
 		}
 		length = fs.length
-		err = nil
 	}
 
-	if scale > noScale {
-		z.scale = int32(length - scale)
+	if scale != noScale {
+		z.exp = -int(length - scale)
 	}
 
 	// Ideally we'd handle this manually, _but_ we run into an issue where
@@ -387,9 +376,20 @@ func (z *Big) scanMant(r io.ByteScanner) (err error) {
 }
 
 func (z *Big) scanExponent(r io.ByteScanner) error {
-	var buf [11]byte // max length of a signed 32-bit int, including sign.
+	ch, err := r.ReadByte()
+	if err != nil {
+		return err
+	}
+	switch ch {
+	case 'e', 'E':
+		// OK
+	default:
+		return strconv.ErrSyntax
+	}
+
+	var buf [20]byte // max length of a signed 64-bit int, including sign.
 	var i int
-	for i = range buf {
+	for ; i < len(buf); i++ {
 		ch, err := r.ReadByte()
 		if err != nil {
 			if err == io.EOF {
@@ -400,29 +400,30 @@ func (z *Big) scanExponent(r io.ByteScanner) error {
 		buf[i] = ch
 	}
 
-	exp, err := strconv.ParseInt(string(buf[:i]), 10, 32)
+	if _, err := r.ReadByte(); err != io.EOF {
+		// TODO(eric): not _always_ over/underflow e.g. if the next character
+		// isn't numeric.
+		if buf[0] == '-' {
+			return errUnderflow
+		}
+		return errOverflow
+	}
+
+	exp, err := strconv.Atoi(string(buf[:i]))
 	if err != nil {
 		err = err.(*strconv.NumError).Err
 		if err == strconv.ErrRange {
 			// exp is set to the max int if it overflowed 32 bits, negative if
 			// it underflowed.
 			if exp > 0 {
-				return errOverflow
+				return errUnderflow
 			}
-			return errUnderflow
+			return errOverflow
 		}
 		return err
 	}
 
-	scale, ok := checked.Sub32(z.scale, int32(exp))
-	if !ok {
-		// x + -y ∈ [-1<<31, 1<<31-1]
-		if z.scale > 0 {
-			return errOverflow
-		}
-		return errUnderflow
-	}
-	z.scale = scale
+	z.exp += exp
 	return nil
 }
 

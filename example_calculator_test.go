@@ -32,8 +32,7 @@ Loop:
 		case "=":
 			break Loop
 		default:
-			x := new(Big)
-			x.Context = Context128
+			x := WithContext(Context128)
 			if _, ok := x.SetString(tok); !ok {
 				fmt.Fprintf(os.Stderr, "invalid decimal: %v\n", x.Context.Err)
 				os.Exit(1)

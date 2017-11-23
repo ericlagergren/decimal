@@ -63,9 +63,9 @@ got : %q
 	}
 }
 
-func newd(c int64, m int32, p int32, mode decimal.OperatingMode) *decimal.Big {
+func newd(c int64, m int32, p int, mode decimal.OperatingMode) *decimal.Big {
 	d := decimal.New(c, m)
-	d.Context.Precision = int(p)
+	d.Context.Precision = p
 	d.Context.OperatingMode = mode
 	return d
 }
@@ -182,9 +182,9 @@ func calcPi_float() float64 {
 	return s
 }
 
-func calcPiGo(prec int32) *decimal.Big {
-	op := int(prec)
-	prec = adjustPrecision(prec)
+func calcPiGo(p int32) *decimal.Big {
+	op := int(p)
+	prec := int(adjustPrecision(p))
 	var (
 		lasts = newd(0, 0, prec, decimal.Go)
 		t     = newd(3, 0, prec, decimal.Go)
@@ -194,7 +194,7 @@ func calcPiGo(prec int32) *decimal.Big {
 		d     = newd(0, 0, prec, decimal.Go)
 		da    = newd(24, 0, prec, decimal.Go)
 	)
-	for s.Round(int(prec)).Cmp(lasts) != 0 {
+	for s.Round(prec).Cmp(lasts) != 0 {
 		lasts.Set(s)
 		n.Add(n, na)
 		na.Add(na, eight)
@@ -207,9 +207,9 @@ func calcPiGo(prec int32) *decimal.Big {
 	return s.Round(op)
 }
 
-func calcPiGDA(prec int32) *decimal.Big {
-	op := int(prec)
-	prec = adjustPrecision(prec)
+func calcPiGDA(p int32) *decimal.Big {
+	op := int(p)
+	prec := int(adjustPrecision(p))
 	var (
 		lasts = newd(0, 0, prec, decimal.GDA)
 		t     = newd(3, 0, prec, decimal.GDA)

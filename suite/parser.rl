@@ -11,7 +11,6 @@ func ParseCase(data []byte) (c Case, err error) {
     var (
         ok   bool // for mode and op
         mark int
-        exc  Exception
     )
 
     %%{
@@ -35,19 +34,12 @@ func ParseCase(data []byte) (c Case, err error) {
 	    	}
         }
         action set_trap {
-	    exc, ok = valToException[string(data[mark:fpc])]
-	    if !ok {
-                return c, fmt.Errorf("invalid trap exception: %q", data[mark:fpc])
-	    }
-            c.Trap |= exc
+			c.Trap = ConditionFromString(string(data[mark:fpc]))
         }
         action add_input  { c.Inputs = append(c.Inputs, Data(data[mark:fpc])) }
         action set_output { c.Output = Data(data[mark:fpc]) }
         action set_excep  {
-	    	if exc, ok = valToException[string(data[mark:fpc])]; !ok {
-				return c, fmt.Errorf("invalid result exception: %q", data[mark:fpc])
-	    	}
-            c.Excep |= exc
+			c.Excep = ConditionFromString(string(data[mark:fpc]))
         }
 
        prefix = ('d' | 'b') >mark %set_prefix;
@@ -107,17 +99,27 @@ func ParseCase(data []byte) (c Case, err error) {
             | '=^' # ToNearestAway
 			| '^'  # AwayFromZero
         ) >mark %set_mode;
-        exception = (
-              'x'  # Inexact
-            | 'u'  # Underflow
-            | 'v'  # Underflow
-            | 'w'  # Underflow
-            | 'o'  # Overflow
-            | 'z'  # DivByZero
-            | 'i'  # Invalid
+        condition = (
+              'x' # Inexact
+            | 'u' # Underflow
+            | 'v' # Underflow
+            | 'w' # Underflow
+            | 'o' # Overflow
+            | 'z' # DivisionByZero
+            | 'i' # InvalidOperation
+
+			# Custom
+			| 'c' # Clamped
+			| 'r' # Rounded
+			| 'y' # ConversionSyntax
+			| 'm' # DivisionImpossible
+			| 'n' # DivisionUndefined
+			| 't' # InsufficientStorage
+			| '?' # InvalidContext
+			| 's' # Subnormal
         );
-        trap = exception >mark %set_trap;
-        excep = exception >mark %set_excep;
+        trap = condition* >mark %set_trap;
+        excep = condition* >mark %set_excep;
 
 		sign      = '+' | '-';
 		indicator = 'e' | 'E';
@@ -134,13 +136,13 @@ func ParseCase(data []byte) (c Case, err error) {
         output = (numeric_string | '#') >mark %set_output;
 
         main := (
-            prefix . prec . (op ' ') # Prefix, prec, and op are one 'chunk'
-            (mode ' ')               # Mode is its own chunk
-            (trap+ ' ')?             # Trap is its own chunk, maybe exists
-            (input ' ')+             # Input is one or more chunks
-            '-> '                    #
-            output                   # Output is its own chunk 
-            (' ' excep+)?            # Excep is its own chunk, maybe exists
+            prefix . prec . (op ' '+) # Prefix, prec, and op are one 'chunk'
+            (mode ' '+)               # Mode is its own chunk
+            (trap ' '+)?              # Trap is its own chunk, maybe exists
+            (input ' '+)+             # Input is one or more chunks
+            '->' ' '+                 #
+            output                    # Output is its own chunk 
+            (' '+ excep)?             # Excep is its own chunk, maybe exists
         );
 
         write data;

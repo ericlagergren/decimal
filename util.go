@@ -7,8 +7,59 @@ import (
 	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/arith/checked"
 	"github.com/ericlagergren/decimal/internal/arith/pow"
-	"github.com/ericlagergren/decimal/internal/compat"
+	"github.com/ericlagergren/decimal/internal/c"
 )
+
+func iscompact(x *big.Int) bool {
+	return arith.IsUint64(x) && x.Uint64() != c.Inflated
+}
+
+func (z *Big) test() *Big {
+	adj := z.adjusted()
+	if emax := z.emax(); adj > z.emax() {
+		if z.IsFinite() {
+			z.exp = emax
+			// TODO(eric): mandatory clamping?
+		}
+		z.Context.Conditions |= Clamped
+	} else if adj < z.emin() {
+		tiny := z.etiny()
+		if z.IsFinite() {
+			if z.exp < tiny {
+				z.exp = tiny
+				z.Context.Conditions |= Clamped
+			}
+			return z
+		}
+
+		z.Context.Conditions |= Subnormal
+		if z.exp < tiny {
+			z.Round(tiny - z.exp)
+			z.exp = tiny
+		}
+	}
+	return z
+}
+
+func min(x, y int) int {
+	if x < y {
+		return x
+	}
+	return y
+}
+
+// alias returns z if z != x, otherwise a newly-allocated big.Int.
+func alias(z, x *big.Int) *big.Int {
+	if z != x {
+		// We have to check the first element of their internal slices since
+		// Big doesn't store a pointer to a big.Int.
+		zb, xb := z.Bits(), x.Bits()
+		if cap(zb) > 0 && cap(xb) > 0 && &zb[0:cap(zb)][cap(zb)-1] != &xb[0:cap(xb)][cap(xb)-1] {
+			return z
+		}
+	}
+	return new(big.Int)
+}
 
 func precision(x *Big) (p int) {
 	p = x.Context.Precision
@@ -41,7 +92,7 @@ func copybits(x []big.Word) []big.Word {
 
 // cmpNorm compares x and y in the range [0.1, 0.999...] and returns true if x
 // > y.
-func cmpNorm(x int64, xs int, y int64, ys int) (ok bool) {
+func cmpNorm(x uint64, xs int, y uint64, ys int) (ok bool) {
 	goodx, goody := true, true
 
 	// xs, ys > 0, so no overflow
@@ -54,7 +105,7 @@ func cmpNorm(x int64, xs int, y int64, ys int) (ok bool) {
 	}
 	if goodx {
 		if goody {
-			return arith.AbsCmp(x, y) > 0
+			return arith.Cmp(x, y) > 0
 		}
 		return false
 	}
@@ -62,29 +113,31 @@ func cmpNorm(x int64, xs int, y int64, ys int) (ok bool) {
 }
 
 // cmpNormBig compares x and y in the range [0.1, 0.999...] and returns true if
-// x > y.
-func cmpNormBig(x *big.Int, xs int, y *big.Int, ys int) (ok bool) {
-	if diff := xs - ys; diff != 0 {
-		if diff < 0 {
-			x = checked.MulBigPow10(new(big.Int).Set(x), uint64(-diff))
+// x > y. It uses z as backing storage, provided it does not alias x or y.
+func cmpNormBig(z, x *big.Int, xs int, y *big.Int, ys int) (ok bool) {
+	if xs != ys {
+		z = alias(alias(z, x), y)
+		if xs < ys {
+			x = checked.MulBigPow10(z, x, uint64(ys-xs))
 		} else {
-			y = checked.MulBigPow10(new(big.Int).Set(y), uint64(diff))
+			y = checked.MulBigPow10(z, y, uint64(xs-ys))
 		}
 	}
-	return compat.BigCmpAbs(x, y) > 0
+	// x and y are non-negative
+	return x.Cmp(y) > 0
 }
 
 // scalex adjusts x by scale. If scale < 0, x = x * 10^-scale, otherwise
 // x = x / 10^scale.
-func scalex(x int64, scale int32) (sx int64, ok bool) {
-	if scale < 0 {
-		sx, ok = checked.MulPow10(x, -uint64(scale))
+func scalex(x uint64, scale int) (sx uint64, ok bool) {
+	if scale > 0 {
+		sx, ok = checked.MulPow10(x, uint64(scale))
 		if !ok {
 			return 0, false
 		}
 		return sx, true
 	}
-	p, ok := pow.TenInt(uint64(scale))
+	p, ok := pow.Ten(uint64(-scale))
 	if !ok {
 		return 0, false
 	}

@@ -1,10 +1,12 @@
+// +build ignore
+
 package decimal
 
 import (
 	"archive/tar"
+	"bufio"
 	"bytes"
 	"compress/gzip"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -20,7 +22,7 @@ func TestSuiteCases(t *testing.T) {
 		return
 	}
 
-	file, err := os.Open(filepath.Join("suite", "_testdata", "json.tar.gz"))
+	file, err := os.Open(filepath.Join("suite", "_testdata", "fptest.tar.gz"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +47,15 @@ func TestSuiteCases(t *testing.T) {
 			t.Fatal(err)
 		}
 		var c []suite.Case
-		if err := json.NewDecoder(tr).Decode(&c); err != nil {
+		s := bufio.NewScanner(tr)
+		for s.Scan() {
+			cs, err := suite.ParseCase(s.Bytes())
+			if err != nil {
+				t.Fatal(err)
+			}
+			c = append(c, cs)
+		}
+		if err := s.Err(); err != nil {
 			t.Fatal(err)
 		}
 		sets[h.Name] = c

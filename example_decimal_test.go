@@ -2,34 +2,20 @@ package decimal
 
 import (
 	"fmt"
-	"strings"
 )
 
 func ExampleBig_Format() {
-	var (
-		modeGo  = Context{OperatingMode: Go}
-		modeGDA = Context{OperatingMode: GDA}
-	)
 	print := func(format, xs string) {
-		var x *Big
-		if strings.HasPrefix(xs, "Go: ") {
-			x, _ = WithContext(modeGo).SetString(strings.TrimPrefix(xs, "Go: "))
-		} else if strings.HasPrefix(xs, "GDA: ") {
-			x, _ = WithContext(modeGDA).SetString(strings.TrimPrefix(xs, "GDA: "))
-		} else {
-			x, _ = WithContext(modeGDA).SetString(xs)
-		}
+		x, _ := new(Big).SetString(xs)
 		fmt.Printf(format+"\n", x)
 	}
 
-	print("%s", "Go: 12.34")
-	print("%s", "GDA: 12.34")
+	print("%s", "12.34")
 	print("%.3g", "12.34")
 	print("%.1f", "12.34")
 	print("`%6.4g`", "500.44")
 	print("'%-10.f'", "-404.040")
 	// Output:
-	// 12.34
 	// 12.34
 	// 12.3
 	// 12.3

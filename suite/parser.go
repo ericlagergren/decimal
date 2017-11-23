@@ -13,24 +13,23 @@ func ParseCase(data []byte) (c Case, err error) {
     var (
         ok   bool // for mode and op
         mark int
-        exc  Exception
     )
 
     
-//line parser.go:21
+//line parser.go:20
 const parser_start int = 1
-const parser_first_final int = 81
+const parser_first_final int = 86
 const parser_error int = 0
 
 const parser_en_main int = 1
 
 
-//line parser.go:29
+//line parser.go:28
 	{
 	cs = parser_start
 	}
 
-//line parser.go:34
+//line parser.go:33
 	{
 	if p == pe {
 		goto _test_eof
@@ -64,24 +63,26 @@ const parser_en_main int = 1
 		goto st_case_12
 	case 13:
 		goto st_case_13
-	case 81:
-		goto st_case_81
+	case 86:
+		goto st_case_86
+	case 87:
+		goto st_case_87
+	case 88:
+		goto st_case_88
 	case 14:
 		goto st_case_14
-	case 82:
-		goto st_case_82
+	case 89:
+		goto st_case_89
 	case 15:
 		goto st_case_15
-	case 83:
-		goto st_case_83
+	case 90:
+		goto st_case_90
 	case 16:
 		goto st_case_16
-	case 84:
-		goto st_case_84
+	case 91:
+		goto st_case_91
 	case 17:
 		goto st_case_17
-	case 85:
-		goto st_case_85
 	case 18:
 		goto st_case_18
 	case 19:
@@ -94,10 +95,10 @@ const parser_en_main int = 1
 		goto st_case_22
 	case 23:
 		goto st_case_23
+	case 92:
+		goto st_case_92
 	case 24:
 		goto st_case_24
-	case 86:
-		goto st_case_86
 	case 25:
 		goto st_case_25
 	case 26:
@@ -108,10 +109,10 @@ const parser_en_main int = 1
 		goto st_case_28
 	case 29:
 		goto st_case_29
+	case 93:
+		goto st_case_93
 	case 30:
 		goto st_case_30
-	case 87:
-		goto st_case_87
 	case 31:
 		goto st_case_31
 	case 32:
@@ -212,6 +213,16 @@ const parser_en_main int = 1
 		goto st_case_79
 	case 80:
 		goto st_case_80
+	case 81:
+		goto st_case_81
+	case 82:
+		goto st_case_82
+	case 83:
+		goto st_case_83
+	case 84:
+		goto st_case_84
+	case 85:
+		goto st_case_85
 	}
 	goto st_out
 	st_case_1:
@@ -227,7 +238,7 @@ st_case_0:
 		cs = 0
 		goto _out
 tr0:
-//line parser.rl:20
+//line parser.rl:19
  mark = p 
 	goto st2
 	st2:
@@ -235,15 +246,15 @@ tr0:
 			goto _test_eof2
 		}
 	st_case_2:
-//line parser.go:239
+//line parser.go:250
 		if 48 <= data[p] && data[p] <= 57 {
 			goto tr2
 		}
 		goto st0
 tr2:
-//line parser.rl:21
- c.Prefix = string(data[mark:p]) 
 //line parser.rl:20
+ c.Prefix = string(data[mark:p]) 
+//line parser.rl:19
  mark = p 
 	goto st3
 	st3:
@@ -251,7 +262,7 @@ tr2:
 			goto _test_eof3
 		}
 	st_case_3:
-//line parser.go:255
+//line parser.go:266
 		switch data[p] {
 		case 37:
 			goto tr3
@@ -302,13 +313,13 @@ tr2:
 		}
 		goto st0
 tr3:
-//line parser.rl:22
+//line parser.rl:21
 
             if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
                 return c, err
             }
         
-//line parser.rl:20
+//line parser.rl:19
  mark = p 
 	goto st4
 	st4:
@@ -316,13 +327,13 @@ tr3:
 			goto _test_eof4
 		}
 	st_case_4:
-//line parser.go:320
+//line parser.go:331
 		if data[p] == 32 {
 			goto tr15
 		}
 		goto st0
 tr15:
-//line parser.rl:27
+//line parser.rl:26
 
             if c.Op, ok = valToOp[string(data[mark:p])]; !ok {
                 return c, fmt.Errorf("invalid op: %q", data[mark:p])
@@ -334,21 +345,23 @@ tr15:
 			goto _test_eof5
 		}
 	st_case_5:
-//line parser.go:338
+//line parser.go:349
 		switch data[p] {
+		case 32:
+			goto st5
 		case 48:
-			goto tr16
-		case 61:
 			goto tr17
+		case 61:
+			goto tr18
 		case 94:
-			goto tr16
+			goto tr17
 		}
 		if 60 <= data[p] && data[p] <= 62 {
-			goto tr16
+			goto tr17
 		}
 		goto st0
-tr16:
-//line parser.rl:20
+tr17:
+//line parser.rl:19
  mark = p 
 	goto st6
 	st6:
@@ -356,17 +369,25 @@ tr16:
 			goto _test_eof6
 		}
 	st_case_6:
-//line parser.go:360
+//line parser.go:373
 		if data[p] == 32 {
-			goto tr18
+			goto tr19
 		}
 		goto st0
-tr18:
-//line parser.rl:32
+tr19:
+//line parser.rl:31
 
 	    	if c.Mode, ok = valToMode[string(data[mark:p])]; !ok {
 				return c, fmt.Errorf("invalid mode: %q", data[mark:p])
 	    	}
+        
+	goto st7
+tr20:
+//line parser.rl:19
+ mark = p 
+//line parser.rl:36
+
+			c.Trap = ConditionFromString(string(data[mark:p]))
         
 	goto st7
 	st7:
@@ -374,52 +395,58 @@ tr18:
 			goto _test_eof7
 		}
 	st_case_7:
-//line parser.go:378
+//line parser.go:399
 		switch data[p] {
+		case 32:
+			goto tr20
 		case 43:
-			goto tr19
+			goto tr21
 		case 45:
-			goto tr19
+			goto tr21
+		case 63:
+			goto tr23
 		case 70:
-			goto tr21
+			goto tr24
 		case 73:
-			goto tr22
+			goto tr25
 		case 78:
-			goto tr23
-		case 81:
-			goto tr24
-		case 83:
-			goto tr24
-		case 84:
-			goto tr25
-		case 102:
-			goto tr21
-		case 105:
 			goto tr26
-		case 110:
+		case 81:
+			goto tr27
+		case 83:
+			goto tr27
+		case 84:
+			goto tr28
+		case 99:
 			goto tr23
-		case 111:
-			goto tr27
+		case 102:
+			goto tr24
+		case 105:
+			goto tr29
+		case 110:
+			goto tr30
 		case 113:
-			goto tr24
-		case 115:
-			goto tr24
-		case 116:
-			goto tr25
-		case 122:
 			goto tr27
+		case 115:
+			goto tr31
+		case 116:
+			goto tr32
 		}
 		switch {
-		case data[p] > 57:
-			if 117 <= data[p] && data[p] <= 120 {
-				goto tr27
+		case data[p] < 109:
+			if 48 <= data[p] && data[p] <= 57 {
+				goto tr22
 			}
-		case data[p] >= 48:
-			goto tr20
+		case data[p] > 111:
+			if 114 <= data[p] && data[p] <= 122 {
+				goto tr23
+			}
+		default:
+			goto tr23
 		}
 		goto st0
-tr19:
-//line parser.rl:20
+tr21:
+//line parser.rl:19
  mark = p 
 	goto st8
 	st8:
@@ -427,39 +454,39 @@ tr19:
 			goto _test_eof8
 		}
 	st_case_8:
-//line parser.go:431
+//line parser.go:458
 		switch data[p] {
 		case 70:
-			goto st33
+			goto st32
 		case 73:
-			goto st38
+			goto st37
 		case 78:
-			goto st45
+			goto st44
 		case 81:
-			goto st47
+			goto st46
 		case 83:
-			goto st47
+			goto st46
 		case 84:
-			goto st48
+			goto st47
 		case 102:
-			goto st33
+			goto st32
 		case 105:
-			goto st38
+			goto st37
 		case 110:
-			goto st45
+			goto st44
 		case 113:
-			goto st47
+			goto st46
 		case 115:
-			goto st47
+			goto st46
 		case 116:
-			goto st48
+			goto st47
 		}
 		if 48 <= data[p] && data[p] <= 57 {
 			goto st9
 		}
 		goto st0
-tr20:
-//line parser.rl:20
+tr22:
+//line parser.rl:19
  mark = p 
 	goto st9
 	st9:
@@ -467,27 +494,35 @@ tr20:
 			goto _test_eof9
 		}
 	st_case_9:
-//line parser.go:471
+//line parser.go:498
 		switch data[p] {
 		case 32:
-			goto tr34
+			goto tr39
 		case 43:
-			goto st50
+			goto st49
 		case 45:
-			goto st50
+			goto st49
 		case 46:
-			goto st52
+			goto st51
 		case 69:
-			goto st54
+			goto st53
 		case 101:
-			goto st54
+			goto st53
 		}
 		if 48 <= data[p] && data[p] <= 57 {
 			goto st9
 		}
 		goto st0
-tr34:
-//line parser.rl:44
+tr39:
+//line parser.rl:39
+ c.Inputs = append(c.Inputs, Data(data[mark:p])) 
+	goto st10
+tr93:
+//line parser.rl:36
+
+			c.Trap = ConditionFromString(string(data[mark:p]))
+        
+//line parser.rl:39
  c.Inputs = append(c.Inputs, Data(data[mark:p])) 
 	goto st10
 	st10:
@@ -495,43 +530,45 @@ tr34:
 			goto _test_eof10
 		}
 	st_case_10:
-//line parser.go:499
+//line parser.go:534
 		switch data[p] {
+		case 32:
+			goto st10
 		case 43:
-			goto tr19
+			goto tr21
 		case 45:
-			goto tr38
+			goto tr44
 		case 70:
-			goto tr21
+			goto tr24
 		case 73:
-			goto tr22
+			goto tr25
 		case 78:
-			goto tr23
+			goto tr26
 		case 81:
-			goto tr24
+			goto tr27
 		case 83:
-			goto tr24
+			goto tr27
 		case 84:
-			goto tr25
+			goto tr28
 		case 102:
-			goto tr21
+			goto tr24
 		case 105:
-			goto tr22
-		case 110:
-			goto tr23
-		case 113:
-			goto tr24
-		case 115:
-			goto tr24
-		case 116:
 			goto tr25
+		case 110:
+			goto tr26
+		case 113:
+			goto tr27
+		case 115:
+			goto tr27
+		case 116:
+			goto tr28
 		}
 		if 48 <= data[p] && data[p] <= 57 {
-			goto tr20
+			goto tr22
 		}
 		goto st0
-tr38:
-//line parser.rl:20
+tr44:
+//line parser.rl:19
  mark = p 
 	goto st11
 	st11:
@@ -539,34 +576,34 @@ tr38:
 			goto _test_eof11
 		}
 	st_case_11:
-//line parser.go:543
+//line parser.go:580
 		switch data[p] {
 		case 62:
 			goto st12
 		case 70:
-			goto st33
+			goto st32
 		case 73:
-			goto st38
+			goto st37
 		case 78:
-			goto st45
+			goto st44
 		case 81:
-			goto st47
+			goto st46
 		case 83:
-			goto st47
+			goto st46
 		case 84:
-			goto st48
+			goto st47
 		case 102:
-			goto st33
+			goto st32
 		case 105:
-			goto st38
+			goto st37
 		case 110:
-			goto st45
+			goto st44
 		case 113:
-			goto st47
+			goto st46
 		case 115:
-			goto st47
+			goto st46
 		case 116:
-			goto st48
+			goto st47
 		}
 		if 48 <= data[p] && data[p] <= 57 {
 			goto st9
@@ -587,176 +624,200 @@ tr38:
 		}
 	st_case_13:
 		switch data[p] {
+		case 32:
+			goto st13
 		case 35:
-			goto tr41
+			goto tr47
 		case 43:
-			goto tr42
+			goto tr48
 		case 45:
-			goto tr42
+			goto tr48
 		case 70:
-			goto tr44
+			goto tr50
 		case 73:
-			goto tr45
+			goto tr51
 		case 78:
-			goto tr46
+			goto tr52
 		case 81:
-			goto tr47
+			goto tr53
 		case 83:
-			goto tr47
+			goto tr53
 		case 84:
-			goto tr48
+			goto tr54
 		case 102:
-			goto tr44
+			goto tr50
 		case 105:
-			goto tr45
+			goto tr51
 		case 110:
-			goto tr46
+			goto tr52
 		case 113:
-			goto tr47
+			goto tr53
 		case 115:
-			goto tr47
+			goto tr53
 		case 116:
-			goto tr48
+			goto tr54
 		}
 		if 48 <= data[p] && data[p] <= 57 {
-			goto tr43
+			goto tr49
 		}
 		goto st0
-tr41:
-//line parser.rl:20
+tr47:
+//line parser.rl:19
  mark = p 
-	goto st81
-	st81:
+	goto st86
+	st86:
 		if p++; p == pe {
-			goto _test_eof81
+			goto _test_eof86
 		}
-	st_case_81:
-//line parser.go:635
+	st_case_86:
+//line parser.go:674
 		if data[p] == 32 {
-			goto tr100
+			goto tr111
 		}
 		goto st0
-tr100:
-//line parser.rl:45
+tr111:
+//line parser.rl:40
  c.Output = Data(data[mark:p]) 
+	goto st87
+	st87:
+		if p++; p == pe {
+			goto _test_eof87
+		}
+	st_case_87:
+//line parser.go:688
+		switch data[p] {
+		case 32:
+			goto st87
+		case 63:
+			goto tr113
+		case 99:
+			goto tr113
+		case 105:
+			goto tr113
+		}
+		switch {
+		case data[p] > 111:
+			if 114 <= data[p] && data[p] <= 122 {
+				goto tr113
+			}
+		case data[p] >= 109:
+			goto tr113
+		}
+		goto st0
+tr113:
+//line parser.rl:19
+ mark = p 
+	goto st88
+	st88:
+		if p++; p == pe {
+			goto _test_eof88
+		}
+	st_case_88:
+//line parser.go:717
+		switch data[p] {
+		case 63:
+			goto st88
+		case 99:
+			goto st88
+		case 105:
+			goto st88
+		}
+		switch {
+		case data[p] > 111:
+			if 114 <= data[p] && data[p] <= 122 {
+				goto st88
+			}
+		case data[p] >= 109:
+			goto st88
+		}
+		goto st0
+tr48:
+//line parser.rl:19
+ mark = p 
 	goto st14
 	st14:
 		if p++; p == pe {
 			goto _test_eof14
 		}
 	st_case_14:
-//line parser.go:649
+//line parser.go:744
 		switch data[p] {
+		case 70:
+			goto st18
+		case 73:
+			goto st22
+		case 78:
+			goto st28
+		case 81:
+			goto st93
+		case 83:
+			goto st93
+		case 84:
+			goto st30
+		case 102:
+			goto st18
 		case 105:
-			goto tr49
-		case 111:
-			goto tr49
-		case 122:
-			goto tr49
+			goto st22
+		case 110:
+			goto st28
+		case 113:
+			goto st93
+		case 115:
+			goto st93
+		case 116:
+			goto st30
 		}
-		if 117 <= data[p] && data[p] <= 120 {
-			goto tr49
+		if 48 <= data[p] && data[p] <= 57 {
+			goto st89
 		}
 		goto st0
 tr49:
-//line parser.rl:20
+//line parser.rl:19
  mark = p 
-	goto st82
-tr101:
-//line parser.rl:46
-
-	    	if exc, ok = valToException[string(data[mark:p])]; !ok {
-				return c, fmt.Errorf("invalid result exception: %q", data[mark:p])
-	    	}
-            c.Excep |= exc
-        
-//line parser.rl:20
- mark = p 
-	goto st82
-	st82:
+	goto st89
+	st89:
 		if p++; p == pe {
-			goto _test_eof82
+			goto _test_eof89
 		}
-	st_case_82:
-//line parser.go:682
+	st_case_89:
+//line parser.go:784
 		switch data[p] {
-		case 105:
-			goto tr101
-		case 111:
-			goto tr101
-		case 122:
-			goto tr101
+		case 32:
+			goto tr111
+		case 43:
+			goto st15
+		case 45:
+			goto st15
+		case 46:
+			goto st16
+		case 69:
+			goto st17
+		case 101:
+			goto st17
 		}
-		if 117 <= data[p] && data[p] <= 120 {
-			goto tr101
+		if 48 <= data[p] && data[p] <= 57 {
+			goto st89
 		}
 		goto st0
-tr42:
-//line parser.rl:20
- mark = p 
-	goto st15
 	st15:
 		if p++; p == pe {
 			goto _test_eof15
 		}
 	st_case_15:
-//line parser.go:704
-		switch data[p] {
-		case 70:
-			goto st19
-		case 73:
-			goto st23
-		case 78:
-			goto st29
-		case 81:
-			goto st87
-		case 83:
-			goto st87
-		case 84:
-			goto st31
-		case 102:
-			goto st19
-		case 105:
-			goto st23
-		case 110:
-			goto st29
-		case 113:
-			goto st87
-		case 115:
-			goto st87
-		case 116:
-			goto st31
-		}
 		if 48 <= data[p] && data[p] <= 57 {
-			goto st83
+			goto st90
 		}
 		goto st0
-tr43:
-//line parser.rl:20
- mark = p 
-	goto st83
-	st83:
+	st90:
 		if p++; p == pe {
-			goto _test_eof83
+			goto _test_eof90
 		}
-	st_case_83:
-//line parser.go:744
-		switch data[p] {
-		case 32:
-			goto tr100
-		case 43:
-			goto st16
-		case 45:
-			goto st16
-		case 46:
-			goto st17
-		case 69:
-			goto st18
-		case 101:
-			goto st18
+	st_case_90:
+		if data[p] == 32 {
+			goto tr111
 		}
 		if 48 <= data[p] && data[p] <= 57 {
-			goto st83
+			goto st90
 		}
 		goto st0
 	st16:
@@ -765,19 +826,28 @@ tr43:
 		}
 	st_case_16:
 		if 48 <= data[p] && data[p] <= 57 {
-			goto st84
+			goto st91
 		}
 		goto st0
-	st84:
+	st91:
 		if p++; p == pe {
-			goto _test_eof84
+			goto _test_eof91
 		}
-	st_case_84:
-		if data[p] == 32 {
-			goto tr100
+	st_case_91:
+		switch data[p] {
+		case 32:
+			goto tr111
+		case 43:
+			goto st15
+		case 45:
+			goto st15
+		case 69:
+			goto st17
+		case 101:
+			goto st17
 		}
 		if 48 <= data[p] && data[p] <= 57 {
-			goto st84
+			goto st91
 		}
 		goto st0
 	st17:
@@ -785,60 +855,42 @@ tr43:
 			goto _test_eof17
 		}
 	st_case_17:
-		if 48 <= data[p] && data[p] <= 57 {
-			goto st85
-		}
-		goto st0
-	st85:
-		if p++; p == pe {
-			goto _test_eof85
-		}
-	st_case_85:
 		switch data[p] {
-		case 32:
-			goto tr100
 		case 43:
-			goto st16
+			goto st15
 		case 45:
-			goto st16
-		case 69:
-			goto st18
-		case 101:
-			goto st18
+			goto st15
 		}
 		if 48 <= data[p] && data[p] <= 57 {
-			goto st85
+			goto st90
 		}
 		goto st0
+tr50:
+//line parser.rl:19
+ mark = p 
+	goto st18
 	st18:
 		if p++; p == pe {
 			goto _test_eof18
 		}
 	st_case_18:
+//line parser.go:878
 		switch data[p] {
-		case 43:
-			goto st16
-		case 45:
-			goto st16
-		}
-		if 48 <= data[p] && data[p] <= 57 {
-			goto st84
+		case 65:
+			goto st19
+		case 97:
+			goto st19
 		}
 		goto st0
-tr44:
-//line parser.rl:20
- mark = p 
-	goto st19
 	st19:
 		if p++; p == pe {
 			goto _test_eof19
 		}
 	st_case_19:
-//line parser.go:838
 		switch data[p] {
-		case 65:
+		case 76:
 			goto st20
-		case 97:
+		case 108:
 			goto st20
 		}
 		goto st0
@@ -848,9 +900,9 @@ tr44:
 		}
 	st_case_20:
 		switch data[p] {
-		case 76:
+		case 83:
 			goto st21
-		case 108:
+		case 115:
 			goto st21
 		}
 		goto st0
@@ -860,38 +912,52 @@ tr44:
 		}
 	st_case_21:
 		switch data[p] {
-		case 83:
-			goto st22
-		case 115:
-			goto st22
+		case 69:
+			goto st86
+		case 101:
+			goto st86
 		}
 		goto st0
+tr51:
+//line parser.rl:19
+ mark = p 
+	goto st22
 	st22:
 		if p++; p == pe {
 			goto _test_eof22
 		}
 	st_case_22:
+//line parser.go:931
 		switch data[p] {
-		case 69:
-			goto st81
-		case 101:
-			goto st81
+		case 78:
+			goto st23
+		case 110:
+			goto st23
 		}
 		goto st0
-tr45:
-//line parser.rl:20
- mark = p 
-	goto st23
 	st23:
 		if p++; p == pe {
 			goto _test_eof23
 		}
 	st_case_23:
-//line parser.go:891
 		switch data[p] {
-		case 78:
+		case 70:
+			goto st92
+		case 102:
+			goto st92
+		}
+		goto st0
+	st92:
+		if p++; p == pe {
+			goto _test_eof92
+		}
+	st_case_92:
+		switch data[p] {
+		case 32:
+			goto tr111
+		case 73:
 			goto st24
-		case 110:
+		case 105:
 			goto st24
 		}
 		goto st0
@@ -901,23 +967,9 @@ tr45:
 		}
 	st_case_24:
 		switch data[p] {
-		case 70:
-			goto st86
-		case 102:
-			goto st86
-		}
-		goto st0
-	st86:
-		if p++; p == pe {
-			goto _test_eof86
-		}
-	st_case_86:
-		switch data[p] {
-		case 32:
-			goto tr100
-		case 73:
+		case 78:
 			goto st25
-		case 105:
+		case 110:
 			goto st25
 		}
 		goto st0
@@ -927,9 +979,9 @@ tr45:
 		}
 	st_case_25:
 		switch data[p] {
-		case 78:
+		case 73:
 			goto st26
-		case 110:
+		case 105:
 			goto st26
 		}
 		goto st0
@@ -939,9 +991,9 @@ tr45:
 		}
 	st_case_26:
 		switch data[p] {
-		case 73:
+		case 84:
 			goto st27
-		case 105:
+		case 116:
 			goto st27
 		}
 		goto st0
@@ -951,115 +1003,115 @@ tr45:
 		}
 	st_case_27:
 		switch data[p] {
-		case 84:
-			goto st28
-		case 116:
-			goto st28
+		case 89:
+			goto st86
+		case 121:
+			goto st86
 		}
 		goto st0
+tr52:
+//line parser.rl:19
+ mark = p 
+	goto st28
 	st28:
 		if p++; p == pe {
 			goto _test_eof28
 		}
 	st_case_28:
+//line parser.go:1022
 		switch data[p] {
-		case 89:
-			goto st81
-		case 121:
-			goto st81
+		case 65:
+			goto st29
+		case 97:
+			goto st29
 		}
 		goto st0
-tr46:
-//line parser.rl:20
- mark = p 
-	goto st29
 	st29:
 		if p++; p == pe {
 			goto _test_eof29
 		}
 	st_case_29:
-//line parser.go:982
 		switch data[p] {
-		case 65:
-			goto st30
-		case 97:
-			goto st30
+		case 78:
+			goto st86
+		case 110:
+			goto st86
 		}
 		goto st0
+tr53:
+//line parser.rl:19
+ mark = p 
+	goto st93
+	st93:
+		if p++; p == pe {
+			goto _test_eof93
+		}
+	st_case_93:
+//line parser.go:1051
+		switch data[p] {
+		case 32:
+			goto tr111
+		case 78:
+			goto st28
+		case 110:
+			goto st28
+		}
+		goto st0
+tr54:
+//line parser.rl:19
+ mark = p 
+	goto st30
 	st30:
 		if p++; p == pe {
 			goto _test_eof30
 		}
 	st_case_30:
+//line parser.go:1070
 		switch data[p] {
-		case 78:
-			goto st81
-		case 110:
-			goto st81
+		case 82:
+			goto st31
+		case 114:
+			goto st31
 		}
 		goto st0
-tr47:
-//line parser.rl:20
- mark = p 
-	goto st87
-	st87:
-		if p++; p == pe {
-			goto _test_eof87
-		}
-	st_case_87:
-//line parser.go:1011
-		switch data[p] {
-		case 32:
-			goto tr100
-		case 78:
-			goto st29
-		case 110:
-			goto st29
-		}
-		goto st0
-tr48:
-//line parser.rl:20
- mark = p 
-	goto st31
 	st31:
 		if p++; p == pe {
 			goto _test_eof31
 		}
 	st_case_31:
-//line parser.go:1030
 		switch data[p] {
-		case 82:
-			goto st32
-		case 114:
-			goto st32
+		case 85:
+			goto st21
+		case 117:
+			goto st21
 		}
 		goto st0
+tr24:
+//line parser.rl:19
+ mark = p 
+	goto st32
 	st32:
 		if p++; p == pe {
 			goto _test_eof32
 		}
 	st_case_32:
+//line parser.go:1099
 		switch data[p] {
-		case 85:
-			goto st22
-		case 117:
-			goto st22
+		case 65:
+			goto st33
+		case 97:
+			goto st33
 		}
 		goto st0
-tr21:
-//line parser.rl:20
- mark = p 
-	goto st33
 	st33:
 		if p++; p == pe {
 			goto _test_eof33
 		}
 	st_case_33:
-//line parser.go:1059
 		switch data[p] {
-		case 65:
+		case 76:
 			goto st34
-		case 97:
+		case 108:
 			goto st34
 		}
 		goto st0
@@ -1069,9 +1121,9 @@ tr21:
 		}
 	st_case_34:
 		switch data[p] {
-		case 76:
+		case 83:
 			goto st35
-		case 108:
+		case 115:
 			goto st35
 		}
 		goto st0
@@ -1081,9 +1133,9 @@ tr21:
 		}
 	st_case_35:
 		switch data[p] {
-		case 83:
+		case 69:
 			goto st36
-		case 115:
+		case 101:
 			goto st36
 		}
 		goto st0
@@ -1092,36 +1144,36 @@ tr21:
 			goto _test_eof36
 		}
 	st_case_36:
-		switch data[p] {
-		case 69:
-			goto st37
-		case 101:
-			goto st37
+		if data[p] == 32 {
+			goto tr39
 		}
 		goto st0
+tr25:
+//line parser.rl:19
+ mark = p 
+	goto st37
 	st37:
 		if p++; p == pe {
 			goto _test_eof37
 		}
 	st_case_37:
-		if data[p] == 32 {
-			goto tr34
+//line parser.go:1161
+		switch data[p] {
+		case 78:
+			goto st38
+		case 110:
+			goto st38
 		}
 		goto st0
-tr22:
-//line parser.rl:20
- mark = p 
-	goto st38
 	st38:
 		if p++; p == pe {
 			goto _test_eof38
 		}
 	st_case_38:
-//line parser.go:1121
 		switch data[p] {
-		case 78:
+		case 70:
 			goto st39
-		case 110:
+		case 102:
 			goto st39
 		}
 		goto st0
@@ -1131,9 +1183,11 @@ tr22:
 		}
 	st_case_39:
 		switch data[p] {
-		case 70:
+		case 32:
+			goto tr39
+		case 73:
 			goto st40
-		case 102:
+		case 105:
 			goto st40
 		}
 		goto st0
@@ -1143,11 +1197,9 @@ tr22:
 		}
 	st_case_40:
 		switch data[p] {
-		case 32:
-			goto tr34
-		case 73:
+		case 78:
 			goto st41
-		case 105:
+		case 110:
 			goto st41
 		}
 		goto st0
@@ -1157,9 +1209,9 @@ tr22:
 		}
 	st_case_41:
 		switch data[p] {
-		case 78:
+		case 73:
 			goto st42
-		case 110:
+		case 105:
 			goto st42
 		}
 		goto st0
@@ -1169,9 +1221,9 @@ tr22:
 		}
 	st_case_42:
 		switch data[p] {
-		case 73:
+		case 84:
 			goto st43
-		case 105:
+		case 116:
 			goto st43
 		}
 		goto st0
@@ -1181,55 +1233,62 @@ tr22:
 		}
 	st_case_43:
 		switch data[p] {
-		case 84:
-			goto st44
-		case 116:
-			goto st44
+		case 89:
+			goto st36
+		case 121:
+			goto st36
 		}
 		goto st0
+tr26:
+//line parser.rl:19
+ mark = p 
+	goto st44
 	st44:
 		if p++; p == pe {
 			goto _test_eof44
 		}
 	st_case_44:
+//line parser.go:1252
 		switch data[p] {
-		case 89:
-			goto st37
-		case 121:
-			goto st37
+		case 65:
+			goto st45
+		case 97:
+			goto st45
 		}
 		goto st0
-tr23:
-//line parser.rl:20
- mark = p 
-	goto st45
 	st45:
 		if p++; p == pe {
 			goto _test_eof45
 		}
 	st_case_45:
-//line parser.go:1212
 		switch data[p] {
-		case 65:
-			goto st46
-		case 97:
-			goto st46
+		case 78:
+			goto st36
+		case 110:
+			goto st36
 		}
 		goto st0
+tr27:
+//line parser.rl:19
+ mark = p 
+	goto st46
 	st46:
 		if p++; p == pe {
 			goto _test_eof46
 		}
 	st_case_46:
+//line parser.go:1281
 		switch data[p] {
+		case 32:
+			goto tr39
 		case 78:
-			goto st37
+			goto st44
 		case 110:
-			goto st37
+			goto st44
 		}
 		goto st0
-tr24:
-//line parser.rl:20
+tr28:
+//line parser.rl:19
  mark = p 
 	goto st47
 	st47:
@@ -1237,31 +1296,24 @@ tr24:
 			goto _test_eof47
 		}
 	st_case_47:
-//line parser.go:1241
+//line parser.go:1300
 		switch data[p] {
-		case 32:
-			goto tr34
-		case 78:
-			goto st45
-		case 110:
-			goto st45
+		case 82:
+			goto st48
+		case 114:
+			goto st48
 		}
 		goto st0
-tr25:
-//line parser.rl:20
- mark = p 
-	goto st48
 	st48:
 		if p++; p == pe {
 			goto _test_eof48
 		}
 	st_case_48:
-//line parser.go:1260
 		switch data[p] {
-		case 82:
-			goto st49
-		case 114:
-			goto st49
+		case 85:
+			goto st35
+		case 117:
+			goto st35
 		}
 		goto st0
 	st49:
@@ -1269,11 +1321,8 @@ tr25:
 			goto _test_eof49
 		}
 	st_case_49:
-		switch data[p] {
-		case 85:
-			goto st36
-		case 117:
-			goto st36
+		if 48 <= data[p] && data[p] <= 57 {
+			goto st50
 		}
 		goto st0
 	st50:
@@ -1281,8 +1330,11 @@ tr25:
 			goto _test_eof50
 		}
 	st_case_50:
+		if data[p] == 32 {
+			goto tr39
+		}
 		if 48 <= data[p] && data[p] <= 57 {
-			goto st51
+			goto st50
 		}
 		goto st0
 	st51:
@@ -1290,11 +1342,8 @@ tr25:
 			goto _test_eof51
 		}
 	st_case_51:
-		if data[p] == 32 {
-			goto tr34
-		}
 		if 48 <= data[p] && data[p] <= 57 {
-			goto st51
+			goto st52
 		}
 		goto st0
 	st52:
@@ -1302,8 +1351,20 @@ tr25:
 			goto _test_eof52
 		}
 	st_case_52:
-		if 48 <= data[p] && data[p] <= 57 {
+		switch data[p] {
+		case 32:
+			goto tr39
+		case 43:
+			goto st49
+		case 45:
+			goto st49
+		case 69:
 			goto st53
+		case 101:
+			goto st53
+		}
+		if 48 <= data[p] && data[p] <= 57 {
+			goto st52
 		}
 		goto st0
 	st53:
@@ -1312,152 +1373,155 @@ tr25:
 		}
 	st_case_53:
 		switch data[p] {
-		case 32:
-			goto tr34
 		case 43:
-			goto st50
+			goto st49
 		case 45:
-			goto st50
-		case 69:
-			goto st54
-		case 101:
-			goto st54
+			goto st49
 		}
 		if 48 <= data[p] && data[p] <= 57 {
-			goto st53
+			goto st50
 		}
 		goto st0
+tr23:
+//line parser.rl:19
+ mark = p 
+	goto st54
 	st54:
 		if p++; p == pe {
 			goto _test_eof54
 		}
 	st_case_54:
+//line parser.go:1395
 		switch data[p] {
-		case 43:
-			goto st50
-		case 45:
-			goto st50
+		case 32:
+			goto tr89
+		case 63:
+			goto st54
+		case 99:
+			goto st54
+		case 105:
+			goto st54
 		}
-		if 48 <= data[p] && data[p] <= 57 {
-			goto st51
+		switch {
+		case data[p] > 111:
+			if 114 <= data[p] && data[p] <= 122 {
+				goto st54
+			}
+		case data[p] >= 109:
+			goto st54
 		}
 		goto st0
-tr26:
-//line parser.rl:20
- mark = p 
+tr89:
+//line parser.rl:36
+
+			c.Trap = ConditionFromString(string(data[mark:p]))
+        
 	goto st55
 	st55:
 		if p++; p == pe {
 			goto _test_eof55
 		}
 	st_case_55:
-//line parser.go:1355
+//line parser.go:1426
 		switch data[p] {
 		case 32:
-			goto tr84
+			goto st55
+		case 43:
+			goto tr21
+		case 45:
+			goto tr21
+		case 70:
+			goto tr24
+		case 73:
+			goto tr25
 		case 78:
-			goto st39
+			goto tr26
+		case 81:
+			goto tr27
+		case 83:
+			goto tr27
+		case 84:
+			goto tr28
+		case 102:
+			goto tr24
 		case 105:
-			goto tr85
+			goto tr25
 		case 110:
-			goto st39
-		case 111:
-			goto tr85
-		case 122:
-			goto tr85
+			goto tr26
+		case 113:
+			goto tr27
+		case 115:
+			goto tr27
+		case 116:
+			goto tr28
 		}
-		if 117 <= data[p] && data[p] <= 120 {
-			goto tr85
+		if 48 <= data[p] && data[p] <= 57 {
+			goto tr22
 		}
 		goto st0
-tr84:
-//line parser.rl:37
-
-	    exc, ok = valToException[string(data[mark:p])]
-	    if !ok {
-                return c, fmt.Errorf("invalid trap exception: %q", data[mark:p])
-	    }
-            c.Trap |= exc
-        
+tr29:
+//line parser.rl:19
+ mark = p 
 	goto st56
 	st56:
 		if p++; p == pe {
 			goto _test_eof56
 		}
 	st_case_56:
-//line parser.go:1389
+//line parser.go:1472
 		switch data[p] {
-		case 43:
-			goto tr19
-		case 45:
-			goto tr19
-		case 70:
-			goto tr21
-		case 73:
-			goto tr22
+		case 32:
+			goto tr89
+		case 63:
+			goto st54
 		case 78:
-			goto tr23
-		case 81:
-			goto tr24
-		case 83:
-			goto tr24
-		case 84:
-			goto tr25
-		case 102:
-			goto tr21
+			goto st38
+		case 99:
+			goto st54
 		case 105:
-			goto tr22
+			goto st54
 		case 110:
-			goto tr23
-		case 113:
-			goto tr24
-		case 115:
-			goto tr24
-		case 116:
-			goto tr25
+			goto st57
 		}
-		if 48 <= data[p] && data[p] <= 57 {
-			goto tr20
+		switch {
+		case data[p] > 111:
+			if 114 <= data[p] && data[p] <= 122 {
+				goto st54
+			}
+		case data[p] >= 109:
+			goto st54
 		}
 		goto st0
-tr27:
-//line parser.rl:20
- mark = p 
-	goto st57
-tr85:
-//line parser.rl:37
-
-	    exc, ok = valToException[string(data[mark:p])]
-	    if !ok {
-                return c, fmt.Errorf("invalid trap exception: %q", data[mark:p])
-	    }
-            c.Trap |= exc
-        
-//line parser.rl:20
- mark = p 
-	goto st57
 	st57:
 		if p++; p == pe {
 			goto _test_eof57
 		}
 	st_case_57:
-//line parser.go:1445
 		switch data[p] {
 		case 32:
-			goto tr84
+			goto tr89
+		case 63:
+			goto st54
+		case 70:
+			goto st39
+		case 99:
+			goto st54
+		case 102:
+			goto st39
 		case 105:
-			goto tr85
-		case 111:
-			goto tr85
-		case 122:
-			goto tr85
+			goto st54
 		}
-		if 117 <= data[p] && data[p] <= 120 {
-			goto tr85
+		switch {
+		case data[p] > 111:
+			if 114 <= data[p] && data[p] <= 122 {
+				goto st54
+			}
+		case data[p] >= 109:
+			goto st54
 		}
 		goto st0
-tr17:
-//line parser.rl:20
+tr30:
+//line parser.rl:19
  mark = p 
 	goto st58
 	st58:
@@ -1465,7 +1529,162 @@ tr17:
 			goto _test_eof58
 		}
 	st_case_58:
-//line parser.go:1469
+//line parser.go:1533
+		switch data[p] {
+		case 32:
+			goto tr89
+		case 63:
+			goto st54
+		case 65:
+			goto st45
+		case 97:
+			goto st45
+		case 99:
+			goto st54
+		case 105:
+			goto st54
+		}
+		switch {
+		case data[p] > 111:
+			if 114 <= data[p] && data[p] <= 122 {
+				goto st54
+			}
+		case data[p] >= 109:
+			goto st54
+		}
+		goto st0
+tr31:
+//line parser.rl:19
+ mark = p 
+	goto st59
+	st59:
+		if p++; p == pe {
+			goto _test_eof59
+		}
+	st_case_59:
+//line parser.go:1566
+		switch data[p] {
+		case 32:
+			goto tr93
+		case 63:
+			goto st54
+		case 78:
+			goto st44
+		case 99:
+			goto st54
+		case 105:
+			goto st54
+		case 110:
+			goto st58
+		}
+		switch {
+		case data[p] > 111:
+			if 114 <= data[p] && data[p] <= 122 {
+				goto st54
+			}
+		case data[p] >= 109:
+			goto st54
+		}
+		goto st0
+tr32:
+//line parser.rl:19
+ mark = p 
+	goto st60
+	st60:
+		if p++; p == pe {
+			goto _test_eof60
+		}
+	st_case_60:
+//line parser.go:1599
+		switch data[p] {
+		case 32:
+			goto tr89
+		case 63:
+			goto st54
+		case 82:
+			goto st48
+		case 99:
+			goto st54
+		case 105:
+			goto st54
+		case 114:
+			goto st61
+		}
+		switch {
+		case data[p] > 111:
+			if 115 <= data[p] && data[p] <= 122 {
+				goto st54
+			}
+		case data[p] >= 109:
+			goto st54
+		}
+		goto st0
+	st61:
+		if p++; p == pe {
+			goto _test_eof61
+		}
+	st_case_61:
+		switch data[p] {
+		case 32:
+			goto tr89
+		case 63:
+			goto st54
+		case 85:
+			goto st35
+		case 99:
+			goto st54
+		case 105:
+			goto st54
+		case 117:
+			goto st62
+		}
+		switch {
+		case data[p] > 111:
+			if 114 <= data[p] && data[p] <= 122 {
+				goto st54
+			}
+		case data[p] >= 109:
+			goto st54
+		}
+		goto st0
+	st62:
+		if p++; p == pe {
+			goto _test_eof62
+		}
+	st_case_62:
+		switch data[p] {
+		case 32:
+			goto tr89
+		case 63:
+			goto st54
+		case 69:
+			goto st36
+		case 99:
+			goto st54
+		case 101:
+			goto st36
+		case 105:
+			goto st54
+		}
+		switch {
+		case data[p] > 111:
+			if 114 <= data[p] && data[p] <= 122 {
+				goto st54
+			}
+		case data[p] >= 109:
+			goto st54
+		}
+		goto st0
+tr18:
+//line parser.rl:19
+ mark = p 
+	goto st63
+	st63:
+		if p++; p == pe {
+			goto _test_eof63
+		}
+	st_case_63:
+//line parser.go:1688
 		switch data[p] {
 		case 48:
 			goto st6
@@ -1474,21 +1693,21 @@ tr17:
 		}
 		goto st0
 tr4:
-//line parser.rl:22
+//line parser.rl:21
 
             if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
                 return c, err
             }
         
-//line parser.rl:20
+//line parser.rl:19
  mark = p 
-	goto st59
-	st59:
+	goto st64
+	st64:
 		if p++; p == pe {
-			goto _test_eof59
+			goto _test_eof64
 		}
-	st_case_59:
-//line parser.go:1492
+	st_case_64:
+//line parser.go:1711
 		switch data[p] {
 		case 32:
 			goto tr15
@@ -1497,21 +1716,21 @@ tr4:
 		}
 		goto st0
 tr6:
-//line parser.rl:22
+//line parser.rl:21
 
             if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
                 return c, err
             }
         
-//line parser.rl:20
+//line parser.rl:19
  mark = p 
-	goto st60
-	st60:
+	goto st65
+	st65:
 		if p++; p == pe {
-			goto _test_eof60
+			goto _test_eof65
 		}
-	st_case_60:
-//line parser.go:1515
+	st_case_65:
+//line parser.go:1734
 		switch data[p] {
 		case 65:
 			goto st4
@@ -1520,69 +1739,13 @@ tr6:
 		}
 		goto st0
 tr7:
-//line parser.rl:22
+//line parser.rl:21
 
             if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
                 return c, err
             }
         
-//line parser.rl:20
- mark = p 
-	goto st61
-	st61:
-		if p++; p == pe {
-			goto _test_eof61
-		}
-	st_case_61:
-//line parser.go:1538
-		if data[p] == 113 {
-			goto st62
-		}
-		goto st0
-	st62:
-		if p++; p == pe {
-			goto _test_eof62
-		}
-	st_case_62:
-		if data[p] == 117 {
-			goto st63
-		}
-		goto st0
-	st63:
-		if p++; p == pe {
-			goto _test_eof63
-		}
-	st_case_63:
-		if data[p] == 97 {
-			goto st64
-		}
-		goto st0
-	st64:
-		if p++; p == pe {
-			goto _test_eof64
-		}
-	st_case_64:
-		if data[p] == 110 {
-			goto st65
-		}
-		goto st0
-	st65:
-		if p++; p == pe {
-			goto _test_eof65
-		}
-	st_case_65:
-		if data[p] == 116 {
-			goto st4
-		}
-		goto st0
-tr8:
-//line parser.rl:22
-
-            if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
-                return c, err
-            }
-        
-//line parser.rl:20
+//line parser.rl:19
  mark = p 
 	goto st66
 	st66:
@@ -1590,7 +1753,63 @@ tr8:
 			goto _test_eof66
 		}
 	st_case_66:
-//line parser.go:1594
+//line parser.go:1757
+		if data[p] == 113 {
+			goto st67
+		}
+		goto st0
+	st67:
+		if p++; p == pe {
+			goto _test_eof67
+		}
+	st_case_67:
+		if data[p] == 117 {
+			goto st68
+		}
+		goto st0
+	st68:
+		if p++; p == pe {
+			goto _test_eof68
+		}
+	st_case_68:
+		if data[p] == 97 {
+			goto st69
+		}
+		goto st0
+	st69:
+		if p++; p == pe {
+			goto _test_eof69
+		}
+	st_case_69:
+		if data[p] == 110 {
+			goto st70
+		}
+		goto st0
+	st70:
+		if p++; p == pe {
+			goto _test_eof70
+		}
+	st_case_70:
+		if data[p] == 116 {
+			goto st4
+		}
+		goto st0
+tr8:
+//line parser.rl:21
+
+            if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
+                return c, err
+            }
+        
+//line parser.rl:19
+ mark = p 
+	goto st71
+	st71:
+		if p++; p == pe {
+			goto _test_eof71
+		}
+	st_case_71:
+//line parser.go:1813
 		switch data[p] {
 		case 32:
 			goto tr15
@@ -1607,14 +1826,14 @@ tr8:
 		case 110:
 			goto st4
 		case 115:
-			goto st67
+			goto st72
 		}
 		goto st0
-	st67:
+	st72:
 		if p++; p == pe {
-			goto _test_eof67
+			goto _test_eof72
 		}
-	st_case_67:
+	st_case_72:
 		switch data[p] {
 		case 32:
 			goto tr15
@@ -1623,21 +1842,21 @@ tr8:
 		}
 		goto st0
 tr9:
-//line parser.rl:22
+//line parser.rl:21
 
             if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
                 return c, err
             }
         
-//line parser.rl:20
+//line parser.rl:19
  mark = p 
-	goto st68
-	st68:
+	goto st73
+	st73:
 		if p++; p == pe {
-			goto _test_eof68
+			goto _test_eof73
 		}
-	st_case_68:
-//line parser.go:1641
+	st_case_73:
+//line parser.go:1860
 		switch data[p] {
 		case 97:
 			goto st4
@@ -1648,46 +1867,46 @@ tr9:
 		}
 		goto st0
 tr10:
-//line parser.rl:22
+//line parser.rl:21
 
             if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
                 return c, err
             }
         
-//line parser.rl:20
+//line parser.rl:19
  mark = p 
-	goto st69
-	st69:
+	goto st74
+	st74:
 		if p++; p == pe {
-			goto _test_eof69
+			goto _test_eof74
 		}
-	st_case_69:
-//line parser.go:1666
+	st_case_74:
+//line parser.go:1885
 		switch data[p] {
 		case 100:
-			goto st70
+			goto st75
 		case 102:
-			goto st71
+			goto st76
 		case 105:
-			goto st70
+			goto st75
 		case 112:
 			goto st4
 		}
 		goto st0
-	st70:
+	st75:
 		if p++; p == pe {
-			goto _test_eof70
+			goto _test_eof75
 		}
-	st_case_70:
+	st_case_75:
 		if data[p] == 102 {
 			goto st4
 		}
 		goto st0
-	st71:
+	st76:
 		if p++; p == pe {
-			goto _test_eof71
+			goto _test_eof76
 		}
-	st_case_71:
+	st_case_76:
 		switch data[p] {
 		case 100:
 			goto st4
@@ -1698,130 +1917,68 @@ tr10:
 		}
 		goto st0
 tr11:
-//line parser.rl:22
+//line parser.rl:21
 
             if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
                 return c, err
             }
         
-//line parser.rl:20
+//line parser.rl:19
  mark = p 
-	goto st72
-	st72:
-		if p++; p == pe {
-			goto _test_eof72
-		}
-	st_case_72:
-//line parser.go:1716
-		if data[p] == 113 {
-			goto st4
-		}
-		goto st0
-tr12:
-//line parser.rl:22
-
-            if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
-                return c, err
-            }
-        
-//line parser.rl:20
- mark = p 
-	goto st73
-	st73:
-		if p++; p == pe {
-			goto _test_eof73
-		}
-	st_case_73:
-//line parser.go:1736
-		switch data[p] {
-		case 67:
-			goto st4
-		case 117:
-			goto st63
-		}
-		goto st0
-tr13:
-//line parser.rl:22
-
-            if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
-                return c, err
-            }
-        
-//line parser.rl:20
- mark = p 
-	goto st74
-	st74:
-		if p++; p == pe {
-			goto _test_eof74
-		}
-	st_case_74:
-//line parser.go:1759
-		switch data[p] {
-		case 97:
-			goto st65
-		case 102:
-			goto st75
-		}
-		goto st0
-	st75:
-		if p++; p == pe {
-			goto _test_eof75
-		}
-	st_case_75:
-		if data[p] == 105 {
-			goto st4
-		}
-		goto st0
-tr14:
-//line parser.rl:22
-
-            if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
-                return c, err
-            }
-        
-//line parser.rl:20
- mark = p 
-	goto st76
-	st76:
-		if p++; p == pe {
-			goto _test_eof76
-		}
-	st_case_76:
-//line parser.go:1791
-		switch data[p] {
-		case 67:
-			goto st4
-		case 105:
-			goto st77
-		}
-		goto st0
+	goto st77
 	st77:
 		if p++; p == pe {
 			goto _test_eof77
 		}
 	st_case_77:
-		if data[p] == 103 {
-			goto st78
+//line parser.go:1935
+		if data[p] == 113 {
+			goto st4
 		}
 		goto st0
+tr12:
+//line parser.rl:21
+
+            if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
+                return c, err
+            }
+        
+//line parser.rl:19
+ mark = p 
+	goto st78
 	st78:
 		if p++; p == pe {
 			goto _test_eof78
 		}
 	st_case_78:
-		if data[p] == 110 {
-			goto st79
+//line parser.go:1955
+		switch data[p] {
+		case 67:
+			goto st4
+		case 117:
+			goto st68
 		}
 		goto st0
+tr13:
+//line parser.rl:21
+
+            if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
+                return c, err
+            }
+        
+//line parser.rl:19
+ mark = p 
+	goto st79
 	st79:
 		if p++; p == pe {
 			goto _test_eof79
 		}
 	st_case_79:
+//line parser.go:1978
 		switch data[p] {
-		case 32:
-			goto tr15
-		case 98:
+		case 97:
+			goto st70
+		case 102:
 			goto st80
 		}
 		goto st0
@@ -1831,7 +1988,69 @@ tr14:
 		}
 	st_case_80:
 		if data[p] == 105 {
-			goto st65
+			goto st4
+		}
+		goto st0
+tr14:
+//line parser.rl:21
+
+            if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
+                return c, err
+            }
+        
+//line parser.rl:19
+ mark = p 
+	goto st81
+	st81:
+		if p++; p == pe {
+			goto _test_eof81
+		}
+	st_case_81:
+//line parser.go:2010
+		switch data[p] {
+		case 67:
+			goto st4
+		case 105:
+			goto st82
+		}
+		goto st0
+	st82:
+		if p++; p == pe {
+			goto _test_eof82
+		}
+	st_case_82:
+		if data[p] == 103 {
+			goto st83
+		}
+		goto st0
+	st83:
+		if p++; p == pe {
+			goto _test_eof83
+		}
+	st_case_83:
+		if data[p] == 110 {
+			goto st84
+		}
+		goto st0
+	st84:
+		if p++; p == pe {
+			goto _test_eof84
+		}
+	st_case_84:
+		switch data[p] {
+		case 32:
+			goto tr15
+		case 98:
+			goto st85
+		}
+		goto st0
+	st85:
+		if p++; p == pe {
+			goto _test_eof85
+		}
+	st_case_85:
+		if data[p] == 105 {
+			goto st70
 		}
 		goto st0
 	st_out:
@@ -1847,30 +2066,31 @@ tr14:
 	_test_eof11: cs = 11; goto _test_eof
 	_test_eof12: cs = 12; goto _test_eof
 	_test_eof13: cs = 13; goto _test_eof
-	_test_eof81: cs = 81; goto _test_eof
+	_test_eof86: cs = 86; goto _test_eof
+	_test_eof87: cs = 87; goto _test_eof
+	_test_eof88: cs = 88; goto _test_eof
 	_test_eof14: cs = 14; goto _test_eof
-	_test_eof82: cs = 82; goto _test_eof
+	_test_eof89: cs = 89; goto _test_eof
 	_test_eof15: cs = 15; goto _test_eof
-	_test_eof83: cs = 83; goto _test_eof
+	_test_eof90: cs = 90; goto _test_eof
 	_test_eof16: cs = 16; goto _test_eof
-	_test_eof84: cs = 84; goto _test_eof
+	_test_eof91: cs = 91; goto _test_eof
 	_test_eof17: cs = 17; goto _test_eof
-	_test_eof85: cs = 85; goto _test_eof
 	_test_eof18: cs = 18; goto _test_eof
 	_test_eof19: cs = 19; goto _test_eof
 	_test_eof20: cs = 20; goto _test_eof
 	_test_eof21: cs = 21; goto _test_eof
 	_test_eof22: cs = 22; goto _test_eof
 	_test_eof23: cs = 23; goto _test_eof
+	_test_eof92: cs = 92; goto _test_eof
 	_test_eof24: cs = 24; goto _test_eof
-	_test_eof86: cs = 86; goto _test_eof
 	_test_eof25: cs = 25; goto _test_eof
 	_test_eof26: cs = 26; goto _test_eof
 	_test_eof27: cs = 27; goto _test_eof
 	_test_eof28: cs = 28; goto _test_eof
 	_test_eof29: cs = 29; goto _test_eof
+	_test_eof93: cs = 93; goto _test_eof
 	_test_eof30: cs = 30; goto _test_eof
-	_test_eof87: cs = 87; goto _test_eof
 	_test_eof31: cs = 31; goto _test_eof
 	_test_eof32: cs = 32; goto _test_eof
 	_test_eof33: cs = 33; goto _test_eof
@@ -1921,29 +2141,38 @@ tr14:
 	_test_eof78: cs = 78; goto _test_eof
 	_test_eof79: cs = 79; goto _test_eof
 	_test_eof80: cs = 80; goto _test_eof
+	_test_eof81: cs = 81; goto _test_eof
+	_test_eof82: cs = 82; goto _test_eof
+	_test_eof83: cs = 83; goto _test_eof
+	_test_eof84: cs = 84; goto _test_eof
+	_test_eof85: cs = 85; goto _test_eof
 
 	_test_eof: {}
 	if p == eof {
 		switch cs {
-		case 81, 83, 84, 85, 86, 87:
-//line parser.rl:45
+		case 86, 89, 90, 91, 92, 93:
+//line parser.rl:40
  c.Output = Data(data[mark:p]) 
-		case 82:
-//line parser.rl:46
+		case 88:
+//line parser.rl:41
 
-	    	if exc, ok = valToException[string(data[mark:p])]; !ok {
-				return c, fmt.Errorf("invalid result exception: %q", data[mark:p])
-	    	}
-            c.Excep |= exc
+			c.Excep = ConditionFromString(string(data[mark:p]))
         
-//line parser.go:1940
+		case 87:
+//line parser.rl:19
+ mark = p 
+//line parser.rl:41
+
+			c.Excep = ConditionFromString(string(data[mark:p]))
+        
+//line parser.go:2169
 		}
 	}
 
 	_out: {}
 	}
 
-//line parser.rl:149
+//line parser.rl:151
 
     return c, nil
 }

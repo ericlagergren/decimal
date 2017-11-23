@@ -2,23 +2,19 @@ package decimal
 
 import (
 	"fmt"
-	"math"
-	"strings"
 
-	"github.com/ericlagergren/decimal/internal/arith"
+	"github.com/ericlagergren/decimal/internal/compat"
 )
 
 // Precision and scale limits.
 const (
-	MaxScale = math.MaxInt32 // largest allowed scale.
-	MinScale = -MaxScale     // smallest allowed scale.
+	MaxScale = maxScale  // largest allowed scale.
+	MinScale = -MaxScale // smallest allowed scale.
 
 	// MaxPrecision and UnlimitedPrecision relies on the relationship
 	// MaxPrecision = -(UnlimitedPrecision + 1)
 
-	maxInt = int(^uint(0) >> 1) // max machine-defined integer
-
-	MaxPrecision       = maxInt            // largest allowed Context precision.
+	MaxPrecision       = MaxScale / 5      // largest allowed Context precision.
 	MinPrecision       = 1                 // smallest allowed Context precision.
 	UnlimitedPrecision = -MaxPrecision - 1 // no precision, but may error.
 	DefaultPrecision   = 16                // default precision for literals.
@@ -50,11 +46,16 @@ type Context struct {
 	// during an operation.
 	Conditions Condition
 
-	// Err is the most recent error to occur during an operation.
-	Err error
-
 	// RoundingMode determines how a decimal is rounded.
 	RoundingMode RoundingMode
+}
+
+// Err returns non-nil if there are any non-trapped exceptional conditions.
+func (c Context) Err() error {
+	if m := c.Conditions & c.Traps; m != 0 {
+		return m
+	}
+	return nil
 }
 
 // WithContext is shorthand to create a Big decimal from a Context.
@@ -241,45 +242,49 @@ const (
 	Underflow
 )
 
+func (c Condition) Error() string { return c.String() }
+
 func (c Condition) String() string {
 	if c == 0 {
 		return ""
 	}
 
-	// Each condition is one bit, so this saves some allocations.
-	a := make([]string, 0, arith.OnesCount32(uint32(c)))
+	var b compat.Builder
 	for i := Condition(1); c != 0; i <<= 1 {
 		if c&i == 0 {
 			continue
 		}
 		switch c ^= i; i {
 		case Clamped:
-			a = append(a, "clamped")
+			b.WriteString("clamped, ")
 		case ConversionSyntax:
-			a = append(a, "conversion syntax")
+			b.WriteString("conversion syntax, ")
 		case DivisionByZero:
-			a = append(a, "division by zero")
+			b.WriteString("division by zero, ")
 		case DivisionImpossible:
-			a = append(a, "division impossible")
+			b.WriteString("division impossible, ")
+		case DivisionUndefined:
+			b.WriteString("division undefined, ")
 		case Inexact:
-			a = append(a, "inexact")
+			b.WriteString("inexact, ")
 		case InsufficientStorage:
-			a = append(a, "insufficient storage")
+			b.WriteString("insufficient storage, ")
 		case InvalidContext:
-			a = append(a, "invalid context")
+			b.WriteString("invalid context, ")
 		case InvalidOperation:
-			a = append(a, "invalid operation")
+			b.WriteString("invalid operation, ")
 		case Overflow:
-			a = append(a, "overflow")
+			b.WriteString("overflow, ")
 		case Rounded:
-			a = append(a, "rounded")
+			b.WriteString("rounded, ")
 		case Subnormal:
-			a = append(a, "subnormal")
+			b.WriteString("subnormal, ")
 		case Underflow:
-			a = append(a, "underflow")
+			b.WriteString("underflow, ")
 		default:
-			a = append(a, fmt.Sprintf("unknown(%d)", i))
+			fmt.Fprintf(&b, "unknown(%d), ", i)
 		}
 	}
-	return strings.Join(a, ", ")
+	// Omit trailing comma and space.
+	return b.String()[:b.Len()-2]
 }
