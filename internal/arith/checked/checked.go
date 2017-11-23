@@ -2,75 +2,70 @@
 package checked
 
 import (
-	"math"
 	"math/big"
 
-	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/arith/pow"
 	"github.com/ericlagergren/decimal/internal/c"
 )
 
 // Add returns x + y and a bool indicating whether the addition was successful.
-func Add(x, y int64) (sum int64, ok bool) {
+func Add(x, y uint64) (sum uint64, ok bool) {
 	sum = x + y
-	// Algorithm from "Hacker's Delight" 2-12
-	return sum, (sum^x)&(sum^y) >= 0
-}
-
-// Add32 returns x + y and a bool indicating whether the addition was
-// successful.
-func Add32(x, y int32) (sum int32, ok bool) {
-	sum = x + y
-	// Algorithm from "Hacker's Delight" 2-12
-	return sum, (sum^x)&(sum^y) >= 0
+	return sum, sum > x
 }
 
 // Mul returns x * y and a bool indicating whether the multiplication was
 // successful.
-func Mul(x, y int64) (prod int64, ok bool) {
-	prod = x * y
-	return prod, ((arith.Abs(x)|arith.Abs(y))>>31 == 0 || prod/y == x)
+func Mul(x, y uint64) (prod uint64, ok bool) {
+	// Multiplication routine is from https://stackoverflow.com/a/26320664/2967113
+	const (
+		halfbits = 64 / 2
+		halfmax  = 1<<halfbits - 1
+	)
+
+	xhi := x >> halfbits
+	xlo := x & halfmax
+	yhi := y >> halfbits
+	ylo := y & halfmax
+
+	low := xlo * ylo
+	if xhi == 0 && yhi == 0 {
+		return low, true
+	}
+
+	m0 := xlo * yhi
+	m1 := xhi * ylo
+	prod = low + (m0+m1)<<halfbits
+	ovf := (xhi != 0 && yhi != 0) || prod < low || m0>>halfbits != 0 || m1>>halfbits != 0
+	return prod, !ovf
 }
 
 // Sub returns x - y and a bool indicating whether the subtraction was successful.
-func Sub(x, y int64) (diff int64, ok bool) {
-	return Add(x, -y)
+func Sub(x, y uint64) (diff uint64, ok bool) {
+	diff = x - y
+	return diff, x >= y
 }
 
-// Sub32 returns x - y and a bool indicating whether the subtraction was
-// successful.
-func Sub32(x, y int32) (diff int32, ok bool) {
-	return Add32(x, -y)
-}
-
-// MulPow10 computes 10 * x**n and a bool indicating whether the multiplcation
+// MulPow10 computes x * 10**n and a bool indicating whether the multiplcation
 // was successful.
-func MulPow10(x int64, n uint64) (p int64, ok bool) {
-	if x == 0 {
+func MulPow10(x uint64, n uint64) (p uint64, ok bool) {
+	switch x {
+	case 0:
 		return x, true
-	}
-	if n >= pow.TabLen-1 || x == c.Inflated {
+	case c.Inflated:
 		return 0, false
+	default:
+		if p, ok = pow.Ten(n); !ok {
+			return 0, false
+		}
+		return Mul(x, p)
 	}
-	up, ok := pow.Ten(n)
-	if !ok {
-		return 0, false
-	}
-	if x == 1 {
-		return int64(up), true
-	}
-	return Mul(x, int64(up))
 }
 
-// MulBigPow10 computes 10 * x**n. It reuses x.
-func MulBigPow10(x *big.Int, n uint64) *big.Int {
+// MulBigPow10 sets z to x * 10**n and returns z.
+func MulBigPow10(z, x *big.Int, n uint64) *big.Int {
 	if x.Sign() == 0 {
-		return x
+		return z.SetUint64(0)
 	}
-	return x.Mul(x, pow.BigTen(uint64(n)))
-}
-
-// Int32 returns true if x can fit in an int32.
-func Int32(x int64) (int32, bool) {
-	return int32(x), x <= math.MaxInt32 && x >= math.MinInt32
+	return z.Mul(x, pow.BigTen(n))
 }

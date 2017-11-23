@@ -6,10 +6,9 @@ import (
 	"math/big"
 )
 
-const Inflated int64 = math.MinInt64 + 1
+const Inflated uint64 = math.MaxUint64
 
 var (
-	OneInt = big.NewInt(1)
 	TwoInt = big.NewInt(2)
 	TenInt = big.NewInt(10)
 

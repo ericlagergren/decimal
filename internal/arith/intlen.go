@@ -7,12 +7,17 @@ import (
 	"github.com/ericlagergren/decimal/internal/compat"
 )
 
+func IsUint64(x *big.Int) bool {
+	const wordSize = 32 << (^uint(0) >> 32 & 1) // 32 or 64
+	return len(x.Bits()) <= 64/wordSize
+}
+
 // Length returns the number of digits in x.
-func Length(x int64) int {
-	if x = Abs(x); x < 10 {
+func Length(x uint64) int {
+	if x < 10 {
 		return 1
 	}
-	return ilog10(uint64(x))
+	return ilog10(x)
 }
 
 // BigLength returns the number of digits in x.
@@ -20,8 +25,8 @@ func BigLength(x *big.Int) int {
 	if x.Sign() == 0 {
 		return 1
 	}
-	if compat.IsInt64(x) {
-		return Length(x.Int64())
+	if IsUint64(x) {
+		return Length(x.Uint64())
 	}
 	return bigIlog10(x) // no need to pass in |x|
 }

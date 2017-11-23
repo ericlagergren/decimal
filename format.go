@@ -85,7 +85,7 @@ func roundString(b []byte, mode RoundingMode, pos bool, prec int) []byte {
 }
 
 // formatCompact formats the compact decimal, x, as an unsigned integer.
-func formatCompact(x int64) []byte {
+func formatCompact(x uint64) []byte {
 	if x < 0 {
 		x = -x
 	}
@@ -152,24 +152,7 @@ func (f *formatter) Write(p []byte) (n int, err error) {
 	return n, err
 }
 
-func (o OperatingMode) get() *fmtConfig {
-	if int(o) < len(fmtConfigs) {
-		return fmtConfigs[o]
-	}
-	return fmtConfigs[Go]
-}
-
-type fmtConfig struct {
-	snan, qnan   string
-	ssnan, sqnan string
-	pinf, ninf   string
-	e            byte
-}
-
-var fmtConfigs = [...]*fmtConfig{
-	GDA: &fmtConfig{"sNaN", "NaN", "-sNaN", "-NaN", "Infinity", "-Infinity", 'E'},
-	Go:  &fmtConfig{"NaN", "NaN", "NaN", "NaN", "+Inf", "-Inf", 'e'},
-}
+var sciE = [2]byte{GDA: 'E', Go: 'e'}
 
 func (f *formatter) format(x *Big, format format, e byte) {
 	if x == nil {
@@ -177,36 +160,35 @@ func (f *formatter) format(x *Big, format format, e byte) {
 		return
 	}
 
-	if m := x.form; m != finite {
-		o := x.Context.OperatingMode
-		// Go mode prints zeros different than GDA.
-		if m <= nzero && o == Go {
-			if f.width == noWidth {
-				f.WriteByte('0')
+	o := x.Context.OperatingMode
+	if x.isSpecial() {
+		switch o {
+		case GDA:
+			f.WriteString(x.form.String())
+			if x.IsNaN(0) && x.payload != 0 {
+				f.WriteString(strconv.Itoa(int(x.payload)))
+			}
+		case Go:
+			if x.IsNaN(0) {
+				f.WriteString("NaN")
+			} else if x.IsInf(+1) {
+				f.WriteString("+Inf")
 			} else {
-				f.WriteString("0.")
-				io.CopyN(f, zeroReader{}, int64(f.width))
+				f.WriteString("-Inf")
 			}
-			return
-			// All non-zero forms.
-		} else if m > nzero {
-			cfg := o.get()
-			switch m {
-			case snan:
-				f.WriteString(cfg.snan)
-			case ssnan:
-				f.WriteString(cfg.ssnan)
-			case qnan:
-				f.WriteString(cfg.qnan)
-			case sqnan:
-				f.WriteString(cfg.sqnan)
-			case pinf:
-				f.WriteString(cfg.pinf)
-			case ninf:
-				f.WriteString(cfg.ninf)
-			}
-			return
 		}
+		return
+	}
+
+	if x.compact == 0 && o == Go {
+		// Go mode prints zeros different than GDA.
+		if f.width == noWidth {
+			f.WriteByte('0')
+		} else {
+			f.WriteString("0.")
+			io.CopyN(f, zeroReader{}, int64(f.width))
+		}
+		return
 	}
 
 	neg := x.Signbit()
@@ -217,13 +199,13 @@ func (f *formatter) format(x *Big, format format, e byte) {
 	}
 
 	var b []byte
-	if x.isInflated() {
-		b = formatUnscaled(&x.unscaled)
-	} else {
+	if x.isCompact() {
 		b = formatCompact(x.compact)
+	} else {
+		b = formatUnscaled(&x.unscaled)
 	}
 
-	exp := -int(x.scale)
+	exp := int(x.exp)
 	if f.prec > 0 {
 		orig := len(b)
 		b = roundString(b, x.Context.RoundingMode, !neg, f.prec)

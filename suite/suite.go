@@ -10,6 +10,8 @@ import (
 	"io"
 	"math/big"
 	"strings"
+
+	"github.com/ericlagergren/decimal/internal/arith"
 )
 
 // ParseCases returns a slice of test cases in .fptest form read from r.
@@ -57,10 +59,10 @@ type Case struct {
 	Prec   int
 	Op     Op
 	Mode   big.RoundingMode
-	Trap   Exception
+	Trap   Condition
 	Inputs []Data
 	Output Data
-	Excep  Exception
+	Excep  Condition
 }
 
 // TODO(eric): String should print the same format as the input
@@ -110,7 +112,7 @@ func join(a []Data, sep Data, l int) Data {
 // Data is input or output from a test case.
 type Data string
 
-// NoData is output when the operation throws some sort of exception and does
+// NoData is output when the operation throws some sort of Condition and does
 // not "return" any data.
 const NoData Data = "#"
 
@@ -143,53 +145,93 @@ func (i Data) IsInf() (int, bool) {
 	return 0, false
 }
 
-// Exception is a type of exception.
-type Exception uint8
+// Condition is a bitmask value raised after or during specific operations.
+type Condition uint32
 
-// These values are a bitmask corresponding to specific exceptions. For
-// example, an Exception is allowed to be both Inexact and an Overflow.
 const (
-	None    Exception = 0
-	Inexact Exception = 1 << iota
-	Underflow
+	Clamped Condition = 1 << iota
+	ConversionSyntax
+	DivisionByZero
+	DivisionImpossible
+	DivisionUndefined
+	Inexact
+	InsufficientStorage
+	InvalidContext
+	InvalidOperation
 	Overflow
-	DivByZero
-	Invalid
+	Rounded
+	Subnormal
+	Underflow
 )
 
-var exceptions = [...]struct {
-	e Exception
-	s string
-}{
-	{Inexact, "Inexact"},
-	{Underflow, "Underflow"},
-	{Overflow, "Overflow"},
-	{DivByZero, "DivByZero"},
-	{Invalid, "Invalid"},
-}
-
-func (e Exception) String() string {
-	if e == None {
-		return "None"
+func (c Condition) String() string {
+	if c == 0 {
+		return "NoConditions"
 	}
 
-	var res string
-	for _, x := range exceptions {
-		if e&x.e != 0 {
-			res += x.s + " | "
+	// Each condition is one bit, so this saves some allocations.
+	a := make([]string, 0, arith.OnesCount32(uint32(c)))
+	for i := Condition(1); c != 0; i <<= 1 {
+		if c&i == 0 {
+			continue
+		}
+		switch c ^= i; i {
+		case Clamped:
+			a = append(a, "clamped")
+		case ConversionSyntax:
+			a = append(a, "conversion syntax")
+		case DivisionByZero:
+			a = append(a, "division by zero")
+		case DivisionImpossible:
+			a = append(a, "division impossible")
+		case Inexact:
+			a = append(a, "inexact")
+		case InsufficientStorage:
+			a = append(a, "insufficient storage")
+		case InvalidContext:
+			a = append(a, "invalid context")
+		case InvalidOperation:
+			a = append(a, "invalid operation")
+		case Overflow:
+			a = append(a, "overflow")
+		case Rounded:
+			a = append(a, "rounded")
+		case Subnormal:
+			a = append(a, "subnormal")
+		case Underflow:
+			a = append(a, "underflow")
+		default:
+			a = append(a, fmt.Sprintf("unknown(%d)", i))
 		}
 	}
-	return strings.TrimSuffix(res, " | ")
+	return strings.Join(a, ", ")
 }
 
-var valToException = map[string]Exception{
-	"x": Inexact,
-	"u": Underflow, // tininess and "extraordinary" error
-	"v": Underflow, // tininess and inexactness after rounding
-	"w": Underflow, // tininess and inexactness prior to rounding
-	"o": Overflow,
-	"z": DivByZero,
-	"i": Invalid,
+func ConditionFromString(s string) (r Condition) {
+	for i := range s {
+		r |= valToCondition[s[i]]
+	}
+	return r
+}
+
+var valToCondition = map[byte]Condition{
+	'x': Inexact,
+	'u': Underflow, // tininess and 'extraordinary' error
+	'v': Underflow, // tininess and inexactness after rounding
+	'w': Underflow, // tininess and inexactness prior to rounding
+	'o': Overflow,
+	'z': DivisionByZero,
+	'i': InvalidOperation,
+
+	// custom
+	'c': Clamped,
+	'r': Rounded,
+	'y': ConversionSyntax,
+	'm': DivisionImpossible,
+	'n': DivisionUndefined,
+	't': InsufficientStorage,
+	'?': InvalidContext,
+	's': Subnormal,
 }
 
 var valToMode = map[string]big.RoundingMode{

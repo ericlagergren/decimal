@@ -15,6 +15,94 @@ import (
 	"github.com/ericlagergren/decimal/suite"
 )
 
+func ctx(c suite.Case) Context {
+	return Context{
+		Precision:     c.Prec,
+		OperatingMode: GDA,
+		RoundingMode:  RoundingMode(c.Mode),
+		Traps:         Condition(c.Trap),
+	}
+}
+
+type scase struct {
+	t          *testing.T
+	z, x, y, u *Big
+	r          string
+	flags      Condition
+}
+
+func parse(t *testing.T, c suite.Case) scase {
+	t.Helper()
+
+	ctx := ctx(c)
+	s := scase{
+		z:     WithContext(ctx),
+		r:     string(c.Output),
+		flags: Condition(c.Excep),
+		x:     WithContext(ctx),
+		y:     WithContext(ctx),
+		u:     WithContext(ctx),
+	}
+	switch len(c.Inputs) {
+	case 3:
+		s.u.SetString(string(c.Inputs[2]))
+		fallthrough
+	case 2:
+		s.y.SetString(string(c.Inputs[1]))
+		fallthrough
+	case 1:
+		s.x.SetString(string(c.Inputs[0]))
+	default:
+		t.Fatalf("0 inputs?")
+	}
+	return s
+}
+
+func (s scase) badConds(x *Big) bool {
+	// Python doesn't support DivisionUndefined
+	c := x.Context.Conditions & ^(DivisionUndefined)
+	return c != s.flags
+}
+
+func (s scase) R() *Big {
+	r, _ := new(Big).SetString(s.r)
+	return r
+}
+
+func (s scase) str() string { return s.r }
+
+func (s scase) sign() int {
+	r, err := strconv.Atoi(s.r)
+	if err != nil {
+		s.t.Helper()
+		s.t.Fatal(err)
+	}
+	return r
+}
+
+func (s scase) cmp() (int, bool, bool) {
+	qnan, snan := suite.Data(s.r).IsNaN()
+	if qnan || snan {
+		return 0, qnan, snan
+	}
+
+	r, err := strconv.Atoi(s.r)
+	if err != nil {
+		s.t.Helper()
+		s.t.Fatal(err)
+	}
+	return r, false, false
+}
+
+func (s scase) signbit() bool {
+	r, err := strconv.ParseBool(s.r)
+	if err != nil {
+		s.t.Helper()
+		s.t.Fatal(err)
+	}
+	return r
+}
+
 func getTests(t *testing.T, name string) (s *bufio.Scanner, close func()) {
 	t.Helper()
 
@@ -38,22 +126,10 @@ func newbig(t *testing.T, s string) *Big {
 		}
 		t.Fatal("wanted true got false during set")
 	}
-	testFormZero(t, x, "newbig")
 	return x
 }
 
 var bigZero = new(Big)
-
-// testFormZero verifies that if z == 0, z.form == zero.
-func testFormZero(t *testing.T, z *Big, name string) {
-	iszero := z.Cmp(bigZero) == 0
-	if iszero && z.form > nzero {
-		t.Fatalf("%s: z == 0, but form not marked zero: %v", name, z.form)
-	}
-	if !iszero && z.form == zero {
-		t.Fatalf("%s: z != 0, but form marked zero", name)
-	}
-}
 
 func TestBig_Abs(t *testing.T) {
 	s, close := getTests(t, "abs")
@@ -65,16 +141,11 @@ func TestBig_Abs(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		z := new(Big)
-		z.Context.Precision = c.Prec
-		z.Context.OperatingMode = GDA
-		z.Context.RoundingMode = RoundingMode(c.Mode)
-
-		x, _ := new(Big).SetString(string(c.Inputs[0]))
-		r, _ := new(Big).SetString(string(c.Output))
+		p := parse(t, c)
+		z, x, r := p.z, p.x, p.R()
 
 		z.Abs(x)
-		if z.Cmp(r) != 0 {
+		if !equal(z, r) {
 			t.Fatalf(`#%d: %s
 wanted: %q
 got   : %q
@@ -94,20 +165,15 @@ func TestBig_Add(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		z := new(Big)
-		z.Context.Precision = c.Prec
-		z.Context.OperatingMode = GDA
-		z.Context.RoundingMode = RoundingMode(c.Mode)
-		x, _ := new(Big).SetString(string(c.Inputs[0]))
-		y, _ := new(Big).SetString(string(c.Inputs[1]))
-		r, _ := new(Big).SetString(string(c.Output))
+		p := parse(t, c)
+		z, x, y, r := p.z, p.x, p.y, p.R()
 
 		z.Add(x, y)
-		if z.Cmp(r) != 0 {
+		if !equal(z, r) || p.badConds(z) {
 			t.Fatalf(`#%d: %s
-wanted: %q
-got   : %q
-`, i+1, c, r, z)
+wanted: %q (%s:%d)
+got   : %q (%s:%d)
+`, i+1, c.ShortString(25), r, p.flags, r.exp, z, z.Context.Conditions, z.exp)
 		}
 	}
 }
@@ -128,25 +194,13 @@ func TestBig_Cmp(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		x := new(Big)
-		x.Context.Precision = c.Prec
-		x.Context.OperatingMode = GDA
-		x.Context.RoundingMode = RoundingMode(c.Mode)
-		x.SetString(string(c.Inputs[0]))
+		p := parse(t, c)
+		x, y := p.x, p.y
 
-		y, _ := new(Big).SetString(string(c.Inputs[1]))
-
-		var r int
-		isnan, sig := c.Output.IsNaN()
-		if !isnan {
-			r, err = strconv.Atoi(string(c.Output))
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
+		r, _, snan := p.cmp()
 
 		rv := x.Cmp(y)
-		bad := rv != r || (sig && (x.Context.Err == nil ||
+		bad := rv != r || (snan && (x.Context.Err == nil ||
 			x.Context.Conditions&InvalidOperation == 0))
 		if bad {
 			t.Fatalf(`#%d: %s
@@ -184,21 +238,15 @@ func TestBig_FMA(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		z := new(Big)
-		z.Context.Precision = c.Prec
-		z.Context.OperatingMode = GDA
-		z.Context.RoundingMode = RoundingMode(c.Mode)
-		x, _ := new(Big).SetString(string(c.Inputs[0]))
-		y, _ := new(Big).SetString(string(c.Inputs[1]))
-		z0, _ := new(Big).SetString(string(c.Inputs[2]))
-		r, _ := new(Big).SetString(string(c.Output))
+		p := parse(t, c)
+		z, x, y, u, r := p.z, p.x, p.y, p.u, p.R()
 
-		z.FMA(x, y, z0)
-		if z.Cmp(r) != 0 {
+		z.FMA(x, y, u)
+		if !equal(z, r) || p.badConds(z) {
 			t.Fatalf(`#%d: %s
-wanted: %q
-got   : %q
-`, i+1, c, r, z)
+wanted: %q (%s)
+got   : %q (%s)
+`, i+1, c, r, p.flags, z, z.Context.Conditions)
 		}
 	}
 }
@@ -360,20 +408,15 @@ func TestBig_Mul(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		z := new(Big)
-		z.Context.Precision = c.Prec
-		z.Context.OperatingMode = GDA
-		z.Context.RoundingMode = RoundingMode(c.Mode)
-		x, _ := new(Big).SetString(string(c.Inputs[0]))
-		y, _ := new(Big).SetString(string(c.Inputs[1]))
-		r, _ := new(Big).SetString(string(c.Output))
+		p := parse(t, c)
+		z, x, y, r := p.z, p.x, p.y, p.R()
 
 		z.Mul(x, y)
-		if z.Cmp(r) != 0 {
+		if !equal(z, r) || p.badConds(z) {
 			t.Fatalf(`#%d: %s
-wanted: %q
-got   : %q
-`, i+1, c, r, z)
+wanted: %q (%s)
+got   : %q (%s)
+`, i+1, c.ShortString(25), r, p.flags, z, z.Context.Conditions)
 		}
 	}
 }
@@ -393,24 +436,15 @@ func TestBig_Quantize(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		x, _ := new(Big).SetString(string(c.Inputs[0]))
-		x.Context.Precision = c.Prec
-		x.Context.OperatingMode = GDA
-		x.Context.RoundingMode = RoundingMode(c.Mode)
+		p := parse(t, c)
+		x, y, r := p.x, int(p.y.Int64()), p.R()
 
-		y, err := strconv.ParseInt(string(c.Inputs[1]), 10, 32)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		r, _ := new(Big).SetString(string(c.Output))
-
-		x.Quantize(int32(y))
-		if x.Cmp(r) != 0 {
+		x.Quantize(y)
+		if !equal(x, r) || p.badConds(x) {
 			t.Fatalf(`#%d: %s
-wanted: "%g"
-got   : "%g"
-`, i+1, c, r, x)
+wanted: %g (%s:%d)
+got   : %g (%s:%d)
+`, i+1, c.ShortString(25), r, p.flags, r.exp, x, x.Context.Conditions, x.exp)
 		}
 	}
 }
@@ -426,20 +460,15 @@ func TestBig_Quo(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		z := new(Big)
-		z.Context.Precision = c.Prec
-		z.Context.OperatingMode = GDA
-		z.Context.RoundingMode = RoundingMode(c.Mode)
-		x, _ := new(Big).SetString(string(c.Inputs[0]))
-		y, _ := new(Big).SetString(string(c.Inputs[1]))
-		r, _ := new(Big).SetString(string(c.Output))
+		p := parse(t, c)
+		z, x, y, r := p.z, p.x, p.y, p.R()
 
 		z.Quo(x, y)
-		if z.Cmp(r) != 0 {
+		if !equal(z, r) || p.badConds(z) {
 			t.Fatalf(`#%d: %s
-wanted: %q
-got   : %q
-`, i+1, c, r, z)
+wanted: %q (%s)
+got   : %q (%s)
+`, i+1, c.ShortString(20), r, p.flags, z, z.Context.Conditions)
 		}
 	}
 }
@@ -460,11 +489,7 @@ func TestBig_Rat(t *testing.T) {
 		d.SetString(string(c.Inputs[1]), 10)
 		r := new(big.Rat).SetFrac(&n, &d)
 
-		x := new(Big)
-		x.Context.Precision = c.Prec
-		x.Context.OperatingMode = GDA
-		x.Context.RoundingMode = RoundingMode(c.Mode)
-		xr := x.SetRat(r).Rat(nil)
+		xr := WithContext(ctx(c)).SetRat(r).Rat(nil)
 
 		if xr.Cmp(r) != 0 {
 			t.Fatalf(`#%d: %s
@@ -510,12 +535,10 @@ func TestBig_SetFloat64(t *testing.T) {
 	z.Context.OperatingMode = GDA
 	z.Context.Precision = 25
 
-	var start, end uint32
 	if testing.Short() {
-		start = math.MaxUint32 / 4
-		end = start * 3
+		return
 	}
-	for x := start; x <= end; x++ {
+	for x := uint32(0); x != math.MaxUint32; x++ {
 		f := float64(math.Float32frombits(x))
 		z.SetFloat64(f)
 		zf := z.Float64()
@@ -543,16 +566,8 @@ func TestBig_Sign(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		x := new(Big)
-		x.Context.Precision = c.Prec
-		x.Context.OperatingMode = GDA
-		x.Context.RoundingMode = RoundingMode(c.Mode)
-		x.SetString(string(c.Inputs[0]))
-
-		r, err := strconv.Atoi(string(c.Output))
-		if err != nil {
-			t.Fatal(err)
-		}
+		p := parse(t, c)
+		x, r := p.x, p.sign()
 
 		s := x.Sign()
 		if s != r {
@@ -575,16 +590,8 @@ func TestBig_SignBit(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		x := new(Big)
-		x.Context.Precision = c.Prec
-		x.Context.OperatingMode = GDA
-		x.Context.RoundingMode = RoundingMode(c.Mode)
-		x.SetString(string(c.Inputs[0]))
-
-		r, err := strconv.ParseBool(string(c.Output))
-		if err != nil {
-			t.Fatal(err)
-		}
+		p := parse(t, c)
+		x, r := p.x, p.signbit()
 
 		sb := x.Signbit()
 		if sb != r {
@@ -601,26 +608,21 @@ func TestBig_String(t *testing.T) {
 	s, close := getTests(t, "convert-to-string")
 	defer close()
 
-	for i := 0; s.Scan(); i++ {
+	for i := 0; i < 4 && s.Scan(); i++ {
 		c, err := suite.ParseCase(s.Bytes())
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		x := new(Big)
-		x.Context.Precision = c.Prec
-		x.Context.OperatingMode = GDA
-		x.Context.RoundingMode = RoundingMode(c.Mode)
-		x.SetString(string(c.Inputs[0]))
-
-		r := string(c.Output)
+		p := parse(t, c)
+		x, r := p.x, p.str()
 
 		xs := x.String()
 		if xs != r {
 			t.Fatalf(`#%d: %s
-wanted: %q
-got   : %q
-`, i+1, c.ShortString(20), r, xs)
+wanted: %s
+got   : %s
+`, i+1, c, r, xs)
 		}
 	}
 }
@@ -636,21 +638,25 @@ func TestBig_Sub(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		z := new(Big)
-		z.Context.Precision = c.Prec
-		z.Context.OperatingMode = GDA
-		z.Context.RoundingMode = RoundingMode(c.Mode)
-
-		x, _ := new(Big).SetString(string(c.Inputs[0]))
-		y, _ := new(Big).SetString(string(c.Inputs[1]))
-		r, _ := new(Big).SetString(string(c.Output))
+		p := parse(t, c)
+		z, x, y, r := p.z, p.x, p.y, p.R()
 
 		z.Sub(x, y)
-		if z.Cmp(r) != 0 {
+		if !equal(z, r) || p.badConds(z) {
 			t.Fatalf(`#%d: %s
-wanted: %q
-got   : %q
-`, i+1, c, r, z)
+wanted: %q (%s)
+got   : %q (%s)
+`, i+1, c.ShortString(25), r, p.flags, z, z.Context.Conditions)
 		}
 	}
+}
+
+func equal(x, y *Big) bool {
+	if x.form != y.form {
+		return false
+	}
+	if x.form != finite {
+		return true
+	}
+	return x.Cmp(y) == 0 && x.exp == y.exp
 }

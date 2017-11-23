@@ -6,45 +6,85 @@ import (
 	"math/big"
 )
 
-func Word(x int64) big.Word    { return big.Word(Abs(x)) }
-func Words(x int64) []big.Word { return []big.Word{Word(x)} }
+func Word(x uint64) big.Word    { return big.Word(x) }
+func Words(x uint64) []big.Word { return []big.Word{Word(x)} }
 
 type uint128 [2]big.Word
 
-// Add128 sets z to x + y and returns z.
-func Add128(z *big.Int, x, y int64) *big.Int {
-	ww := uint128{Word(x), Word(y)}
-	neg := x < 0
-	if neg == (y < 0) {
-		ww[1], ww[0] = addWW(ww[0], ww[1])
-	} else {
-		if ww[0] >= ww[1] {
-			ww[1], ww[0] = subWW(ww[0], ww[1])
-		} else {
-			neg = !neg
-			ww[1], ww[0] = subWW(ww[1], ww[0])
-		}
+// Add sets z to x + y and returns z.
+func Add(z, x *big.Int, y uint64) *big.Int {
+	zw := z.Bits()
+	xw := x.Bits()
+	yw := Word(y)
+
+	neg := x.Sign() < 0
+	switch {
+	case len(xw) == 0:
+		neg = false
+		zw = setw(zw, yw)
+	case y == 0:
+		zw = set(zw, xw)
+	case !neg:
+		zw = add(zw, xw, yw)
+	case len(xw) > 1, xw[0] >= yw:
+		zw = sub(zw, xw, yw)
+	default: // len(xw) == 1 && y < xw[0]
+		neg = !neg
+		zw = sub(zw, Words(y), xw[0])
 	}
-	z.SetBits(ww[:])
+
+	z.SetBits(zw)
 	if neg {
 		z.Neg(z)
 	}
 	return z
 }
 
-// Sub128 sets z to x - y and returns z.
-func Sub128(z *big.Int, x, y int64) *big.Int {
+// Sub sets z to x - y and returns z.
+func Sub(z, x *big.Int, y uint64) *big.Int {
+	zw := z.Bits()
+	xw := x.Bits()
+	yw := Word(y)
+
+	neg := x.Sign() < 0
+	switch {
+	case len(xw) == 0:
+		neg = true
+		zw = setw(zw, yw)
+	case y == 0:
+		zw = set(zw, xw)
+	case neg:
+		zw = add(zw, xw, yw)
+	case len(xw) > 1, xw[0] >= yw:
+		zw = sub(zw, xw, yw)
+	default: // len(xw) == 1 && y < xw[0]
+		neg = !neg
+		zw = sub(zw, Words(y), xw[0])
+	}
+
+	z.SetBits(zw)
+	if neg {
+		z.Neg(z)
+	}
+	return z
+}
+
+// Add128 sets z to x + y and returns z.
+func Add128(z *big.Int, x, y uint64) *big.Int {
 	ww := uint128{Word(x), Word(y)}
-	neg := x < 0
-	if (x < 0) != (y < 0) {
-		ww[1], ww[0] = addWW(ww[0], ww[1])
+	ww[1], ww[0] = addWW(ww[0], ww[1])
+	return z.SetBits(ww[:])
+}
+
+// Sub128 sets z to x - y and returns z.
+func Sub128(z *big.Int, x, y uint64) *big.Int {
+	ww := uint128{Word(x), Word(y)}
+	var neg bool
+	if ww[0] >= ww[1] {
+		ww[1], ww[0] = subWW(ww[0], ww[1])
 	} else {
-		if ww[0] >= ww[1] {
-			ww[1], ww[0] = subWW(ww[0], ww[1])
-		} else {
-			neg = !neg
-			ww[1], ww[0] = subWW(ww[1], ww[0])
-		}
+		neg = true
+		ww[1], ww[0] = subWW(ww[1], ww[0])
 	}
 	z.SetBits(ww[:])
 	if neg {
@@ -54,23 +94,22 @@ func Sub128(z *big.Int, x, y int64) *big.Int {
 }
 
 // Mul128 sets z to x * y and returns z.
-func Mul128(z *big.Int, x, y int64) *big.Int {
+func Mul128(z *big.Int, x, y uint64) *big.Int {
+	if x == 0 || y == 0 {
+		return z.SetUint64(0)
+	}
 	var ww uint128
 	ww[1], ww[0] = mulWW(Word(x), Word(y))
-	z.SetBits(ww[:])
-	if (x < 0) != (y < 0) {
-		z.Neg(z)
-	}
-	return z
+	return z.SetBits(ww[:])
 }
 
 // MulInt64 sets z to x * y and returns z.
-func MulInt64(z, x *big.Int, y int64) *big.Int {
+func MulInt64(z, x *big.Int, y uint64) *big.Int {
 	if y == 0 || x.Sign() == 0 {
 		return z.SetUint64(0)
 	}
 	z.SetBits(mulAddWW(z.Bits(), x.Bits(), Word(y)))
-	if (x.Sign() < 0) != (y < 0) { // no len check since x != 0 && y != 0
+	if x.Sign() < 0 { // no len check since x != 0 && y != 0
 		z.Neg(z)
 	}
 	return z
@@ -112,7 +151,7 @@ func mulAddWW(z, x []big.Word, y big.Word) []big.Word {
 	return norm(z)
 }
 
-// TODO(eric): add r if needed
+// NOTE(eric): add r if needed
 func mulAddVWW(z, x []big.Word, y big.Word) (c big.Word) {
 	for i := range z {
 		c, z[i] = mulAddWWW(x[i], y, c)
@@ -128,6 +167,7 @@ func mulAddWWW(x, y, c big.Word) (z1, z0 big.Word) {
 	return z1, z0
 }
 
+// mulWW returns both halves of the 128-bit multiplication, x * y.
 func mulWW(x, y big.Word) (z1, z0 big.Word) {
 	x0 := x & _M2
 	x1 := x >> _W2
@@ -143,12 +183,94 @@ func mulWW(x, y big.Word) (z1, z0 big.Word) {
 	return
 }
 
+func set(z, x []big.Word) []big.Word {
+	z = makeWord(z, len(x))
+	copy(z, x)
+	return z
+}
+
+func setw(z []big.Word, x big.Word) []big.Word {
+	z = makeWord(z, 1)
+	z[0] = x
+	return z
+}
+
+// add sets z to x + y and returns z.
+func add(z, x []big.Word, y big.Word) []big.Word {
+	m := len(x)
+	const n = 1
+
+	// m > 0 && y > 0
+
+	z = makeWord(z, m+1)
+	var c big.Word
+	// addVV(z[0:m], x, y) but WW since len(y) == 1
+	c, z[0] = addWW(x[0], y)
+	if m > n {
+		c = addVW(z[n:m], x[n:], c)
+	}
+	z[m] = c
+	return norm(z)
+}
+
+// sub sets z to x - y and returns z.
+func sub(z, x []big.Word, y big.Word) []big.Word {
+	m := len(x)
+	const n = 1
+
+	switch {
+	case m < n:
+		panic("underflow")
+	case m == 0:
+		return setw(z, y)
+	case y == 0:
+		return set(z, x)
+	}
+	// m > 0
+
+	z = makeWord(z, m)
+	// subVV(z[0:m], x, y) but WW since len(y) == 1
+	var c big.Word
+	c, z[0] = subWW(x[0], y)
+	if m > n {
+		c = subVW(z[n:], x[n:], c)
+	}
+	if c != 0 {
+		panic("underflow")
+	}
+	return norm(z)
+}
+
+// addVW sets z to x + y and returns the carry.
+func addVW(z, x []big.Word, y big.Word) (c big.Word) {
+	c = y
+	for i, xi := range x[:len(z)] {
+		zi := xi + c
+		z[i] = zi
+		c = xi &^ zi >> (_W - 1)
+	}
+	return c
+}
+
+// subVW sets z to x - y and returns the carry.
+func subVW(z, x []big.Word, y big.Word) (c big.Word) {
+	c = y
+	for i, xi := range x[:len(z)] {
+		zi := xi - c
+		z[i] = zi
+		c = zi &^ xi >> (_W - 1)
+	}
+	return c
+}
+
+// addWW returns both halves of the 128-bit addition, x + y.
 func addWW(x, y big.Word) (z1, z0 big.Word) {
 	z0 = x + y
 	z1 = (x&y | (x|y)&^z0) >> (_W - 1)
 	return
 }
 
+// subWW returns both halves of the 128-bit subtraction, x - y.
 func subWW(x, y big.Word) (z1, z0 big.Word) {
 	z0 = x - y
 	z1 = (y&^x | (y|^x)&z0) >> (_W - 1)

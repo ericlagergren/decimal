@@ -113,7 +113,7 @@ func TenInt(e uint64) (int64, bool) {
 func init() {
 	// Can we move this into a var decl without copylock freaking out?
 	storeBigTable(&[]*big.Int{
-		0:  c.OneInt,
+		0:  new(big.Int).SetUint64(1),
 		1:  c.TenInt,
 		2:  new(big.Int).SetUint64(100),
 		3:  new(big.Int).SetUint64(1000),
