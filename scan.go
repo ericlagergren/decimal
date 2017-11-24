@@ -10,11 +10,6 @@ import (
 	"github.com/ericlagergren/decimal/internal/c"
 )
 
-var (
-	errOverflow  = errors.New("overflow")
-	errUnderflow = errors.New("underflow")
-)
-
 func (z *Big) scan(r io.ByteScanner) error {
 	if debug {
 		defer func() { z.validate() }()
@@ -68,7 +63,7 @@ func (z *Big) scan(r io.ByteScanner) error {
 			z.form = qnan
 			z.Context.Conditions |= ConversionSyntax
 		// Can only overflow
-		case errOverflow:
+		case Overflow:
 			z.xflow(true, neg)
 		}
 		return nil
@@ -77,9 +72,9 @@ func (z *Big) scan(r io.ByteScanner) error {
 	// Exponent
 	if err := z.scanExponent(r); err != nil && err != io.EOF {
 		switch err {
-		case errUnderflow:
+		case Underflow:
 			z.xflow(false, neg)
-		case errOverflow:
+		case Overflow:
 			z.xflow(true, neg)
 		case strconv.ErrSyntax:
 			z.form = qnan
@@ -433,9 +428,9 @@ func (z *Big) scanExponent(r io.ByteScanner) error {
 		// TODO(eric): not _always_ over/underflow e.g. if the next character
 		// isn't numeric.
 		if buf[0] == '-' {
-			return errUnderflow
+			return Underflow
 		}
-		return errOverflow
+		return Overflow
 	}
 
 	exp, err := strconv.Atoi(string(buf[:i]))
@@ -445,9 +440,9 @@ func (z *Big) scanExponent(r io.ByteScanner) error {
 			// exp is set to the max int if it overflowed 32 bits, negative if
 			// it underflowed.
 			if exp > 0 {
-				return errUnderflow
+				return Underflow
 			}
-			return errOverflow
+			return Overflow
 		}
 		return err
 	}
