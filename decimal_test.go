@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/ericlagergren/decimal/suite"
@@ -67,12 +68,6 @@ func parse(t *testing.T, c suite.Case) scase {
 		t.Fatalf("0 inputs?")
 	}
 	return s
-}
-
-func (s scase) badConds(x *Big) bool {
-	// Python doesn't support DivisionUndefined
-	c := x.Context.Conditions & ^(DivisionUndefined)
-	return c != s.flags
 }
 
 func (s scase) R() *Big {
@@ -431,6 +426,25 @@ got   : %q (%s)
 	}
 }
 
+func TestParallel(t *testing.T) {
+	x := New(4, 0)
+	y := New(3, 0)
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			m := new(Big)
+			m.Add(x, y)
+			m.Mul(m, y)
+			m.Quo(m, x)
+			m.Sub(m, y)
+			m.FMA(m, x, y)
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+}
+
 func TestBig_Prec(t *testing.T) {
 	// confirmed to work inside internal/arith/intlen_test.go
 }
@@ -671,7 +685,8 @@ func equal(x, y *Big) bool {
 	if x.form != finite {
 		return true
 	}
-	if x.Context.Conditions != y.Context.Conditions {
+	// Python doesn't have DivisionUndefined.
+	if (x.Context.Conditions & ^DivisionUndefined) != y.Context.Conditions {
 		return false
 	}
 	return x.Cmp(y) == 0 && x.exp == y.exp

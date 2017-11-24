@@ -56,6 +56,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/arith/checked"
@@ -79,7 +80,9 @@ import (
 // Additionally, each Big value has a contextual object which governs arithmetic
 // operations.
 type Big struct {
-	// Big is laid out like this to take up as little memory as possible.
+	// precision is a cached call to Precision. It's used first to ensure it's
+	// 64-bit aligned.
+	precision int64
 
 	// Context is the decimal's unique contextual object.
 	Context Context
@@ -100,9 +103,6 @@ type Big struct {
 	// form indicates whether a decimal is a finite number, an infinity, or a
 	// NaN value and whether it's signed or not.
 	form form
-
-	// precision is a cached call to Precision.
-	precision int
 }
 
 // form indicates whether a decimal is a finite number, an infinity, or a nan
@@ -895,7 +895,7 @@ func (x *Big) Format(s fmt.State, c rune) {
 			compact   uint64
 			exp       int
 			form      form
-			precision int
+			precision int64
 		}
 		specs := ""
 		if dash {
@@ -1253,7 +1253,7 @@ func (x *Big) Payload() Payload {
 
 // Precision returns the precision of x. That is, it returns the number of
 // digits in the unscaled form of x. x == 0 has a precision of 1. The result is
-// undefined if x is an infinity or a NaN value.
+// undefined if x is not finite.
 func (x *Big) Precision() int {
 	if debug {
 		x.validate()
@@ -1262,14 +1262,17 @@ func (x *Big) Precision() int {
 	if !x.IsFinite() {
 		return 0
 	}
-	if x.precision == 0 {
+	// Must use atomics here since this method is technically not supposed to
+	// modify x.
+	p := atomic.LoadInt64(&x.precision)
+	if p == 0 {
 		if x.isCompact() {
-			x.precision = arith.Length(x.compact)
+			atomic.StoreInt64(&x.precision, int64(arith.Length(x.compact)))
 		} else {
-			x.precision = arith.BigLength(&x.unscaled)
+			atomic.StoreInt64(&x.precision, int64(arith.BigLength(&x.unscaled)))
 		}
 	}
-	return x.precision
+	return int(p)
 }
 
 // Quantize sets z to the number equal in value and sign to z with the scale, n.
@@ -1634,18 +1637,18 @@ func (z *Big) Round(n int) *Big {
 	neg := z.Signbit()
 	if z.isCompact() {
 		if z.compact == 0 {
-			z.precision = n
+			z.precision = int64(n)
 			return z
 		}
 		if val, ok := pow.Ten(uint64(shift)); ok {
-			z.precision = n
+			z.precision = int64(n)
 			return z.quoAndRoundCompact(z.compact, neg, val, false)
 		}
 		z.unscaled.SetUint64(z.compact)
 		z.compact = c.Inflated
 	}
 	z.quoAndRoundBig(&z.unscaled, neg, pow.BigTen(uint64(shift)), false)
-	z.precision = n
+	z.precision = int64(n)
 	return z
 }
 
@@ -1818,12 +1821,12 @@ func (z *Big) SetNaN(signal bool) *Big {
 	} else {
 		z.form = qnan
 	}
+	z.compact = 0 // payload
 	return z
 }
 
 // SetRat sets z to to the possibly rounded value of x and return z.
 func (z *Big) SetRat(x *big.Rat) *Big {
-	// Catches 0 case.
 	if x.IsInt() {
 		z.form = finite
 		return z.SetBigMantScale(x.Num(), 0)
@@ -1991,7 +1994,7 @@ func (x *Big) validate() {
 				compact   uint64
 				exp       int
 				form      form
-				precision int
+				precision int64
 			}
 			fmt.Printf("%#v\n", (*Big)(x))
 			panic(err)
