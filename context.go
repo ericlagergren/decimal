@@ -14,10 +14,10 @@ const (
 	// MaxPrecision and UnlimitedPrecision relies on the relationship
 	// MaxPrecision = -(UnlimitedPrecision + 1)
 
-	MaxPrecision       = MaxScale / 5      // largest allowed Context precision.
-	MinPrecision       = 1                 // smallest allowed Context precision.
-	UnlimitedPrecision = -MaxPrecision - 1 // no precision, but may error.
-	DefaultPrecision   = 16                // default precision for literals.
+	MaxPrecision       = MaxScale / 5     // largest allowed Context precision.
+	MinPrecision       = 1                // smallest allowed Context precision.
+	UnlimitedPrecision = MaxPrecision + 1 // no precision, but may error.
+	DefaultPrecision   = 16               // default precision for literals.
 )
 
 // Context is a per-decimal contextual object that governs specific operations.
@@ -138,10 +138,7 @@ func (z *Big) needsInc(r int, pos bool) bool {
 	case ToNearestAway:
 		return r >= 0
 	default:
-		z.Signal(
-			InvalidContext,
-			fmt.Errorf("invalid rounding mode: %d", z.Context.RoundingMode),
-		)
+		z.Context.Conditions |= InvalidContext
 		return false
 	}
 }
@@ -288,3 +285,5 @@ func (c Condition) String() string {
 	// Omit trailing comma and space.
 	return b.String()[:b.Len()-2]
 }
+
+var _ error = Condition(0)

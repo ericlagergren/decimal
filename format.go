@@ -86,9 +86,6 @@ func roundString(b []byte, mode RoundingMode, pos bool, prec int) []byte {
 
 // formatCompact formats the compact decimal, x, as an unsigned integer.
 func formatCompact(x uint64) []byte {
-	if x < 0 {
-		x = -x
-	}
 	var b [20]byte
 	return strconv.AppendUint(b[0:0], uint64(x), 10)
 }
@@ -165,8 +162,8 @@ func (f *formatter) format(x *Big, format format, e byte) {
 		switch o {
 		case GDA:
 			f.WriteString(x.form.String())
-			if x.IsNaN(0) && x.payload != 0 {
-				f.WriteString(strconv.Itoa(int(x.payload)))
+			if x.IsNaN(0) && x.compact != 0 {
+				f.WriteString(strconv.FormatUint(x.compact, 10))
 			}
 		case Go:
 			if x.IsNaN(0) {

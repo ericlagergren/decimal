@@ -10,6 +10,11 @@ import (
 	"github.com/ericlagergren/decimal/internal/c"
 )
 
+var (
+	errOverflow  = errors.New("overflow")
+	errUnderflow = errors.New("underflow")
+)
+
 func (z *Big) scan(r io.ByteScanner) error {
 	if debug {
 		defer func() { z.validate() }()
@@ -38,10 +43,10 @@ func (z *Big) scan(r io.ByteScanner) error {
 		return err
 	}
 
-	z.form, err = scanForm(r)
+	z.form, err = z.scanForm(r)
 	if err != nil {
 		if err == strconv.ErrSyntax {
-			z.Signal(ConversionSyntax, err)
+			z.Context.Conditions |= ConversionSyntax
 		}
 		return err
 	}
@@ -61,7 +66,7 @@ func (z *Big) scan(r io.ByteScanner) error {
 			return io.ErrUnexpectedEOF
 		case strconv.ErrSyntax:
 			z.form = qnan
-			z.Signal(ConversionSyntax, err)
+			z.Context.Conditions |= ConversionSyntax
 		// Can only overflow
 		case errOverflow:
 			z.xflow(true, neg)
@@ -78,7 +83,7 @@ func (z *Big) scan(r io.ByteScanner) error {
 			z.xflow(true, neg)
 		case strconv.ErrSyntax:
 			z.form = qnan
-			z.Signal(ConversionSyntax, err)
+			z.Context.Conditions |= ConversionSyntax
 		default:
 			return err
 		}
@@ -107,7 +112,7 @@ func scanSign(r io.ByteScanner) (bool, error) {
 	}
 }
 
-func scanForm(r io.ByteScanner) (form, error) {
+func (z *Big) scanForm(r io.ByteScanner) (form, error) {
 	ch, err := r.ReadByte()
 	if err != nil {
 		return 0, err
@@ -171,7 +176,28 @@ func scanForm(r io.ByteScanner) (form, error) {
 			return 0, strconv.ErrSyntax
 		}
 	}
-	// Ignore trailing diagnostic digits, if any.
+
+	// Parse payload
+	var buf [20]byte
+	for i = 0; i < 20; i++ {
+		ch, err := r.ReadByte()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return 0, err
+		}
+		if ch >= '0' && ch <= '9' {
+			buf[i] = ch
+		}
+	}
+	if i > 0 {
+		z.compact, err = strconv.ParseUint(string(buf[:i]), 10, 64)
+		if err != nil {
+			return 0, err
+		}
+	}
+
 	if signal {
 		return snan, nil
 	}
@@ -183,7 +209,7 @@ type fakeState struct {
 	length int
 	scale  int
 	i      int    // index into small
-	small  []byte // buffer of first 19 or 20 characters.
+	small  []byte // buffer of first 20 or so characters.
 	r      io.ByteScanner
 }
 
@@ -201,12 +227,11 @@ func (f *fakeState) ReadRune() (rune, int, error) {
 		return 0, 0, err
 	}
 
-	r := rune(ch)
-	if r >= '0' && r <= '9' {
+	if ch >= '0' && ch <= '9' {
 		f.length++
-		return r, 1, nil
+		return rune(ch), 1, nil
 	}
-	if r == '.' {
+	if ch == '.' {
 		const noScale = -1
 		if f.scale > noScale {
 			return 0, 0, strconv.ErrSyntax
@@ -214,7 +239,7 @@ func (f *fakeState) ReadRune() (rune, int, error) {
 		f.scale = f.length
 		return f.ReadRune() // skip to next raracter
 	}
-	if r == 'e' || r == 'E' {
+	if ch == 'e' || ch == 'E' {
 		// Can simply UnreadByte here since we're not using small anymore.
 		if err := f.r.UnreadByte(); err != nil {
 			return 0, 0, err
@@ -366,9 +391,13 @@ Loop:
 		z.exp = -int(length - scale)
 	}
 
+	// Ordinarily we'd set the precision here, but if we have numbers with
+	// leading zeros we'll over-estimate the length.
+	// z.precision = int(length)
+
 	// Ideally we'd handle this manually, _but_ we run into an issue where
 	// leading zeros cause our mantissa to appear to be larger than the cutoff
-	// of 19 digits. In reality, when we convert the string to an integer the
+	// of 20 digits. In reality, when we convert the string to an integer the
 	// leading zeros are ignored. But the bookkeeping to skip the leading zeros
 	// is too much effort and has a non-negligible overhead.
 	z.norm()
