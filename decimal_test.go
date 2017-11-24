@@ -15,6 +15,15 @@ import (
 	"github.com/ericlagergren/decimal/suite"
 )
 
+func helper(v interface{}) func() {
+	if fn, ok := v.(interface {
+		Helper()
+	}); ok {
+		return fn.Helper
+	}
+	return func() {}
+}
+
 func ctx(c suite.Case) Context {
 	return Context{
 		Precision:     c.Prec,
@@ -33,7 +42,7 @@ type scase struct {
 }
 
 func parse(t *testing.T, c suite.Case) scase {
-	t.Helper()
+	helper(t)()
 
 	ctx := ctx(c)
 	s := scase{
@@ -77,7 +86,7 @@ func (s scase) str() string { return s.r }
 func (s scase) sign() int {
 	r, err := strconv.Atoi(s.r)
 	if err != nil {
-		s.t.Helper()
+		helper(s.t)()
 		s.t.Fatal(err)
 	}
 	return r
@@ -91,7 +100,7 @@ func (s scase) cmp() (int, bool, bool) {
 
 	r, err := strconv.Atoi(s.r)
 	if err != nil {
-		s.t.Helper()
+		helper(s.t)()
 		s.t.Fatal(err)
 	}
 	return r, false, false
@@ -100,14 +109,14 @@ func (s scase) cmp() (int, bool, bool) {
 func (s scase) signbit() bool {
 	r, err := strconv.ParseBool(s.r)
 	if err != nil {
-		s.t.Helper()
+		helper(s.t)()
 		s.t.Fatal(err)
 	}
 	return r
 }
 
 func getTests(t *testing.T, name string) (s *bufio.Scanner, close func()) {
-	t.Helper()
+	helper(t)()
 
 	fpath := filepath.Join("_testdata", fmt.Sprintf("%s-tables.gz", name))
 	file, err := os.Open(fpath)
