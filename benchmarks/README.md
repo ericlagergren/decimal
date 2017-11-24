@@ -22,9 +22,9 @@ so it's unranked in the Pi test. Similarly so with [apmckinlay/dnum][3].
 |    Program (version)                      | 9 digits | 19 digits | 38 digits | 100 digits | average |
 |-------------------------------------------|----------|-----------|-----------|------------|---------|
 | [go-inf/inf][8] (Go 1.9)                       | 0.10     | 0.23      | 0.53      | 1.43       | 0.572   |
-| [ericlagergren/decimal][1] (Go 1.9, mode Go)   | 0.034    | 0.26      | 0.72      | 2.89       | 0.97    |
 | [JDK BigDecimal][4] (Java 1.8, warm)           | 0.049    | 0.19      | 0.6       | 3.29       | 1.05    |
-| [ericlagergren/decimal][1] (Go 1.9, mode GDA)  | 0.044    | 0.34      | 0.93      | 3.62       | 1.23    |
+| [ericlagergren/decimal][1] (Go 1.9, mode Go)   | 0.047    | 0.30      | 0.85      | 3.21       | 1.10    |
+| [ericlagergren/decimal][1] (Go 1.9, mode GDA)  | 0.049    | 0.38      | 0.94      | 3.74       | 1.27    |
 | [Python decimal][5] (Python 3.6.2)             | 0.27     | 0.58      | 1.32      | 4.52       | 1.67    |
 | [JDK BigDecimal][4] (Java 1.8)                 | 0.29     | 0.96      | 1.79      | 3.99       | 1.76    |
 | [shopspring/decimal][7] decimal (Go 1.9)       | 0.38     | 0.94      | 1.95      | 5.26       | 2.13    |

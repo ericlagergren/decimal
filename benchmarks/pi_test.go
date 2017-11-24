@@ -64,7 +64,7 @@ got : %q
 }
 
 func newd(c int64, m int32, p int, mode decimal.OperatingMode) *decimal.Big {
-	d := decimal.New(c, m)
+	d := decimal.New(c, int(m))
 	d.Context.Precision = p
 	d.Context.OperatingMode = mode
 	return d

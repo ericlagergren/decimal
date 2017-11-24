@@ -29,6 +29,7 @@ type scase struct {
 	z, x, y, u *Big
 	r          string
 	flags      Condition
+	ctx        Context
 }
 
 func parse(t *testing.T, c suite.Case) scase {
@@ -36,6 +37,7 @@ func parse(t *testing.T, c suite.Case) scase {
 
 	ctx := ctx(c)
 	s := scase{
+		ctx:   ctx,
 		z:     WithContext(ctx),
 		r:     string(c.Output),
 		flags: Condition(c.Excep),
@@ -65,7 +67,8 @@ func (s scase) badConds(x *Big) bool {
 }
 
 func (s scase) R() *Big {
-	r, _ := new(Big).SetString(s.r)
+	r, _ := WithContext(s.ctx).SetString(s.r)
+	r.Context.Conditions = s.flags
 	return r
 }
 
@@ -129,8 +132,6 @@ func newbig(t *testing.T, s string) *Big {
 	return x
 }
 
-var bigZero = new(Big)
-
 func TestBig_Abs(t *testing.T) {
 	s, close := getTests(t, "abs")
 	defer close()
@@ -147,9 +148,9 @@ func TestBig_Abs(t *testing.T) {
 		z.Abs(x)
 		if !equal(z, r) {
 			t.Fatalf(`#%d: %s
-wanted: %q
-got   : %q
-`, i+1, c, r, z)
+wanted: %q (%s)
+got   : %q (%s)
+`, i+1, c, r, r.Context.Conditions, z, z.Context.Conditions)
 		}
 	}
 }
@@ -169,7 +170,7 @@ func TestBig_Add(t *testing.T) {
 		z, x, y, r := p.z, p.x, p.y, p.R()
 
 		z.Add(x, y)
-		if !equal(z, r) || p.badConds(z) {
+		if !equal(z, r) {
 			t.Fatalf(`#%d: %s
 wanted: %q (%s:%d)
 got   : %q (%s:%d)
@@ -242,7 +243,7 @@ func TestBig_FMA(t *testing.T) {
 		z, x, y, u, r := p.z, p.x, p.y, p.u, p.R()
 
 		z.FMA(x, y, u)
-		if !equal(z, r) || p.badConds(z) {
+		if !equal(z, r) {
 			t.Fatalf(`#%d: %s
 wanted: %q (%s)
 got   : %q (%s)
@@ -412,7 +413,7 @@ func TestBig_Mul(t *testing.T) {
 		z, x, y, r := p.z, p.x, p.y, p.R()
 
 		z.Mul(x, y)
-		if !equal(z, r) || p.badConds(z) {
+		if !equal(z, r) {
 			t.Fatalf(`#%d: %s
 wanted: %q (%s)
 got   : %q (%s)
@@ -440,7 +441,7 @@ func TestBig_Quantize(t *testing.T) {
 		x, y, r := p.x, int(p.y.Int64()), p.R()
 
 		x.Quantize(y)
-		if !equal(x, r) || p.badConds(x) {
+		if !equal(x, r) {
 			t.Fatalf(`#%d: %s
 wanted: %g (%s:%d)
 got   : %g (%s:%d)
@@ -464,7 +465,7 @@ func TestBig_Quo(t *testing.T) {
 		z, x, y, r := p.z, p.x, p.y, p.R()
 
 		z.Quo(x, y)
-		if !equal(z, r) || p.badConds(z) {
+		if !equal(z, r) {
 			t.Fatalf(`#%d: %s
 wanted: %q (%s)
 got   : %q (%s)
@@ -642,7 +643,7 @@ func TestBig_Sub(t *testing.T) {
 		z, x, y, r := p.z, p.x, p.y, p.R()
 
 		z.Sub(x, y)
-		if !equal(z, r) || p.badConds(z) {
+		if !equal(z, r) {
 			t.Fatalf(`#%d: %s
 wanted: %q (%s)
 got   : %q (%s)
@@ -657,6 +658,9 @@ func equal(x, y *Big) bool {
 	}
 	if x.form != finite {
 		return true
+	}
+	if x.Context.Conditions != y.Context.Conditions {
+		return false
 	}
 	return x.Cmp(y) == 0 && x.exp == y.exp
 }

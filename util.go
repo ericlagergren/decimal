@@ -1,7 +1,6 @@
 package decimal
 
 import (
-	"fmt"
 	"math/big"
 
 	"github.com/ericlagergren/decimal/internal/arith"
@@ -16,7 +15,7 @@ func iscompact(x *big.Int) bool {
 
 func (z *Big) test() *Big {
 	adj := z.adjusted()
-	if emax := z.emax(); adj > z.emax() {
+	if emax := z.emax(); adj > emax {
 		if z.IsFinite() {
 			z.exp = emax
 			// TODO(eric): mandatory clamping?
@@ -41,13 +40,6 @@ func (z *Big) test() *Big {
 	return z
 }
 
-func min(x, y int) int {
-	if x < y {
-		return x
-	}
-	return y
-}
-
 // alias returns z if z != x, otherwise a newly-allocated big.Int.
 func alias(z, x *big.Int) *big.Int {
 	if z != x {
@@ -63,14 +55,15 @@ func alias(z, x *big.Int) *big.Int {
 
 func precision(x *Big) (p int) {
 	p = x.Context.Precision
-	if p > 0 || p == UnlimitedPrecision {
+	if p > 0 {
 		return p
 	}
 	if p == 0 {
-		return DefaultPrecision
+		x.Context.Precision = DefaultPrecision
+	} else {
+		x.Context.Conditions |= InvalidContext
 	}
-	x.Signal(InvalidContext, fmt.Errorf("invalid precision: %d", p))
-	return -1
+	return DefaultPrecision
 }
 
 func mode(x *Big) OperatingMode { return x.Context.OperatingMode }

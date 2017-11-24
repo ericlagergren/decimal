@@ -71,8 +71,8 @@ func Sub(z, x *big.Int, y uint64) *big.Int {
 
 // Add128 sets z to x + y and returns z.
 func Add128(z *big.Int, x, y uint64) *big.Int {
-	ww := uint128{Word(x), Word(y)}
-	ww[1], ww[0] = addWW(ww[0], ww[1])
+	var ww uint128
+	ww[1], ww[0] = addWW(Word(x), Word(y))
 	return z.SetBits(ww[:])
 }
 

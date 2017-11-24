@@ -2,8 +2,6 @@
 package misc
 
 import (
-	"errors"
-
 	"github.com/ericlagergren/decimal"
 	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/arith/checked"
@@ -205,9 +203,8 @@ func Shift(z, x *decimal.Big, shift int) *decimal.Big {
 	// TODO(eric): allow shifts with a negative scale?
 
 	if x.Scale() != 0 {
-		return z.Signal(
-			decimal.InvalidOperation,
-			errors.New("shift with a non-zero scale"))
+		// "shift with a non-zero scale"
+		z.Context.Conditions |= decimal.InvalidOperation
 	}
 
 	if shift == 0 {
@@ -215,8 +212,8 @@ func Shift(z, x *decimal.Big, shift int) *decimal.Big {
 	}
 
 	if !x.IsFinite() {
-	if cond, err := decimal.CheckNaNs(x, nil, "shift"); err != nil {
-			return z.Signal(cond, err) // nan
+		if z.CheckNaNs(x, nil) {
+			return z
 		}
 		if x.IsInf(0) {
 			return z.SetInf(x.IsInf(-1)) // inf
@@ -228,7 +225,7 @@ func Shift(z, x *decimal.Big, shift int) *decimal.Big {
 	if zp == decimal.UnlimitedPrecision {
 		return z.SetMantScale(0, 0) // undefined
 	}
-	if arith.Abs(int64(shift)) >= int64(zp) {
+	if arith.Abs(int64(shift)) >= uint64(zp) {
 		return z.SetMantScale(0, 0) // zero-filled shift is too large
 	}
 
@@ -240,7 +237,7 @@ func Shift(z, x *decimal.Big, shift int) *decimal.Big {
 	xp := arith.BigLength(xb)
 	if xp < zp {
 		// Rescale so xb has the required length.
-		checked.MulBigPow10(xb, uint64(zp-xp))
+		checked.MulBigPow10(xb, xb, uint64(zp-xp))
 	}
 
 	if shift < 0 {
