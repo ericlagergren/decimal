@@ -628,6 +628,9 @@ func TestBig_String(t *testing.T) {
 		x, r := p.x, p.str()
 
 		xs := x.String()
+		if !Regexp.MatchString(xs) {
+			t.Fatalf("should match regexp: %q", xs)
+		}
 		if xs != r {
 			t.Fatalf(`#%d: %s
 wanted: %s
