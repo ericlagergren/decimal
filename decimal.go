@@ -98,7 +98,7 @@ type Big struct {
 
 	// exp is the negated scale, meaning
 	//
-	//  number × 10**exp = number ×  10**-scale
+	//   number × 10**exp = number ×  10**-scale
 	exp int
 
 	// form indicates whether a decimal is a finite number, an infinity, or a
@@ -137,6 +137,7 @@ const (
 )
 
 func (f form) String() string {
+	// GDA versions. Go needs to be handled manually.
 	switch f {
 	case finite:
 		return "finite"
@@ -254,8 +255,7 @@ func (z *Big) xflow(over, neg bool) *Big {
 	if over {
 		// NOTE(eric): in some situations, the decimal library tells us to set
 		// z to "the largest finite number that can be represented in the
-		// current precision..." This is unreasonable, since this is an
-		// _arbitrary_ precision data type. Use signed Infinity instead.
+		// current precision..." Use signed Infinity instead.
 		//
 		// Because of the logic above, every rounding mode works out to the
 		// following.
@@ -284,19 +284,11 @@ func (x *Big) isCompact() bool  { return x.compact != c.Inflated }
 func (x *Big) isInflated() bool { return !x.isCompact() }
 func (x *Big) isSpecial() bool  { return x.form&(inf|nan) != 0 }
 
-// norm normalizes z's mantissa and returns z.
-func (z *Big) norm() *Big {
-	if z.IsFinite() && z.isInflated() && iscompact(&z.unscaled) {
-		z.compact = z.unscaled.Uint64()
-	}
-	return z
-}
-
 func (x *Big) adjusted() int { return (x.exp + x.Precision()) - 1 }
 func (x *Big) emax() int     { return MaxScale - (x.Precision() - 1) }
 func (x *Big) emin() int     { return MinScale - (x.Precision() - 1) }
-func (x *Big) etiny() int    { return x.emin() - (precision(x) - 1) }
-func (x *Big) etop() int     { return x.emax() - (precision(x) - 1) }
+func (z *Big) etiny() int    { return z.emin() - (precision(z) - 1) }
+func (z *Big) etop() int     { return z.emax() - (precision(z) - 1) }
 
 // Abs sets z to the absolute value of x and returns z.
 func (z *Big) Abs(x *Big) *Big {
@@ -947,7 +939,7 @@ func (z *Big) FMA(x, y, u *Big) *Big {
 }
 
 // IsBig returns true if x, with its fractional part truncated, cannot fit
-// inside an uint64. If x is an infinity or a NaN value the result is undefined.
+// inside a uint64. If x is an infinity or a NaN value the result is undefined.
 func (x *Big) IsBig() bool {
 	if debug {
 		x.validate()
@@ -957,29 +949,20 @@ func (x *Big) IsBig() bool {
 	if !x.IsFinite() {
 		return false
 	}
-	// x.scale <= -20 is too large for a uint64.
-	if x.exp <= -20 {
+
+	// Too large.
+	if x.adjusted() > 20 {
 		return true
 	}
 
-	var v uint64
 	if x.isCompact() {
 		if x.exp == 0 {
 			return false
 		}
-		v = x.compact
-	} else {
-		if x.unscaled.Cmp(c.MinInt64) <= 0 || x.unscaled.Cmp(c.MaxInt64) > 0 {
-			return true
-		}
-		// Repeat this line twice so we don't have to call x.unscaled.Int64.
-		if x.exp == 0 {
-			return false
-		}
-		v = x.unscaled.Uint64()
+		_, ok := scalex(x.compact, x.exp)
+		return !ok
 	}
-	_, ok := scalex(v, x.exp)
-	return !ok
+	return !arith.IsUint64(bigScalex(new(big.Int), &x.unscaled, x.exp))
 }
 
 // Int sets z to x, truncating the fractional portion (if any) and returns z. z
@@ -1009,10 +992,7 @@ func (x *Big) Int(z *big.Int) *big.Int {
 	if x.exp == 0 {
 		return z
 	}
-	if x.exp > 0 {
-		return checked.MulBigPow10(z, z, uint64(x.exp))
-	}
-	return z.Quo(z, pow.BigTen(uint64(-x.exp)))
+	return bigScalex(z, z, x.exp)
 }
 
 // Int64 returns x as an int64, truncating the fractional portion, if any. The
@@ -1190,7 +1170,7 @@ func (z *Big) mul(x, y *Big, fma bool) *Big {
 		z.precision = 0
 		z.norm()
 		if !fma {
-			return z.round()
+			z.round()
 		}
 		return z
 	}
@@ -1686,8 +1666,10 @@ func (z *Big) Set(x *Big) *Big {
 
 // SetBigMantScale sets z to the given value and scale.
 func (z *Big) SetBigMantScale(value *big.Int, scale int) *Big {
-	if iscompact(value) {
-		z.compact = value.Uint64()
+	if arith.IsUint64(value) {
+		if v := value.Uint64(); v != c.Inflated {
+			z.compact = v
+		}
 	} else {
 		z.unscaled.Abs(value)
 		z.compact = c.Inflated
@@ -2005,7 +1987,7 @@ func (x *Big) validate() {
 	switch x.form {
 	case finite, finite | signbit:
 		if x.isInflated() {
-			if iscompact(&x.unscaled) {
+			if arith.IsUint64(&x.unscaled) && x.unscaled.Uint64() != c.Inflated {
 				panic(fmt.Sprintf("inflated but unscaled == %d", x.unscaled.Uint64()))
 			}
 			if x.unscaled.Sign() < 0 {

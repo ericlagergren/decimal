@@ -29,8 +29,9 @@ type Context struct {
 	// Precision is the Context's precision; that is, the maximum number of
 	// significant digits that may result from any arithmetic operation.
 	// Excluding any package-defined constants (e.g., ``UnlimitedPrecision''),
-	// precision not in the range [1, MaxPrecision] will result in an error. A
-	// precision of 0 will be interpreted as DefaultPrecision. For example,
+	// if precision is not in the range [1, MaxPrecision] operations might
+	// result in an error. A precision of 0 will be interpreted as
+	// DefaultPrecision. For example,
 	//
 	//   precision ==  4 // 4
 	//   precision == -4 // error
@@ -50,7 +51,7 @@ type Context struct {
 	RoundingMode RoundingMode
 }
 
-// Err returns non-nil if there are any non-trapped exceptional conditions.
+// Err returns non-nil if there are any trapped exceptional conditions.
 func (c Context) Err() error {
 	if m := c.Conditions & c.Traps; m != 0 {
 		return m
