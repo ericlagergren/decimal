@@ -9,8 +9,13 @@ import (
 	"github.com/ericlagergren/decimal/internal/c"
 )
 
-func iscompact(x *big.Int) bool {
-	return arith.IsUint64(x) && x.Uint64() != c.Inflated
+func (z *Big) norm() *Big {
+	if z.isInflated() && arith.IsUint64(&z.unscaled) {
+		if v := z.unscaled.Uint64(); v != c.Inflated {
+			z.compact = v
+		}
+	}
+	return z
 }
 
 func (z *Big) test() *Big {
@@ -53,15 +58,15 @@ func alias(z, x *big.Int) *big.Int {
 	return new(big.Int)
 }
 
-func precision(x *Big) (p int) {
-	p = x.Context.Precision
+func precision(z *Big) (p int) {
+	p = z.Context.Precision
 	if p > 0 {
 		return p
 	}
 	if p == 0 {
-		x.Context.Precision = DefaultPrecision
+		z.Context.Precision = DefaultPrecision
 	} else {
-		x.Context.Conditions |= InvalidContext
+		z.Context.Conditions |= InvalidContext
 	}
 	return DefaultPrecision
 }
@@ -120,8 +125,8 @@ func cmpNormBig(z, x *big.Int, xs int, y *big.Int, ys int) (ok bool) {
 	return x.Cmp(y) > 0
 }
 
-// scalex adjusts x by scale. If scale < 0, x = x * 10^-scale, otherwise
-// x = x / 10^scale.
+// scalex adjusts x by scale. If scale > 0, x = x * 10^scale, otherwise
+// x = x / 10^-scale.
 func scalex(x uint64, scale int) (sx uint64, ok bool) {
 	if scale > 0 {
 		sx, ok = checked.MulPow10(x, uint64(scale))
@@ -135,4 +140,12 @@ func scalex(x uint64, scale int) (sx uint64, ok bool) {
 		return 0, false
 	}
 	return x / p, true
+}
+
+// bigScalex sets z to the big.Int equivalient of scalex.
+func bigScalex(z, x *big.Int, scale int) *big.Int {
+	if scale > 0 {
+		return checked.MulBigPow10(z, x, uint64(scale))
+	}
+	return z.Quo(x, pow.BigTen(uint64(-scale)))
 }
