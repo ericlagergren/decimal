@@ -61,6 +61,7 @@ import (
 	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/arith/checked"
 	"github.com/ericlagergren/decimal/internal/arith/pow"
+	"github.com/ericlagergren/decimal/internal/buf"
 	"github.com/ericlagergren/decimal/internal/c"
 	"github.com/ericlagergren/decimal/internal/compat"
 )
@@ -827,7 +828,7 @@ func (x *Big) Format(s fmt.State, c rune) {
 	// empty buffer.
 	tmpbuf := lpZero || lpSpace
 	if tmpbuf {
-		f.w = new(compat.Builder)
+		f.w = buf.New(x.Precision())
 	} else {
 		f.w = stateWrapper{s}
 	}
@@ -890,12 +891,12 @@ func (x *Big) Format(s fmt.State, c rune) {
 		// even though it's declared inside a function. Go thinks it's recursive.
 		// At least the fields are checked at compile time.
 		type Big struct {
+			precision int64
 			Context   Context
 			unscaled  big.Int
 			compact   uint64
 			exp       int
 			form      form
-			precision int64
 		}
 		specs := ""
 		if dash {
@@ -930,7 +931,7 @@ func (x *Big) Format(s fmt.State, c rune) {
 	}
 
 	if tmpbuf {
-		io.Copy(s, f.w.(*compat.Builder))
+		f.w.(*buf.B).WriteTo(s)
 	}
 }
 
@@ -1138,8 +1139,8 @@ func (x *Big) MarshalText() ([]byte, error) {
 	}
 
 	var (
-		b compat.Builder
-		f = formatter{w: &b, prec: noPrec, width: noWidth}
+		b = buf.New(x.Precision())
+		f = formatter{w: b, prec: noPrec, width: noWidth}
 		e = sciE[x.Context.OperatingMode]
 	)
 	f.format(x, normal, e)
@@ -1267,10 +1268,11 @@ func (x *Big) Precision() int {
 	p := atomic.LoadInt64(&x.precision)
 	if p == 0 {
 		if x.isCompact() {
-			atomic.StoreInt64(&x.precision, int64(arith.Length(x.compact)))
+			p = int64(arith.Length(x.compact))
 		} else {
-			atomic.StoreInt64(&x.precision, int64(arith.BigLength(&x.unscaled)))
+			p = int64(arith.BigLength(&x.unscaled))
 		}
+		atomic.StoreInt64(&x.precision, p)
 	}
 	return int(p)
 }
@@ -1923,8 +1925,8 @@ func (x *Big) Signbit() bool {
 // OperatingMode.
 func (x *Big) String() string {
 	var (
-		b compat.Builder
-		f = formatter{w: &b, prec: noPrec, width: noWidth}
+		b = buf.New(x.Precision())
+		f = formatter{w: b, prec: noPrec, width: noWidth}
 		e = sciE[x.Context.OperatingMode]
 	)
 	f.format(x, normal, e)
@@ -1989,12 +1991,12 @@ func (x *Big) validate() {
 				fmt.Println("called by:", caller.Name())
 			}
 			type Big struct {
+				precision int64
 				Context   Context
 				unscaled  big.Int
 				compact   uint64
 				exp       int
 				form      form
-				precision int64
 			}
 			fmt.Printf("%#v\n", (*Big)(x))
 			panic(err)
