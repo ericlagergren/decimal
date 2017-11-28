@@ -11,9 +11,14 @@ import (
 
 func TestBigTen(t *testing.T) {
 	errc := make(chan error)
+	workc := make(chan struct{}, 1000)
+	for i := 0; i < 1000; i++ {
+		workc <- struct{}{}
+	}
 
 	var wg sync.WaitGroup
 	for i := uint64(0); i < BigTabLen+10; i++ {
+		<-workc
 		wg.Add(1)
 		go func(i uint64) {
 			comp := BigTen(i)
@@ -27,6 +32,7 @@ wanted: (%d) %s
 `, i, len(cs), cs, len(as), as)
 			}
 			wg.Done()
+			workc <- struct{}{}
 		}(i)
 	}
 
