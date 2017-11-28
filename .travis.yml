@@ -15,4 +15,4 @@ install:
 
 script:
   - go build .
-  - go test -tags=ddebug -short -race -v {.,./internal/...,./misc/...,./sql/...}
+  - go test -tags=ddebug -short -race -v {.,./internal/...,./misc/...,./sql/...} 2&>1
