@@ -30,7 +30,7 @@ func TestDecimal_Value(t *testing.T) {
 
 		dec, ok := new(decimal.Big).SetString(fmt.Sprintf("%s.%s", ip, fp))
 		if !ok {
-			t.Fatal(dec.Context.Err)
+			t.Fatal(dec.Context.Err())
 		}
 		d := Decimal{V: dec, Round: i%2 == 0}
 
@@ -65,7 +65,7 @@ func TestDecimal_Value(t *testing.T) {
 				vs = vs[:i]
 			}
 			if len(parts[1])+e > MaxFractionalDigits {
-				t.Fatalf("%#d: frac part too long: %d", i, len(parts[1]))
+				t.Fatalf("#%d: frac part too long: %d", i, len(parts[1]))
 			}
 			fallthrough
 		case 1:

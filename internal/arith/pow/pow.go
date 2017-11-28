@@ -64,16 +64,23 @@ func BigTen(n uint64) *big.Int {
 		p := new(big.Int).SetUint64(n - (tabLen - 1))
 		return p.Mul(partial, p.Exp(c.TenInt, p, nil))
 	}
-	return growBigTen(n, tab)
+	return growBigTen(n)
 }
 
-func growBigTen(n uint64, tab []*big.Int) *big.Int {
+func growBigTen(n uint64) *big.Int {
 	// We need to expand our table to contain the value for 10 ** n.
 	bigMu.Lock()
 
+	tab := loadBigTable()
+
+	// Look again in case the table was rebuilt before we grabbed the lock.
+	tableLen := uint64(len(tab))
+	if n < tableLen {
+		return tab[n]
+	}
+
 	// n < BigTabLen
 
-	tableLen := uint64(len(tab))
 	newLen := tableLen * 2
 	for newLen <= n {
 		newLen *= 2
@@ -93,7 +100,7 @@ func growBigTen(n uint64, tab []*big.Int) *big.Int {
 func Safe(e uint64) bool { return e < TabLen }
 
 // Ten returns 10 ** e and a boolean indicating whether the result fits into
-// an uint64.
+// a uint64.
 func Ten(e uint64) (uint64, bool) {
 	if e < TabLen {
 		return pow10tab[e], true

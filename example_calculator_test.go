@@ -34,7 +34,7 @@ Loop:
 		default:
 			x := WithContext(Context128)
 			if _, ok := x.SetString(tok); !ok {
-				fmt.Fprintf(os.Stderr, "invalid decimal: %v\n", x.Context.Err)
+				fmt.Fprintf(os.Stderr, "invalid decimal: %v\n", x.Context.Err())
 				os.Exit(1)
 			}
 			stack = append(stack, x)
