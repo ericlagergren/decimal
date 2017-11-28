@@ -87,8 +87,6 @@ func TestBigLength(t *testing.T) {
 		return
 	}
 
-	const overflowCutoff = 14267572532
-
 	// Randomly chosen length so its bit-length is a smidge above overflowCutoff
 	// to speed up this looong test.
 	nat := make([]big.Word, 222932222)

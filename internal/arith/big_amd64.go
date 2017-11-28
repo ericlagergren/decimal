@@ -120,9 +120,6 @@ func MulInt64(z, x *big.Int, y uint64) *big.Int {
 
 const (
 	_W  = 64       // word size in bits
-	_S  = _W / 8   // word size in bytes
-	_B  = 1 << _W  // digit base
-	_M  = _B - 1   // digit mask
 	_W2 = _W / 2   // half word size in bits
 	_B2 = 1 << _W2 // half digit base
 	_M2 = _B2 - 1  // half digit mask
