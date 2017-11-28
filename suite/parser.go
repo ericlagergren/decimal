@@ -1,230 +1,227 @@
-
 //line parser.rl:1
 package suite
 
 import (
-    "fmt"
-    "strconv"
+	"fmt"
+	"strconv"
 )
 
 func ParseCase(data []byte) (c Case, err error) {
-    cs, p, pe, eof := 0, 0, len(data), len(data)
+	cs, p, pe, eof := 0, 0, len(data), len(data)
 
-    var (
-        ok   bool // for mode and op
-        mark int
-    )
+	var (
+		ok   bool // for mode and op
+		mark int
+	)
 
-    
 //line parser.go:20
-const parser_start int = 1
-const parser_first_final int = 86
-const parser_error int = 0
+	const parser_start int = 1
+	const parser_first_final int = 86
+	const parser_error int = 0
 
-const parser_en_main int = 1
-
+	const parser_en_main int = 1
 
 //line parser.go:28
 	{
-	cs = parser_start
+		cs = parser_start
 	}
 
 //line parser.go:33
 	{
-	if p == pe {
-		goto _test_eof
-	}
-	switch cs {
-	case 1:
-		goto st_case_1
-	case 0:
-		goto st_case_0
-	case 2:
-		goto st_case_2
-	case 3:
-		goto st_case_3
-	case 4:
-		goto st_case_4
-	case 5:
-		goto st_case_5
-	case 6:
-		goto st_case_6
-	case 7:
-		goto st_case_7
-	case 8:
-		goto st_case_8
-	case 9:
-		goto st_case_9
-	case 10:
-		goto st_case_10
-	case 11:
-		goto st_case_11
-	case 12:
-		goto st_case_12
-	case 13:
-		goto st_case_13
-	case 86:
-		goto st_case_86
-	case 87:
-		goto st_case_87
-	case 88:
-		goto st_case_88
-	case 14:
-		goto st_case_14
-	case 89:
-		goto st_case_89
-	case 15:
-		goto st_case_15
-	case 90:
-		goto st_case_90
-	case 16:
-		goto st_case_16
-	case 91:
-		goto st_case_91
-	case 17:
-		goto st_case_17
-	case 18:
-		goto st_case_18
-	case 19:
-		goto st_case_19
-	case 20:
-		goto st_case_20
-	case 21:
-		goto st_case_21
-	case 22:
-		goto st_case_22
-	case 23:
-		goto st_case_23
-	case 92:
-		goto st_case_92
-	case 24:
-		goto st_case_24
-	case 25:
-		goto st_case_25
-	case 26:
-		goto st_case_26
-	case 27:
-		goto st_case_27
-	case 28:
-		goto st_case_28
-	case 29:
-		goto st_case_29
-	case 93:
-		goto st_case_93
-	case 30:
-		goto st_case_30
-	case 31:
-		goto st_case_31
-	case 32:
-		goto st_case_32
-	case 33:
-		goto st_case_33
-	case 34:
-		goto st_case_34
-	case 35:
-		goto st_case_35
-	case 36:
-		goto st_case_36
-	case 37:
-		goto st_case_37
-	case 38:
-		goto st_case_38
-	case 39:
-		goto st_case_39
-	case 40:
-		goto st_case_40
-	case 41:
-		goto st_case_41
-	case 42:
-		goto st_case_42
-	case 43:
-		goto st_case_43
-	case 44:
-		goto st_case_44
-	case 45:
-		goto st_case_45
-	case 46:
-		goto st_case_46
-	case 47:
-		goto st_case_47
-	case 48:
-		goto st_case_48
-	case 49:
-		goto st_case_49
-	case 50:
-		goto st_case_50
-	case 51:
-		goto st_case_51
-	case 52:
-		goto st_case_52
-	case 53:
-		goto st_case_53
-	case 54:
-		goto st_case_54
-	case 55:
-		goto st_case_55
-	case 56:
-		goto st_case_56
-	case 57:
-		goto st_case_57
-	case 58:
-		goto st_case_58
-	case 59:
-		goto st_case_59
-	case 60:
-		goto st_case_60
-	case 61:
-		goto st_case_61
-	case 62:
-		goto st_case_62
-	case 63:
-		goto st_case_63
-	case 64:
-		goto st_case_64
-	case 65:
-		goto st_case_65
-	case 66:
-		goto st_case_66
-	case 67:
-		goto st_case_67
-	case 68:
-		goto st_case_68
-	case 69:
-		goto st_case_69
-	case 70:
-		goto st_case_70
-	case 71:
-		goto st_case_71
-	case 72:
-		goto st_case_72
-	case 73:
-		goto st_case_73
-	case 74:
-		goto st_case_74
-	case 75:
-		goto st_case_75
-	case 76:
-		goto st_case_76
-	case 77:
-		goto st_case_77
-	case 78:
-		goto st_case_78
-	case 79:
-		goto st_case_79
-	case 80:
-		goto st_case_80
-	case 81:
-		goto st_case_81
-	case 82:
-		goto st_case_82
-	case 83:
-		goto st_case_83
-	case 84:
-		goto st_case_84
-	case 85:
-		goto st_case_85
-	}
-	goto st_out
+		if p == pe {
+			goto _test_eof
+		}
+		switch cs {
+		case 1:
+			goto st_case_1
+		case 0:
+			goto st_case_0
+		case 2:
+			goto st_case_2
+		case 3:
+			goto st_case_3
+		case 4:
+			goto st_case_4
+		case 5:
+			goto st_case_5
+		case 6:
+			goto st_case_6
+		case 7:
+			goto st_case_7
+		case 8:
+			goto st_case_8
+		case 9:
+			goto st_case_9
+		case 10:
+			goto st_case_10
+		case 11:
+			goto st_case_11
+		case 12:
+			goto st_case_12
+		case 13:
+			goto st_case_13
+		case 86:
+			goto st_case_86
+		case 87:
+			goto st_case_87
+		case 88:
+			goto st_case_88
+		case 14:
+			goto st_case_14
+		case 89:
+			goto st_case_89
+		case 15:
+			goto st_case_15
+		case 90:
+			goto st_case_90
+		case 16:
+			goto st_case_16
+		case 91:
+			goto st_case_91
+		case 17:
+			goto st_case_17
+		case 18:
+			goto st_case_18
+		case 19:
+			goto st_case_19
+		case 20:
+			goto st_case_20
+		case 21:
+			goto st_case_21
+		case 22:
+			goto st_case_22
+		case 23:
+			goto st_case_23
+		case 92:
+			goto st_case_92
+		case 24:
+			goto st_case_24
+		case 25:
+			goto st_case_25
+		case 26:
+			goto st_case_26
+		case 27:
+			goto st_case_27
+		case 28:
+			goto st_case_28
+		case 29:
+			goto st_case_29
+		case 93:
+			goto st_case_93
+		case 30:
+			goto st_case_30
+		case 31:
+			goto st_case_31
+		case 32:
+			goto st_case_32
+		case 33:
+			goto st_case_33
+		case 34:
+			goto st_case_34
+		case 35:
+			goto st_case_35
+		case 36:
+			goto st_case_36
+		case 37:
+			goto st_case_37
+		case 38:
+			goto st_case_38
+		case 39:
+			goto st_case_39
+		case 40:
+			goto st_case_40
+		case 41:
+			goto st_case_41
+		case 42:
+			goto st_case_42
+		case 43:
+			goto st_case_43
+		case 44:
+			goto st_case_44
+		case 45:
+			goto st_case_45
+		case 46:
+			goto st_case_46
+		case 47:
+			goto st_case_47
+		case 48:
+			goto st_case_48
+		case 49:
+			goto st_case_49
+		case 50:
+			goto st_case_50
+		case 51:
+			goto st_case_51
+		case 52:
+			goto st_case_52
+		case 53:
+			goto st_case_53
+		case 54:
+			goto st_case_54
+		case 55:
+			goto st_case_55
+		case 56:
+			goto st_case_56
+		case 57:
+			goto st_case_57
+		case 58:
+			goto st_case_58
+		case 59:
+			goto st_case_59
+		case 60:
+			goto st_case_60
+		case 61:
+			goto st_case_61
+		case 62:
+			goto st_case_62
+		case 63:
+			goto st_case_63
+		case 64:
+			goto st_case_64
+		case 65:
+			goto st_case_65
+		case 66:
+			goto st_case_66
+		case 67:
+			goto st_case_67
+		case 68:
+			goto st_case_68
+		case 69:
+			goto st_case_69
+		case 70:
+			goto st_case_70
+		case 71:
+			goto st_case_71
+		case 72:
+			goto st_case_72
+		case 73:
+			goto st_case_73
+		case 74:
+			goto st_case_74
+		case 75:
+			goto st_case_75
+		case 76:
+			goto st_case_76
+		case 77:
+			goto st_case_77
+		case 78:
+			goto st_case_78
+		case 79:
+			goto st_case_79
+		case 80:
+			goto st_case_80
+		case 81:
+			goto st_case_81
+		case 82:
+			goto st_case_82
+		case 83:
+			goto st_case_83
+		case 84:
+			goto st_case_84
+		case 85:
+			goto st_case_85
+		}
+		goto st_out
 	st_case_1:
 		switch data[p] {
 		case 98:
@@ -233,14 +230,14 @@ const parser_en_main int = 1
 			goto tr0
 		}
 		goto st0
-st_case_0:
+	st_case_0:
 	st0:
 		cs = 0
 		goto _out
-tr0:
+	tr0:
 //line parser.rl:19
- mark = p 
-	goto st2
+		mark = p
+		goto st2
 	st2:
 		if p++; p == pe {
 			goto _test_eof2
@@ -251,12 +248,12 @@ tr0:
 			goto tr2
 		}
 		goto st0
-tr2:
+	tr2:
 //line parser.rl:20
- c.Prefix = string(data[mark:p]) 
+		c.Prefix = string(data[mark:p])
 //line parser.rl:19
- mark = p 
-	goto st3
+		mark = p
+		goto st3
 	st3:
 		if p++; p == pe {
 			goto _test_eof3
@@ -312,16 +309,15 @@ tr2:
 			goto tr6
 		}
 		goto st0
-tr3:
+	tr3:
 //line parser.rl:21
+		if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
+			return c, err
+		}
 
-            if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
-                return c, err
-            }
-        
 //line parser.rl:19
- mark = p 
-	goto st4
+		mark = p
+		goto st4
 	st4:
 		if p++; p == pe {
 			goto _test_eof4
@@ -332,14 +328,13 @@ tr3:
 			goto tr15
 		}
 		goto st0
-tr15:
+	tr15:
 //line parser.rl:26
+		if c.Op, ok = valToOp[string(data[mark:p])]; !ok {
+			return c, fmt.Errorf("invalid op: %q", data[mark:p])
+		}
 
-            if c.Op, ok = valToOp[string(data[mark:p])]; !ok {
-                return c, fmt.Errorf("invalid op: %q", data[mark:p])
-            }
-        
-	goto st5
+		goto st5
 	st5:
 		if p++; p == pe {
 			goto _test_eof5
@@ -360,10 +355,10 @@ tr15:
 			goto tr17
 		}
 		goto st0
-tr17:
+	tr17:
 //line parser.rl:19
- mark = p 
-	goto st6
+		mark = p
+		goto st6
 	st6:
 		if p++; p == pe {
 			goto _test_eof6
@@ -374,22 +369,20 @@ tr17:
 			goto tr19
 		}
 		goto st0
-tr19:
+	tr19:
 //line parser.rl:31
+		if c.Mode, ok = valToMode[string(data[mark:p])]; !ok {
+			return c, fmt.Errorf("invalid mode: %q", data[mark:p])
+		}
 
-	    	if c.Mode, ok = valToMode[string(data[mark:p])]; !ok {
-				return c, fmt.Errorf("invalid mode: %q", data[mark:p])
-	    	}
-        
-	goto st7
-tr20:
+		goto st7
+	tr20:
 //line parser.rl:19
- mark = p 
+		mark = p
 //line parser.rl:36
+		c.Trap = ConditionFromString(string(data[mark:p]))
 
-			c.Trap = ConditionFromString(string(data[mark:p]))
-        
-	goto st7
+		goto st7
 	st7:
 		if p++; p == pe {
 			goto _test_eof7
@@ -445,10 +438,10 @@ tr20:
 			goto tr23
 		}
 		goto st0
-tr21:
+	tr21:
 //line parser.rl:19
- mark = p 
-	goto st8
+		mark = p
+		goto st8
 	st8:
 		if p++; p == pe {
 			goto _test_eof8
@@ -485,10 +478,10 @@ tr21:
 			goto st9
 		}
 		goto st0
-tr22:
+	tr22:
 //line parser.rl:19
- mark = p 
-	goto st9
+		mark = p
+		goto st9
 	st9:
 		if p++; p == pe {
 			goto _test_eof9
@@ -513,18 +506,17 @@ tr22:
 			goto st9
 		}
 		goto st0
-tr39:
+	tr39:
 //line parser.rl:39
- c.Inputs = append(c.Inputs, Data(data[mark:p])) 
-	goto st10
-tr93:
+		c.Inputs = append(c.Inputs, Data(data[mark:p]))
+		goto st10
+	tr93:
 //line parser.rl:36
+		c.Trap = ConditionFromString(string(data[mark:p]))
 
-			c.Trap = ConditionFromString(string(data[mark:p]))
-        
 //line parser.rl:39
- c.Inputs = append(c.Inputs, Data(data[mark:p])) 
-	goto st10
+		c.Inputs = append(c.Inputs, Data(data[mark:p]))
+		goto st10
 	st10:
 		if p++; p == pe {
 			goto _test_eof10
@@ -567,10 +559,10 @@ tr93:
 			goto tr22
 		}
 		goto st0
-tr44:
+	tr44:
 //line parser.rl:19
- mark = p 
-	goto st11
+		mark = p
+		goto st11
 	st11:
 		if p++; p == pe {
 			goto _test_eof11
@@ -661,10 +653,10 @@ tr44:
 			goto tr49
 		}
 		goto st0
-tr47:
+	tr47:
 //line parser.rl:19
- mark = p 
-	goto st86
+		mark = p
+		goto st86
 	st86:
 		if p++; p == pe {
 			goto _test_eof86
@@ -675,10 +667,10 @@ tr47:
 			goto tr111
 		}
 		goto st0
-tr111:
+	tr111:
 //line parser.rl:40
- c.Output = Data(data[mark:p]) 
-	goto st87
+		c.Output = Data(data[mark:p])
+		goto st87
 	st87:
 		if p++; p == pe {
 			goto _test_eof87
@@ -704,10 +696,10 @@ tr111:
 			goto tr113
 		}
 		goto st0
-tr113:
+	tr113:
 //line parser.rl:19
- mark = p 
-	goto st88
+		mark = p
+		goto st88
 	st88:
 		if p++; p == pe {
 			goto _test_eof88
@@ -731,10 +723,10 @@ tr113:
 			goto st88
 		}
 		goto st0
-tr48:
+	tr48:
 //line parser.rl:19
- mark = p 
-	goto st14
+		mark = p
+		goto st14
 	st14:
 		if p++; p == pe {
 			goto _test_eof14
@@ -771,10 +763,10 @@ tr48:
 			goto st89
 		}
 		goto st0
-tr49:
+	tr49:
 //line parser.rl:19
- mark = p 
-	goto st89
+		mark = p
+		goto st89
 	st89:
 		if p++; p == pe {
 			goto _test_eof89
@@ -865,10 +857,10 @@ tr49:
 			goto st90
 		}
 		goto st0
-tr50:
+	tr50:
 //line parser.rl:19
- mark = p 
-	goto st18
+		mark = p
+		goto st18
 	st18:
 		if p++; p == pe {
 			goto _test_eof18
@@ -918,10 +910,10 @@ tr50:
 			goto st86
 		}
 		goto st0
-tr51:
+	tr51:
 //line parser.rl:19
- mark = p 
-	goto st22
+		mark = p
+		goto st22
 	st22:
 		if p++; p == pe {
 			goto _test_eof22
@@ -1009,10 +1001,10 @@ tr51:
 			goto st86
 		}
 		goto st0
-tr52:
+	tr52:
 //line parser.rl:19
- mark = p 
-	goto st28
+		mark = p
+		goto st28
 	st28:
 		if p++; p == pe {
 			goto _test_eof28
@@ -1038,10 +1030,10 @@ tr52:
 			goto st86
 		}
 		goto st0
-tr53:
+	tr53:
 //line parser.rl:19
- mark = p 
-	goto st93
+		mark = p
+		goto st93
 	st93:
 		if p++; p == pe {
 			goto _test_eof93
@@ -1057,10 +1049,10 @@ tr53:
 			goto st28
 		}
 		goto st0
-tr54:
+	tr54:
 //line parser.rl:19
- mark = p 
-	goto st30
+		mark = p
+		goto st30
 	st30:
 		if p++; p == pe {
 			goto _test_eof30
@@ -1086,10 +1078,10 @@ tr54:
 			goto st21
 		}
 		goto st0
-tr24:
+	tr24:
 //line parser.rl:19
- mark = p 
-	goto st32
+		mark = p
+		goto st32
 	st32:
 		if p++; p == pe {
 			goto _test_eof32
@@ -1148,10 +1140,10 @@ tr24:
 			goto tr39
 		}
 		goto st0
-tr25:
+	tr25:
 //line parser.rl:19
- mark = p 
-	goto st37
+		mark = p
+		goto st37
 	st37:
 		if p++; p == pe {
 			goto _test_eof37
@@ -1239,10 +1231,10 @@ tr25:
 			goto st36
 		}
 		goto st0
-tr26:
+	tr26:
 //line parser.rl:19
- mark = p 
-	goto st44
+		mark = p
+		goto st44
 	st44:
 		if p++; p == pe {
 			goto _test_eof44
@@ -1268,10 +1260,10 @@ tr26:
 			goto st36
 		}
 		goto st0
-tr27:
+	tr27:
 //line parser.rl:19
- mark = p 
-	goto st46
+		mark = p
+		goto st46
 	st46:
 		if p++; p == pe {
 			goto _test_eof46
@@ -1287,10 +1279,10 @@ tr27:
 			goto st44
 		}
 		goto st0
-tr28:
+	tr28:
 //line parser.rl:19
- mark = p 
-	goto st47
+		mark = p
+		goto st47
 	st47:
 		if p++; p == pe {
 			goto _test_eof47
@@ -1382,10 +1374,10 @@ tr28:
 			goto st50
 		}
 		goto st0
-tr23:
+	tr23:
 //line parser.rl:19
- mark = p 
-	goto st54
+		mark = p
+		goto st54
 	st54:
 		if p++; p == pe {
 			goto _test_eof54
@@ -1411,12 +1403,11 @@ tr23:
 			goto st54
 		}
 		goto st0
-tr89:
+	tr89:
 //line parser.rl:36
+		c.Trap = ConditionFromString(string(data[mark:p]))
 
-			c.Trap = ConditionFromString(string(data[mark:p]))
-        
-	goto st55
+		goto st55
 	st55:
 		if p++; p == pe {
 			goto _test_eof55
@@ -1459,10 +1450,10 @@ tr89:
 			goto tr22
 		}
 		goto st0
-tr29:
+	tr29:
 //line parser.rl:19
- mark = p 
-	goto st56
+		mark = p
+		goto st56
 	st56:
 		if p++; p == pe {
 			goto _test_eof56
@@ -1520,10 +1511,10 @@ tr29:
 			goto st54
 		}
 		goto st0
-tr30:
+	tr30:
 //line parser.rl:19
- mark = p 
-	goto st58
+		mark = p
+		goto st58
 	st58:
 		if p++; p == pe {
 			goto _test_eof58
@@ -1553,10 +1544,10 @@ tr30:
 			goto st54
 		}
 		goto st0
-tr31:
+	tr31:
 //line parser.rl:19
- mark = p 
-	goto st59
+		mark = p
+		goto st59
 	st59:
 		if p++; p == pe {
 			goto _test_eof59
@@ -1586,10 +1577,10 @@ tr31:
 			goto st54
 		}
 		goto st0
-tr32:
+	tr32:
 //line parser.rl:19
- mark = p 
-	goto st60
+		mark = p
+		goto st60
 	st60:
 		if p++; p == pe {
 			goto _test_eof60
@@ -1675,10 +1666,10 @@ tr32:
 			goto st54
 		}
 		goto st0
-tr18:
+	tr18:
 //line parser.rl:19
- mark = p 
-	goto st63
+		mark = p
+		goto st63
 	st63:
 		if p++; p == pe {
 			goto _test_eof63
@@ -1692,16 +1683,15 @@ tr18:
 			goto st6
 		}
 		goto st0
-tr4:
+	tr4:
 //line parser.rl:21
+		if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
+			return c, err
+		}
 
-            if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
-                return c, err
-            }
-        
 //line parser.rl:19
- mark = p 
-	goto st64
+		mark = p
+		goto st64
 	st64:
 		if p++; p == pe {
 			goto _test_eof64
@@ -1715,16 +1705,15 @@ tr4:
 			goto st4
 		}
 		goto st0
-tr6:
+	tr6:
 //line parser.rl:21
+		if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
+			return c, err
+		}
 
-            if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
-                return c, err
-            }
-        
 //line parser.rl:19
- mark = p 
-	goto st65
+		mark = p
+		goto st65
 	st65:
 		if p++; p == pe {
 			goto _test_eof65
@@ -1738,16 +1727,15 @@ tr6:
 			goto st4
 		}
 		goto st0
-tr7:
+	tr7:
 //line parser.rl:21
+		if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
+			return c, err
+		}
 
-            if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
-                return c, err
-            }
-        
 //line parser.rl:19
- mark = p 
-	goto st66
+		mark = p
+		goto st66
 	st66:
 		if p++; p == pe {
 			goto _test_eof66
@@ -1794,16 +1782,15 @@ tr7:
 			goto st4
 		}
 		goto st0
-tr8:
+	tr8:
 //line parser.rl:21
+		if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
+			return c, err
+		}
 
-            if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
-                return c, err
-            }
-        
 //line parser.rl:19
- mark = p 
-	goto st71
+		mark = p
+		goto st71
 	st71:
 		if p++; p == pe {
 			goto _test_eof71
@@ -1841,16 +1828,15 @@ tr8:
 			goto st4
 		}
 		goto st0
-tr9:
+	tr9:
 //line parser.rl:21
+		if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
+			return c, err
+		}
 
-            if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
-                return c, err
-            }
-        
 //line parser.rl:19
- mark = p 
-	goto st73
+		mark = p
+		goto st73
 	st73:
 		if p++; p == pe {
 			goto _test_eof73
@@ -1866,16 +1852,15 @@ tr9:
 			goto st4
 		}
 		goto st0
-tr10:
+	tr10:
 //line parser.rl:21
+		if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
+			return c, err
+		}
 
-            if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
-                return c, err
-            }
-        
 //line parser.rl:19
- mark = p 
-	goto st74
+		mark = p
+		goto st74
 	st74:
 		if p++; p == pe {
 			goto _test_eof74
@@ -1916,16 +1901,15 @@ tr10:
 			goto st4
 		}
 		goto st0
-tr11:
+	tr11:
 //line parser.rl:21
+		if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
+			return c, err
+		}
 
-            if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
-                return c, err
-            }
-        
 //line parser.rl:19
- mark = p 
-	goto st77
+		mark = p
+		goto st77
 	st77:
 		if p++; p == pe {
 			goto _test_eof77
@@ -1936,16 +1920,15 @@ tr11:
 			goto st4
 		}
 		goto st0
-tr12:
+	tr12:
 //line parser.rl:21
+		if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
+			return c, err
+		}
 
-            if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
-                return c, err
-            }
-        
 //line parser.rl:19
- mark = p 
-	goto st78
+		mark = p
+		goto st78
 	st78:
 		if p++; p == pe {
 			goto _test_eof78
@@ -1959,16 +1942,15 @@ tr12:
 			goto st68
 		}
 		goto st0
-tr13:
+	tr13:
 //line parser.rl:21
+		if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
+			return c, err
+		}
 
-            if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
-                return c, err
-            }
-        
 //line parser.rl:19
- mark = p 
-	goto st79
+		mark = p
+		goto st79
 	st79:
 		if p++; p == pe {
 			goto _test_eof79
@@ -1991,16 +1973,15 @@ tr13:
 			goto st4
 		}
 		goto st0
-tr14:
+	tr14:
 //line parser.rl:21
+		if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
+			return c, err
+		}
 
-            if c.Prec, err = strconv.Atoi(string(data[mark:p])); err != nil {
-                return c, err
-            }
-        
 //line parser.rl:19
- mark = p 
-	goto st81
+		mark = p
+		goto st81
 	st81:
 		if p++; p == pe {
 			goto _test_eof81
@@ -2054,125 +2035,310 @@ tr14:
 		}
 		goto st0
 	st_out:
-	_test_eof2: cs = 2; goto _test_eof
-	_test_eof3: cs = 3; goto _test_eof
-	_test_eof4: cs = 4; goto _test_eof
-	_test_eof5: cs = 5; goto _test_eof
-	_test_eof6: cs = 6; goto _test_eof
-	_test_eof7: cs = 7; goto _test_eof
-	_test_eof8: cs = 8; goto _test_eof
-	_test_eof9: cs = 9; goto _test_eof
-	_test_eof10: cs = 10; goto _test_eof
-	_test_eof11: cs = 11; goto _test_eof
-	_test_eof12: cs = 12; goto _test_eof
-	_test_eof13: cs = 13; goto _test_eof
-	_test_eof86: cs = 86; goto _test_eof
-	_test_eof87: cs = 87; goto _test_eof
-	_test_eof88: cs = 88; goto _test_eof
-	_test_eof14: cs = 14; goto _test_eof
-	_test_eof89: cs = 89; goto _test_eof
-	_test_eof15: cs = 15; goto _test_eof
-	_test_eof90: cs = 90; goto _test_eof
-	_test_eof16: cs = 16; goto _test_eof
-	_test_eof91: cs = 91; goto _test_eof
-	_test_eof17: cs = 17; goto _test_eof
-	_test_eof18: cs = 18; goto _test_eof
-	_test_eof19: cs = 19; goto _test_eof
-	_test_eof20: cs = 20; goto _test_eof
-	_test_eof21: cs = 21; goto _test_eof
-	_test_eof22: cs = 22; goto _test_eof
-	_test_eof23: cs = 23; goto _test_eof
-	_test_eof92: cs = 92; goto _test_eof
-	_test_eof24: cs = 24; goto _test_eof
-	_test_eof25: cs = 25; goto _test_eof
-	_test_eof26: cs = 26; goto _test_eof
-	_test_eof27: cs = 27; goto _test_eof
-	_test_eof28: cs = 28; goto _test_eof
-	_test_eof29: cs = 29; goto _test_eof
-	_test_eof93: cs = 93; goto _test_eof
-	_test_eof30: cs = 30; goto _test_eof
-	_test_eof31: cs = 31; goto _test_eof
-	_test_eof32: cs = 32; goto _test_eof
-	_test_eof33: cs = 33; goto _test_eof
-	_test_eof34: cs = 34; goto _test_eof
-	_test_eof35: cs = 35; goto _test_eof
-	_test_eof36: cs = 36; goto _test_eof
-	_test_eof37: cs = 37; goto _test_eof
-	_test_eof38: cs = 38; goto _test_eof
-	_test_eof39: cs = 39; goto _test_eof
-	_test_eof40: cs = 40; goto _test_eof
-	_test_eof41: cs = 41; goto _test_eof
-	_test_eof42: cs = 42; goto _test_eof
-	_test_eof43: cs = 43; goto _test_eof
-	_test_eof44: cs = 44; goto _test_eof
-	_test_eof45: cs = 45; goto _test_eof
-	_test_eof46: cs = 46; goto _test_eof
-	_test_eof47: cs = 47; goto _test_eof
-	_test_eof48: cs = 48; goto _test_eof
-	_test_eof49: cs = 49; goto _test_eof
-	_test_eof50: cs = 50; goto _test_eof
-	_test_eof51: cs = 51; goto _test_eof
-	_test_eof52: cs = 52; goto _test_eof
-	_test_eof53: cs = 53; goto _test_eof
-	_test_eof54: cs = 54; goto _test_eof
-	_test_eof55: cs = 55; goto _test_eof
-	_test_eof56: cs = 56; goto _test_eof
-	_test_eof57: cs = 57; goto _test_eof
-	_test_eof58: cs = 58; goto _test_eof
-	_test_eof59: cs = 59; goto _test_eof
-	_test_eof60: cs = 60; goto _test_eof
-	_test_eof61: cs = 61; goto _test_eof
-	_test_eof62: cs = 62; goto _test_eof
-	_test_eof63: cs = 63; goto _test_eof
-	_test_eof64: cs = 64; goto _test_eof
-	_test_eof65: cs = 65; goto _test_eof
-	_test_eof66: cs = 66; goto _test_eof
-	_test_eof67: cs = 67; goto _test_eof
-	_test_eof68: cs = 68; goto _test_eof
-	_test_eof69: cs = 69; goto _test_eof
-	_test_eof70: cs = 70; goto _test_eof
-	_test_eof71: cs = 71; goto _test_eof
-	_test_eof72: cs = 72; goto _test_eof
-	_test_eof73: cs = 73; goto _test_eof
-	_test_eof74: cs = 74; goto _test_eof
-	_test_eof75: cs = 75; goto _test_eof
-	_test_eof76: cs = 76; goto _test_eof
-	_test_eof77: cs = 77; goto _test_eof
-	_test_eof78: cs = 78; goto _test_eof
-	_test_eof79: cs = 79; goto _test_eof
-	_test_eof80: cs = 80; goto _test_eof
-	_test_eof81: cs = 81; goto _test_eof
-	_test_eof82: cs = 82; goto _test_eof
-	_test_eof83: cs = 83; goto _test_eof
-	_test_eof84: cs = 84; goto _test_eof
-	_test_eof85: cs = 85; goto _test_eof
+	_test_eof2:
+		cs = 2
+		goto _test_eof
+	_test_eof3:
+		cs = 3
+		goto _test_eof
+	_test_eof4:
+		cs = 4
+		goto _test_eof
+	_test_eof5:
+		cs = 5
+		goto _test_eof
+	_test_eof6:
+		cs = 6
+		goto _test_eof
+	_test_eof7:
+		cs = 7
+		goto _test_eof
+	_test_eof8:
+		cs = 8
+		goto _test_eof
+	_test_eof9:
+		cs = 9
+		goto _test_eof
+	_test_eof10:
+		cs = 10
+		goto _test_eof
+	_test_eof11:
+		cs = 11
+		goto _test_eof
+	_test_eof12:
+		cs = 12
+		goto _test_eof
+	_test_eof13:
+		cs = 13
+		goto _test_eof
+	_test_eof86:
+		cs = 86
+		goto _test_eof
+	_test_eof87:
+		cs = 87
+		goto _test_eof
+	_test_eof88:
+		cs = 88
+		goto _test_eof
+	_test_eof14:
+		cs = 14
+		goto _test_eof
+	_test_eof89:
+		cs = 89
+		goto _test_eof
+	_test_eof15:
+		cs = 15
+		goto _test_eof
+	_test_eof90:
+		cs = 90
+		goto _test_eof
+	_test_eof16:
+		cs = 16
+		goto _test_eof
+	_test_eof91:
+		cs = 91
+		goto _test_eof
+	_test_eof17:
+		cs = 17
+		goto _test_eof
+	_test_eof18:
+		cs = 18
+		goto _test_eof
+	_test_eof19:
+		cs = 19
+		goto _test_eof
+	_test_eof20:
+		cs = 20
+		goto _test_eof
+	_test_eof21:
+		cs = 21
+		goto _test_eof
+	_test_eof22:
+		cs = 22
+		goto _test_eof
+	_test_eof23:
+		cs = 23
+		goto _test_eof
+	_test_eof92:
+		cs = 92
+		goto _test_eof
+	_test_eof24:
+		cs = 24
+		goto _test_eof
+	_test_eof25:
+		cs = 25
+		goto _test_eof
+	_test_eof26:
+		cs = 26
+		goto _test_eof
+	_test_eof27:
+		cs = 27
+		goto _test_eof
+	_test_eof28:
+		cs = 28
+		goto _test_eof
+	_test_eof29:
+		cs = 29
+		goto _test_eof
+	_test_eof93:
+		cs = 93
+		goto _test_eof
+	_test_eof30:
+		cs = 30
+		goto _test_eof
+	_test_eof31:
+		cs = 31
+		goto _test_eof
+	_test_eof32:
+		cs = 32
+		goto _test_eof
+	_test_eof33:
+		cs = 33
+		goto _test_eof
+	_test_eof34:
+		cs = 34
+		goto _test_eof
+	_test_eof35:
+		cs = 35
+		goto _test_eof
+	_test_eof36:
+		cs = 36
+		goto _test_eof
+	_test_eof37:
+		cs = 37
+		goto _test_eof
+	_test_eof38:
+		cs = 38
+		goto _test_eof
+	_test_eof39:
+		cs = 39
+		goto _test_eof
+	_test_eof40:
+		cs = 40
+		goto _test_eof
+	_test_eof41:
+		cs = 41
+		goto _test_eof
+	_test_eof42:
+		cs = 42
+		goto _test_eof
+	_test_eof43:
+		cs = 43
+		goto _test_eof
+	_test_eof44:
+		cs = 44
+		goto _test_eof
+	_test_eof45:
+		cs = 45
+		goto _test_eof
+	_test_eof46:
+		cs = 46
+		goto _test_eof
+	_test_eof47:
+		cs = 47
+		goto _test_eof
+	_test_eof48:
+		cs = 48
+		goto _test_eof
+	_test_eof49:
+		cs = 49
+		goto _test_eof
+	_test_eof50:
+		cs = 50
+		goto _test_eof
+	_test_eof51:
+		cs = 51
+		goto _test_eof
+	_test_eof52:
+		cs = 52
+		goto _test_eof
+	_test_eof53:
+		cs = 53
+		goto _test_eof
+	_test_eof54:
+		cs = 54
+		goto _test_eof
+	_test_eof55:
+		cs = 55
+		goto _test_eof
+	_test_eof56:
+		cs = 56
+		goto _test_eof
+	_test_eof57:
+		cs = 57
+		goto _test_eof
+	_test_eof58:
+		cs = 58
+		goto _test_eof
+	_test_eof59:
+		cs = 59
+		goto _test_eof
+	_test_eof60:
+		cs = 60
+		goto _test_eof
+	_test_eof61:
+		cs = 61
+		goto _test_eof
+	_test_eof62:
+		cs = 62
+		goto _test_eof
+	_test_eof63:
+		cs = 63
+		goto _test_eof
+	_test_eof64:
+		cs = 64
+		goto _test_eof
+	_test_eof65:
+		cs = 65
+		goto _test_eof
+	_test_eof66:
+		cs = 66
+		goto _test_eof
+	_test_eof67:
+		cs = 67
+		goto _test_eof
+	_test_eof68:
+		cs = 68
+		goto _test_eof
+	_test_eof69:
+		cs = 69
+		goto _test_eof
+	_test_eof70:
+		cs = 70
+		goto _test_eof
+	_test_eof71:
+		cs = 71
+		goto _test_eof
+	_test_eof72:
+		cs = 72
+		goto _test_eof
+	_test_eof73:
+		cs = 73
+		goto _test_eof
+	_test_eof74:
+		cs = 74
+		goto _test_eof
+	_test_eof75:
+		cs = 75
+		goto _test_eof
+	_test_eof76:
+		cs = 76
+		goto _test_eof
+	_test_eof77:
+		cs = 77
+		goto _test_eof
+	_test_eof78:
+		cs = 78
+		goto _test_eof
+	_test_eof79:
+		cs = 79
+		goto _test_eof
+	_test_eof80:
+		cs = 80
+		goto _test_eof
+	_test_eof81:
+		cs = 81
+		goto _test_eof
+	_test_eof82:
+		cs = 82
+		goto _test_eof
+	_test_eof83:
+		cs = 83
+		goto _test_eof
+	_test_eof84:
+		cs = 84
+		goto _test_eof
+	_test_eof85:
+		cs = 85
+		goto _test_eof
 
-	_test_eof: {}
-	if p == eof {
-		switch cs {
-		case 86, 89, 90, 91, 92, 93:
+	_test_eof:
+		{
+		}
+		if p == eof {
+			switch cs {
+			case 86, 89, 90, 91, 92, 93:
 //line parser.rl:40
- c.Output = Data(data[mark:p]) 
-		case 88:
+				c.Output = Data(data[mark:p])
+			case 88:
 //line parser.rl:41
+				c.Excep = ConditionFromString(string(data[mark:p]))
 
-			c.Excep = ConditionFromString(string(data[mark:p]))
-        
-		case 87:
+			case 87:
 //line parser.rl:19
- mark = p 
+				mark = p
 //line parser.rl:41
+				c.Excep = ConditionFromString(string(data[mark:p]))
 
-			c.Excep = ConditionFromString(string(data[mark:p]))
-        
 //line parser.go:2169
+			}
+		}
+
+	_out:
+		{
 		}
 	}
 
-	_out: {}
-	}
-
 //line parser.rl:151
-
-    return c, nil
+	return c, nil
 }

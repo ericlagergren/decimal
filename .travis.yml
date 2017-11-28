@@ -1,7 +1,6 @@
 language: go
 
 go:
-  - 1.8.x
   - 1.9.x
   - master
 
@@ -10,9 +9,14 @@ matrix:
     - go: master
   fast_finish: true
 
-install:
-  -
+install: true
+
+notifications:
+  email: false
+
+before_script:
+  - GO_FILES=$(find . -type f -iname '*.go' | grep -v /math/)
 
 script:
-  - go build .
+  - test -z $(gofmt -s -l $GO_FILES)
   - go test -tags=ddebug -short -race -v {.,./internal/...,./misc/...,./sql/...} &>2
