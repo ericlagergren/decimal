@@ -15,7 +15,7 @@ func TestBig_Exp(t *testing.T) {
 	tests := []struct {
 		dec  string
 		exp  string
-		prec int32
+		prec int
 	}{
 		0:  {"-8.748656950366438", "0.000158675", 6},
 		1:  {"40.40850241721978", "354151937244564830", 18},
@@ -70,7 +70,7 @@ func TestBig_Exp(t *testing.T) {
 	}
 	for i, v := range tests {
 		x := new(decimal.Big)
-		x.Context.SetPrecision(v.prec)
+		x.Context.Precision = v.prec
 		a := newbig(v.dec)
 		Exp(x, a)
 		xs := x.String()

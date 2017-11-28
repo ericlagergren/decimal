@@ -1,7 +1,6 @@
 package math
 
 import (
-	"errors"
 	"math"
 
 	"github.com/ericlagergren/decimal"
@@ -9,51 +8,51 @@ import (
 
 // Hypot sets z to Sqrt(p*p + q*q) and returns z.
 func Hypot(z, p, q *decimal.Big) *decimal.Big {
-	switch {
-	case p.IsInf(0), q.IsInf(0):
-		return z.SetInf(true)
-	case p.IsNaN(true), p.IsNaN(false), q.IsNaN(true), q.IsNaN(false):
-		return z.SetNaN(true)
+	if z.CheckNaNs(p, q) {
+		return z
 	}
-
-	p0 := new(decimal.Big).Mul(p, p)
-	q0 := new(decimal.Big).Mul(q, q)
-	x := alias(z, alias(z, p))
-	return Sqrt(z, x.Add(p0, q0))
+	// TODO(eric): figure out what precision these intermediate variables need
+	// and if we even need 'r' at all.
+	var p0, q0, r decimal.Big
+	p0.Context.Precision = decimal.UnlimitedPrecision
+	q0.Context.Precision = decimal.UnlimitedPrecision
+	r.Context.Precision = decimal.UnlimitedPrecision
+	p0.Mul(p, p)
+	q0.Mul(q, q)
+	return Sqrt(z, r.Add(p0.Mul(p, p), q0.Mul(q, q)))
 }
 
 // Sqrt sets z to the square root of x and returns z.
 func Sqrt(z, x *decimal.Big) *decimal.Big {
 	if xs := x.Sign(); xs <= 0 {
 		if xs == 0 {
-			return z.SetMantScale(0, 0)
+			return z.SetMantScale(0, x.Scale()>>1)
 		}
-		z.SetNaN(false)
-		return signal(z,
-			decimal.InvalidOperation,
-			errors.New("math.Sqrt: cannot take square root of negative number"),
-		)
+		// errors.New("math.Sqrt: cannot take square root of negative number"),
+		z.Context.Conditions |= decimal.InvalidOperation
+		return z.SetNaN(false)
 	}
-	if snan := x.IsNaN(true); snan || x.IsNaN(false) {
-		x.SetNaN(snan)
-		return signal(z,
-			decimal.InvalidOperation, decimal.ErrNaN{"square root of NaN"})
+	if z.CheckNaNs(x, nil) {
+		return z
 	}
-	if x.IsInf(1) {
+
+	// Already checked for negative numbers.
+	if x.IsInf(+1) {
 		return z.SetInf(false)
 	}
 
-	zcp := z.Context.Precision()
+	prec := precision(z)
 
 	// Fast path #1: use math.Sqrt if our decimal is small enough. 0 and 22
 	// are implementation details of the Float64 method. If Float64 is altered,
 	// change them.
-	if zcp <= 16 && (x.Scale() >= 0 && x.Scale() < 22) {
-		return z.SetFloat64(math.Sqrt(x.Float64())).Round(zcp)
+	if prec <= 16 && (x.Scale() >= 0 && x.Scale() < 22) {
+		return z.SetFloat64(math.Sqrt(x.Float64()))
 	}
 
 	// Fast path #2: x is a small perfect square.
 	if x.IsInt() && !x.IsBig() {
+		// https://stackoverflow.com/a/295678/2967113
 		switch xc := x.Int64(); xc & 0xF {
 		case 0, 1, 4, 9:
 			// "Show that floating point sqrt(x*x) >= x for all long x."
@@ -72,53 +71,56 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 	//  DOI: https://doi.org/10.1145/214408.214413
 
 	var (
-		xp = int32(x.Precision())
+		xprec = x.Precision()
 
 		// The algorithm requires a normalized ``f ∈ [0.1, 1)'' Of the two ways
 		// to normalize f, adjusting its scale is the quickest. However, it then
 		// requires us to increment approx's scale by e/2 instead of simply
 		// setting it to e/2.
-		f = new(decimal.Big).Copy(x).SetScale(xp)
+		f = decimal.WithContext(x.Context).Copy(x).SetScale(xprec)
+		e = -x.Scale() + xprec
 
-		// It also means we have to adjust e to equal out the sale adjustment.
-		e = xp - x.Scale()
-
-		tmp    decimal.Big
-		approx = alias(z, x)
+		tmp    = decimal.WithContext(decimal.ContextUnlimited)
+		approx = decimal.WithContext(z.Context)
 	)
 
 	if e&1 == 0 {
 		approx.Add(approx1, tmp.Mul(approx2, f)) // approx := .259 + .819f
 	} else {
-		f.Quo(f, ten)                            // f := f/10
+		f.SetScale(f.Scale() + 1)                // f := f/10
 		e++                                      // e := e + 1
 		approx.Add(approx3, tmp.Mul(approx4, f)) // approx := 0.819 + 2.59*f
 	}
 
 	var (
-		maxp       = zcp + 2
-		p    int32 = 3
+		maxp     = prec + 2
+		p    int = 3
 	)
 
-	for p < maxp {
+	for {
 		// p := min(2*p - 2, maxp)
 		if p = 2*p - 2; p > maxp {
 			p = maxp
 		}
 		// precision p
-		tmp.Context.SetPrecision(p)
+		tmp.Context.Precision = p
+		approx.Context.Precision = p
 		// approx := .5*(approx + f/approx)
 		approx.Mul(ptFive, tmp.Add(approx, tmp.Quo(f, approx)))
+		if p == maxp {
+			break
+		}
 	}
 
 	// The paper also specifies an additional code block for adjusting approx.
-	// This code never went into the branches that modified approx, rounding
+	// This code never went into the branches that modified approx, and rounding
 	// to half even does the same thing. The GDA spec requires us to use
 	// rounding mode half even (speleotrove.com/decimal/daops.html#refsqrt)
 	// anyway.
 
-	approx.Context.RoundingMode = decimal.ToNearestEven
-	return z.Set(approx.SetScale(approx.Scale() - e/2).Round(zcp))
+	approx.SetScale(approx.Scale() - e/2)
+	decimal.ToNearestEven.Round(approx, precision(z))
+	return z.Set(approx)
 }
 
 var (
@@ -128,20 +130,3 @@ var (
 	approx4 = decimal.New(259, 2)
 	ptFive  = decimal.New(5, 1)
 )
-
-// perfectSquare algorithm slightly partially borrowed from
-// https://stackoverflow.com/a/295678/2967113
-func perfectSquare(x *decimal.Big) (square int64, ok bool) {
-	if x.IsBig() || !x.IsInt() {
-		return 0, false
-	}
-	switch xc := x.Int64(); xc & 0xF {
-	case 0, 1, 4, 9:
-		// "Show that floating point sqrt(x*x) >= x for all long x."
-		// https://math.stackexchange.com/a/238885/153292
-		tst := int64(math.Sqrt(float64(xc)))
-		return tst, tst*tst == xc
-	default:
-		return 0, false
-	}
-}
