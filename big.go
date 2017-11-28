@@ -226,7 +226,11 @@ func (z *Big) CheckNaNs(x, y *Big) bool {
 }
 
 func (z *Big) checkNaNs(x, y *Big, op Payload) bool {
-	f := (x.form | y.form) & nan
+	var yform form
+	if y != nil {
+		yform = y.form
+	}
+	f := (x.form | yform) & nan
 	if f == 0 {
 		return false
 	}
@@ -727,9 +731,9 @@ func (x *Big) Float64() float64 {
 
 			var f float64
 			if x.exp > 0 && x.exp < maxPow10 {
-				f = float64(x.compact) / math.Pow10(x.exp)
-			} else if x.exp < 0 && x.exp < -maxPow10 {
-				f = float64(x.compact) * math.Pow10(-x.exp)
+				f = float64(x.compact) * math.Pow10(x.exp)
+			} else if x.exp < 0 && x.exp > -maxPow10 {
+				f = float64(x.compact) / math.Pow10(-x.exp)
 			}
 			if x.form&signbit != 0 {
 				math.Copysign(f, -1)
@@ -1598,40 +1602,7 @@ func (z *Big) Round(n int) *Big {
 	if debug {
 		z.validate()
 	}
-
-	if n <= 0 || z.isSpecial() {
-		return z
-	}
-
-	zp := z.Precision()
-	if zp <= n {
-		return z
-	}
-
-	shift := zp - n
-	if shift > MaxScale {
-		return z.xflow(false, true)
-	}
-	z.exp += shift
-
-	z.Context.Conditions |= Rounded
-
-	neg := z.Signbit()
-	if z.isCompact() {
-		if z.compact == 0 {
-			z.precision = int64(n)
-			return z
-		}
-		if val, ok := pow.Ten(uint64(shift)); ok {
-			z.precision = int64(n)
-			return z.quoAndRoundCompact(z.compact, neg, val, false)
-		}
-		z.unscaled.SetUint64(z.compact)
-		z.compact = c.Inflated
-	}
-	z.quoAndRoundBig(&z.unscaled, neg, pow.BigTen(uint64(shift)), false)
-	z.precision = int64(n)
-	return z
+	return z.Context.RoundingMode.Round(z, n)
 }
 
 // Scale returns x's scale.

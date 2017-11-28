@@ -3,7 +3,9 @@ package decimal
 import (
 	"fmt"
 
+	"github.com/ericlagergren/decimal/internal/arith/pow"
 	"github.com/ericlagergren/decimal/internal/buf"
+	"github.com/ericlagergren/decimal/internal/c"
 )
 
 // Precision and scale limits.
@@ -96,6 +98,14 @@ var (
 		OperatingMode: GDA,
 		Traps:         ^(Inexact | Rounded | Subnormal),
 	}
+
+	// ContextUnlimited provides unlimited-precision decimals.
+	ContextUnlimited = Context{
+		Precision:     UnlimitedPrecision,
+		RoundingMode:  ToNearestEven,
+		OperatingMode: GDA,
+		Traps:         ^(Inexact | Rounded | Subnormal),
+	}
 )
 
 // RoundingMode determines how a decimal will be rounded.
@@ -110,6 +120,50 @@ const (
 	ToNegativeInf                     // == IEEE 754-2008 roundTowardNegative
 	ToPositiveInf                     // == IEEE 754-2008 roundTowardPositive
 )
+
+// Round rounds z down to n digits of precision and returns z. The result is
+// undefined if z is not finite. No rounding will occur if n <= 0. The result of
+// Round will always be within the interval [⌊10**x⌋, z] where x = the precision
+// of z.
+func (r RoundingMode) Round(z *Big, n int) *Big {
+	if debug {
+		z.validate()
+	}
+
+	if n <= 0 || z.isSpecial() {
+		return z
+	}
+
+	zp := z.Precision()
+	if zp <= n {
+		return z
+	}
+
+	shift := zp - n
+	if shift > MaxScale {
+		return z.xflow(false, true)
+	}
+	z.exp += shift
+
+	z.Context.Conditions |= Rounded
+
+	neg := z.Signbit()
+	if z.isCompact() {
+		if z.compact == 0 {
+			z.precision = int64(n)
+			return z
+		}
+		if val, ok := pow.Ten(uint64(shift)); ok {
+			z.precision = int64(n)
+			return z.quoAndRoundCompact(z.compact, neg, val, false)
+		}
+		z.unscaled.SetUint64(z.compact)
+		z.compact = c.Inflated
+	}
+	z.quoAndRoundBig(&z.unscaled, neg, pow.BigTen(uint64(shift)), false)
+	z.precision = int64(n)
+	return z
+}
 
 //go:generate stringer -type RoundingMode
 

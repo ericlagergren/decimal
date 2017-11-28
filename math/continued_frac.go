@@ -2,16 +2,14 @@ package math
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/ericlagergren/decimal"
 )
 
-// Term is a specific term in a continued fraction. A and B correspond with
-// the a and b variables of the typical representation of a continued fraction.
-// An example can be seen in the book, "Numerical Recipes in C: The Art of
-// Scientific Computing" (ISBN 0-521-43105-5) in figure 5.2.1 found on page
-// 169.
+// Term is a specific term in a continued fraction. A and B correspond with the
+// a and b variables of the typical representation of a continued fraction. An
+// example can be seen in the book, "Numerical Recipes in C: The Art of
+// Scientific Computing" (ISBN 0-521-43105-5) in figure 5.2.1 on page 169.
 type Term struct {
 	A, B *decimal.Big
 }
@@ -22,35 +20,53 @@ func (t Term) String() string {
 
 // Generator represents a continued fraction.
 type Generator interface {
-	// Next returns the next term in the fraction. For efficiency's sake, the
-	// caller must not modify any of the Term's fields.
-	Next() Term
+	// Next returns true if there are future terms. Every call to Term, even the
+	// first one, must be preceded by a call to Next. In general, Generators
+	// should always return true unless an exceptional condition occurs.
+	Next() bool
+
+	// Term returns the next term in the fraction. The caller must not modify
+	// any of the Term's fields.
+	Term() Term
 }
 
-// Lentzer, if implemented, will allow Generators to provide their own backing
-// storage for the Lentz function. f will be the value returned from Lentz.
+// Lentzer, if implemented, allows Generators to provide their own backing
+// storage for the Lentz function.
 type Lentzer interface {
+	// Lentz provides the backing storage for a Generator.
+	//
+	// C and D should have large enough precision to provide a correct result.
+	// (See note for the  Lentz function.)
+	//
+	// eps should be a sufficiently small decimal, likely 1e-15 or smaller.
+	//
+	// For more information, refer to "Numerical Recipes in C: The Art of
+	// Scientific Computing" (ISBN 0-521-43105-5), pg 171.
 	Lentz() (f, Δ, C, D, eps *decimal.Big)
 }
 
 // lentzer implements the Lentzer interface.
-type lentzer struct{}
+type lentzer struct{ prec int }
 
 func (l lentzer) Lentz() (f, Δ, C, D, eps *decimal.Big) {
-	return new(decimal.Big), // f
-		new(decimal.Big), // Δ
-		new(decimal.Big), // C
-		new(decimal.Big), // D
-		decimal.New(1, 15) // 1e-15
+	f = new(decimal.Big)
+	Δ = new(decimal.Big)
+	C = new(decimal.Big)
+	D = new(decimal.Big)
+	eps = decimal.New(1, l.prec-1)
+
+	C.Context.Precision = l.prec
+	D.Context.Precision = l.prec
+	return f, Δ, C, D, eps
 }
 
-var defaultLentzer = lentzer{}
+var (
+	defaultLentzer = lentzer{}
+	tiny           = decimal.New(10, 60)
+)
 
-var tiny = decimal.New(10, 30)
-
-// Lentz computes the continued fraction provided by the Generator using the
-// modified Lentz algorithm to prec precision. The continued fraction should be
-// represented as such:
+// Lentz sets z to the result of the continued fraction provided by the
+// Generator and returns z. The continued fraction should be represented as such:
 //
 //                          a1
 //     f(x) = b0 + --------------------
@@ -62,19 +78,20 @@ var tiny = decimal.New(10, 30)
 //                           b3 + -----
 //                                  ...
 //
-// If terms need to be subtracted, aN should be negative. To compute a
-// continued fraction without b0, the Generator should be offset and begin with
-// a2, b1 and the return value from Lentz should be divided by a1.
+// Or, equivalently:
 //
-// Lentz will panic after 1<<63 - 2 terms.
-func Lentz(g Generator, prec int32) *decimal.Big {
-	// Lentz differs from other functions whose signatures typically mirror
-	//
-	//     func F(z, x *T) *T
-	//
-	// because it checks to see if the Generator implements the Lentzer
-	// interface, and if so uses f as the backing storage.
-
+//                  a1   a2   a3
+//     f(x) = b0 + ---- ---- ----
+//                  b1 + b2 + b3 + ···
+//
+// If terms need to be subtracted, aN should be negative. To compute a continued
+// fraction without b0, divide the result by a1.
+//
+// Note: the accuracy of the result may be affected by the precision of
+// intermedite results. If larger precision is desired it may be necessary for
+// the Generator to implement the Lentzer interface and set a higher precision
+// for C and D.
+func Lentz(z *decimal.Big, g Generator) *decimal.Big {
 	// We use the modified Lentz algorithm from
 	// "Numerical Recipes in C: The Art of Scientific Computing" (ISBN
 	// 0-521-43105-5), pg 171.
@@ -92,17 +109,20 @@ func Lentz(g Generator, prec int32) *decimal.Big {
 	// 		Set f_j = f{_j-1}∆j.
 	// 		If |∆_j - 1| < eps then exit.
 	//
-	// Instead of comparing Δ to eps, we compare f_j to the f{_j-1} to see if
-	// the two terms have converged.
-	t := g.Next()
 
 	// See if our Generator provides us with backing storage.
 	lz, ok := g.(Lentzer)
 	if !ok {
-		lz = defaultLentzer
+		lz = lentzer{prec: precision(z)}
 	}
 
 	f, Δ, C, D, eps := lz.Lentz()
+
+	if !g.Next() {
+		return f
+	}
+	t := g.Term()
+
 	f.Set(t.B)
 	if f.Sign() == 0 {
 		f.Set(tiny)
@@ -110,9 +130,9 @@ func Lentz(g Generator, prec int32) *decimal.Big {
 	C.Set(f)
 	D.SetMantScale(0, 0)
 
-	// TODO: is there a better cutoff?
-	for i := 0; i < math.MaxInt64; i++ {
-		t = g.Next()
+	//fmt.Println(" = f:", f)
+	for i := 0; g.Next(); i++ {
+		t = g.Term()
 
 		// Set D_j = b_j + a_j*D{_j-1}
 		// Reuse D for the multiplication.
@@ -141,20 +161,35 @@ func Lentz(g Generator, prec int32) *decimal.Big {
 		// Set f_j = f{_j-1}*Δ_j
 		f.Mul(f, Δ)
 
-		fmt.Println(f)
+		// if i%1000 == 0 {
+		// 	fmt.Println(i)
+		// }
+
+		//f0 := new(decimal.Big).Copy(f).Round(prec)
+		//Δ0 := new(decimal.Big).Copy(Δ)
+		//fmt.Println(" = f:", f0)
+		//fmt.Println("Δ1 :", Δ0)
+		//fmt.Printf("Δ2 : %f\n", Δ0.Sub(Δ0, one))
+		//fmt.Printf("eps: %f\n", eps)
+		//fmt.Println()
 
 		// If |Δ_j - 1| < eps then exit
 		if Δ.Sub(Δ, one).Abs(Δ).Cmp(eps) < 0 {
-			fmt.Println("iters", i, f)
-			return f.Round(prec)
+			break
 		}
 
 		//dump(f, Δ, D, C, eps)
 	}
-	panic("Lentz: too many iterations")
+
+	return z.Set(f)
 }
 
 func dump(f, Δ, D, C, eps *decimal.Big) {
-	fmt.Printf("f: %s, Δ: %s, D: %s, C: %s, eps: %s\n",
-		f, Δ, D, C, eps)
+	fmt.Printf(`
+f  : %s
+Δ  : %s
+D  : %s
+C  : %s
+eps: %s
+`, f, Δ, D, C, eps)
 }
