@@ -13,7 +13,7 @@ func TestBigTen(t *testing.T) {
 	errc := make(chan error)
 
 	var wg sync.WaitGroup
-	for i := uint64(0); i < 150; i++ {
+	for i := uint64(0); i < BigTabLen+10; i++ {
 		wg.Add(1)
 		go func(i uint64) {
 			comp := BigTen(i)
