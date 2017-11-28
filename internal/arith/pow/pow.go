@@ -76,6 +76,7 @@ func growBigTen(n uint64) *big.Int {
 	// Look again in case the table was rebuilt before we grabbed the lock.
 	tableLen := uint64(len(tab))
 	if n < tableLen {
+		bigMu.Unlock()
 		return tab[n]
 	}
 
