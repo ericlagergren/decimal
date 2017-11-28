@@ -205,13 +205,12 @@ func TestBig_Cmp(t *testing.T) {
 		r, _, snan := p.cmp()
 
 		rv := x.Cmp(y)
-		bad := rv != r || (snan && (x.Context.Err == nil ||
-			x.Context.Conditions&InvalidOperation == 0))
+		bad := rv != r || (snan && x.Context.Conditions&InvalidOperation == 0)
 		if bad {
 			t.Fatalf(`#%d: %s
 wanted: %d (%s)
-got   : %d (%v:%s)
-`, i+1, c, r, c.Output, rv, x.Context.Err, x.Context.Conditions)
+got   : %d (%s)
+`, i+1, c, r, c.Output, rv, x.Context.Conditions)
 		}
 	}
 }
