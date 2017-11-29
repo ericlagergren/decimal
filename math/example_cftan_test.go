@@ -52,5 +52,5 @@ func ExampleLentz_tan() {
 	x := decimal.New(42, 0)
 
 	fmt.Printf("tan(42) = %s\n", Tan(z, x))
-	// Output: tan(42) = 2.29138799243748
+	// Output: tan(42) = 2.291387992437486
 }

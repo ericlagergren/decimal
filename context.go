@@ -68,6 +68,20 @@ func WithContext(c Context) *Big {
 	return x
 }
 
+// WithPrecision is shorthand to create a Big decimal with a given precision.
+func WithPrecision(p int) *Big {
+	x := new(Big)
+	switch {
+	case p > 0:
+		x.Context.Precision = p
+	case p == 0:
+		x.Context.Precision = DefaultPrecision
+	default:
+		x.Context.Conditions |= InvalidContext
+	}
+	return x
+}
+
 // The following are called ContextXX instead of DecimalXX
 // to reserve the DecimalXX namespace for future decimal types.
 

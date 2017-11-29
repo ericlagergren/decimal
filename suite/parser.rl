@@ -90,6 +90,7 @@ func ParseCase(data []byte) (c Case, err error) {
 			| 'rat'     # ToRat
 			| 'sign'    # Sign
 			| 'signbit' # Signbit
+			| 'exp'     # Exponential function
         ) >mark %set_op; 
         mode = (
               '>'  # ToPositiveInf

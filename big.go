@@ -141,6 +141,8 @@ func (f form) String() string {
 	switch f {
 	case finite:
 		return "finite"
+	case finite | signbit:
+		return "-finite"
 	case snan:
 		return "sNaN"
 	case snan | signbit:
@@ -301,7 +303,6 @@ func (z *Big) Abs(x *Big) *Big {
 	}
 	if !z.checkNaNs(x, x, absvalue) {
 		z.copyAbs(x)
-		z.form = x.form & ^signbit
 	}
 	return z.round()
 }
@@ -683,13 +684,14 @@ func (z *Big) copyAbs(x *Big) *Big {
 	}
 
 	if z != x {
+		z.precision = 0
 		z.compact = x.compact
-		z.form = x.form & ^signbit
 		z.exp = x.exp
 		if x.isInflated() {
 			z.unscaled.Set(&x.unscaled)
 		}
 	}
+	z.form = x.form & ^signbit
 	return z
 }
 
@@ -699,8 +701,10 @@ func (z *Big) CopySign(x, y *Big) *Big {
 		x.validate()
 		y.validate()
 	}
-	z.Set(x)
-	z.form = x.form | (y.form & signbit)
+	// Pre-emptively capture signbit in case z == y.
+	sign := y.form & signbit
+	z.copyAbs(x)
+	z.form |= sign
 	return z
 
 }
@@ -1082,6 +1086,9 @@ func (x *Big) IsInt() bool {
 	if !x.IsFinite() {
 		return false
 	}
+	if x.compact == 0 {
+		return true
+	}
 
 	// 5000, 420
 	if x.exp >= 0 {
@@ -1241,7 +1248,7 @@ func (x *Big) Payload() Payload {
 // undefined if x is not finite.
 func (x *Big) Precision() int {
 	if debug {
-		x.validate()
+		// Do not call validate since validate calls Precision.
 	}
 
 	if !x.IsFinite() {
@@ -1443,11 +1450,7 @@ func (z *Big) quoAndRoundCompact(x uint64, xneg bool, y uint64, yneg bool) *Big 
 
 	if z.needsInc(rc, pos) {
 		z.Context.Conditions |= Rounded
-		if pos {
-			z.compact++
-		} else {
-			z.compact--
-		}
+		z.compact++
 	}
 	return z
 }
@@ -1466,8 +1469,9 @@ func (z *Big) quoCore(
 	xb *big.Int, xc uint64, xn bool, xs, xp int,
 	yb *big.Int, yc uint64, yn bool, ys, yp int,
 ) *Big {
-	z.precision = 0
 	// TODO(eric): re-work the quo methods. I don't like how they're laid out.
+
+	z.precision = 0
 	if xc != c.Inflated {
 		if yc != c.Inflated {
 			return z.quoCoreCompact(xc, xn, xs, xp, yc, yn, ys, yp)
@@ -1518,7 +1522,7 @@ func (z *Big) quoAndRoundBig(x *big.Int, xneg bool, y *big.Int, yneg bool) *Big 
 
 	var rc int
 	rv := r.Uint64()
-	// Drop into integers if we can.
+	// Drop into integers if possible.
 	if arith.IsUint64(r) && arith.IsUint64(y) && rv <= math.MaxUint64/2 {
 		rc = arith.Cmp(rv*2, y.Uint64())
 	} else {
@@ -1527,11 +1531,7 @@ func (z *Big) quoAndRoundBig(x *big.Int, xneg bool, y *big.Int, yneg bool) *Big 
 
 	if z.needsInc(rc, pos) {
 		z.Context.Conditions |= Rounded
-		if pos {
-			arith.Add(q, q, 1)
-		} else {
-			arith.Sub(q, q, 1)
-		}
+		arith.Add(q, q, 1)
 	}
 	return z.norm()
 }
@@ -1599,9 +1599,6 @@ func (z *Big) round() *Big {
 // Round will always be within the interval [⌊10**x⌋, z] where x = the precision
 // of z.
 func (z *Big) Round(n int) *Big {
-	if debug {
-		z.validate()
-	}
 	return z.Context.RoundingMode.Round(z, n)
 }
 
@@ -1623,6 +1620,7 @@ func (z *Big) Set(x *Big) *Big {
 	}
 
 	if z != x {
+		z.precision = 0
 		z.compact = x.compact
 		z.form = x.form
 		z.exp = x.exp
@@ -1963,6 +1961,14 @@ func (x *Big) validate() {
 			}
 			if x.unscaled.Sign() < 0 {
 				panic("x.unscaled.Sign() < 0")
+			}
+			if bl, xp := arith.BigLength(&x.unscaled), x.Precision(); bl != xp {
+				panic(fmt.Sprintf("BigLength (%d) != x.Precision (%d)", bl, xp))
+			}
+		}
+		if x.isCompact() {
+			if bl, xp := arith.Length(x.compact), x.Precision(); bl != xp {
+				panic(fmt.Sprintf("BigLength (%d) != x.Precision (%d)", bl, xp))
 			}
 		}
 	case snan, ssnan, qnan, sqnan, pinf, ninf:
