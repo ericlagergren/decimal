@@ -29,6 +29,8 @@ func (p phiGenerator) Lentz() (f, Δ, C, D, eps *decimal.Big) {
 
 	// Add a little extra precision to C and D so we get an "exact" result after
 	// rounding.
+	f.Context.Precision = p.prec + 1
+	Δ.Context.Precision = p.prec + 1
 	C.Context.Precision = p.prec + 1
 	D.Context.Precision = p.prec + 1
 	return f, Δ, C, D, eps
@@ -36,7 +38,11 @@ func (p phiGenerator) Lentz() (f, Δ, C, D, eps *decimal.Big) {
 
 // Phi sets z to the golden ratio, φ, and returns z.
 func Phi(z *decimal.Big) *decimal.Big {
-	g := phiGenerator{prec: z.Context.Precision}
+	p := z.Context.Precision
+	if p == 0 {
+		p = decimal.DefaultPrecision
+	}
+	g := phiGenerator{prec: p}
 	return math.Lentz(z, g)
 }
 

@@ -2,11 +2,12 @@ package math
 
 import (
 	"github.com/ericlagergren/decimal"
+	"github.com/ericlagergren/decimal/misc"
 )
 
 // expg is a Generator that computes exp(z).
 type expg struct {
-	recv *decimal.Big // Receiver in Exp, can be nil.
+	prec int          // Precision
 	z    *decimal.Big // Input value
 	pow  *decimal.Big // z*z
 	m    int64        // Term number
@@ -18,14 +19,11 @@ var P int = 16
 func (e *expg) Next() bool { return true }
 
 func (e *expg) Lentz() (f, Δ, C, D, eps *decimal.Big) {
-	f = e.recv
-	Δ = new(decimal.Big)
-	C = new(decimal.Big)
-	D = new(decimal.Big)
-	eps = decimal.New(1, precision(e.recv))
-
-	C.Context.Precision = 500
-	D.Context.Precision = 500
+	f = decimal.WithPrecision(500)
+	Δ = decimal.WithPrecision(500)
+	C = decimal.WithPrecision(500)
+	D = decimal.WithPrecision(500)
+	eps = decimal.New(1, e.prec)
 	return
 }
 
@@ -90,8 +88,9 @@ func (e *expg) Term() Term {
 	default:
 		// maxM is the largest m value we can use to compute 4(2m - 3)(2m - 1)
 		// using integers.
-		// 4(2m - 3)(2m - 1) ≡ 16(m - 1)^2 - 4
 		const maxM = 759250125
+
+		// 4(2m - 3)(2m - 1) ≡ 16(m - 1)^2 - 4
 		if e.m <= maxM {
 			e.t.A.SetMantScale(16*((e.m-1)*(e.m-1))-4, 0)
 		} else {
@@ -99,10 +98,9 @@ func (e *expg) Term() Term {
 
 			// (m-1)^2
 			e.t.A.Mul(e.t.A, e.t.A)
-			// 16 * (m-1)^2
-			e.t.A.Mul(sixteen, e.t.A)
-			// 16 * (m-1)^2 - 4
-			e.t.A.Sub(e.t.A, four)
+
+			// 16 * (m-1)^2 - 4 = 16 * (m-1)^2 + (-4)
+			e.t.A.FMA(sixteen, e.t.A, negfour)
 		}
 
 		// 1 / (16 * (m-1)^2 - 4)
@@ -120,8 +118,8 @@ func (e *expg) Term() Term {
 
 // Exp sets z to e ** x and returns z.
 func Exp(z, x *decimal.Big) *decimal.Big {
-	// TODO: "pestle_: eric_lagergren, that is, exp(z+z0) = exp(z)*exp(z0) and
-	//                 exp(z) ~ 1+z for small enough z"
+	// TODO(eric): "pestle_: eric_lagergren, that is, exp(z+z0) = exp(z)*exp(z0)
+	// 						 and exp(z) ~ 1+z for small enough z"
 
 	if z.CheckNaNs(x, nil) {
 		return z
@@ -129,27 +127,27 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 
 	if x.IsInf(0) {
 		// e ** +Inf = +Inf
-		// e ** -Inf = 0
 		if x.IsInf(+1) {
 			return z.SetInf(true)
 		}
+		// e ** -Inf = 0
 		return z.SetMantScale(0, 0)
 	}
 
-	switch x.Sign() {
-	case 0:
-		// e ** 0 = 1
-		return z.SetMantScale(1, 0)
-	case -1:
-		// 1 / (e ** -x)
-		return z.Quo(one, Exp(z, z.Neg(x)))
+	if x.Signbit() {
+		// e ** -x = 1 / (e ** x)
+		return z.Quo(one, Exp(z, misc.CopyAbs(z, x)))
 	}
 
 	if x.IsInt() {
-		switch x.Int64() {
+		switch x.Uint64() {
+		case 0:
+			// e ** 0 = 1
+			return z.SetMantScale(1, 0)
 		case 1:
 			// e ** 1 = e
 			return E(z)
+		// TODO(eric): should we handle case 3?
 		case 2:
 			// e ** 2 = e * e
 			e := E(z)
@@ -157,15 +155,17 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 		}
 	}
 
-	// TODO: this allocates a bit. Try and reduce some allocs.
-
-	t := Term{A: new(decimal.Big), B: new(decimal.Big)}
-	t.A.Context.Precision = 500
+	t := Term{
+		A: decimal.WithPrecision(500),
+		B: decimal.WithPrecision(500),
+	}
 	g := expg{
-		recv: alias(z, x),
+		prec: precision(z),
 		z:    x,
-		pow:  new(decimal.Big).Mul(x, x),
+		pow:  decimal.WithPrecision(decimal.UnlimitedPrecision).Mul(x, x),
 		t:    t,
 	}
 	return Lentz(z, &g)
 }
+
+var _ Lentzer = (*expg)(nil)

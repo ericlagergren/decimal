@@ -20,9 +20,9 @@ func (t Term) String() string {
 
 // Generator represents a continued fraction.
 type Generator interface {
-	// Next returns true if there are future terms. Every call to Term, even the
-	// first one, must be preceded by a call to Next. In general, Generators
-	// should always return true unless an exceptional condition occurs.
+	// Next returns true if there are future terms. Every call to Term—even the
+	// first—must be preceded by a call to Next. In general, Generators should
+	// always return true unless an exceptional condition occurs.
 	Next() bool
 
 	// Term returns the next term in the fraction. The caller must not modify
@@ -35,8 +35,8 @@ type Generator interface {
 type Lentzer interface {
 	// Lentz provides the backing storage for a Generator.
 	//
-	// C and D should have large enough precision to provide a correct result.
-	// (See note for the  Lentz function.)
+	// f, Δ, C, and D should have large enough precision to provide a correct
+	// result. (See note for the Lentz function.)
 	//
 	// eps should be a sufficiently small decimal, likely 1e-15 or smaller.
 	//
@@ -55,15 +55,14 @@ func (l lentzer) Lentz() (f, Δ, C, D, eps *decimal.Big) {
 	D = new(decimal.Big)
 	eps = decimal.New(1, l.prec-1)
 
+	f.Context.Precision = l.prec
+	Δ.Context.Precision = l.prec
 	C.Context.Precision = l.prec
 	D.Context.Precision = l.prec
 	return f, Δ, C, D, eps
 }
 
-var (
-	defaultLentzer = lentzer{}
-	tiny           = decimal.New(10, 60)
-)
+var tiny = decimal.New(10, 60)
 
 // Lentz sets z to the result of the continued fraction provided by the
 // Generator and returns z. The continued fraction should be represented as such:
@@ -90,7 +89,7 @@ var (
 // Note: the accuracy of the result may be affected by the precision of
 // intermedite results. If larger precision is desired it may be necessary for
 // the Generator to implement the Lentzer interface and set a higher precision
-// for C and D.
+// for f, Δ, C, and D.
 func Lentz(z *decimal.Big, g Generator) *decimal.Big {
 	// We use the modified Lentz algorithm from
 	// "Numerical Recipes in C: The Art of Scientific Computing" (ISBN
@@ -110,77 +109,94 @@ func Lentz(z *decimal.Big, g Generator) *decimal.Big {
 	// 		If |∆_j - 1| < eps then exit.
 	//
 
+	if !g.Next() {
+		return z
+	}
+
 	// See if our Generator provides us with backing storage.
 	lz, ok := g.(Lentzer)
 	if !ok {
-		lz = lentzer{prec: precision(z)}
+		// TODO(eric): what is a sensible default precision?
+		lz = lentzer{prec: precision(z) + 5}
 	}
-
 	f, Δ, C, D, eps := lz.Lentz()
 
-	if !g.Next() {
-		return f
-	}
 	t := g.Term()
+	//fmt.Println(t)
 
-	f.Set(t.B)
-	if f.Sign() == 0 {
-		f.Set(tiny)
+	if t.B.Sign() != 0 {
+		f.Copy(t.B)
+	} else {
+		f.Copy(tiny)
 	}
-	C.Set(f)
+	C.Copy(f)
 	D.SetMantScale(0, 0)
 
 	//fmt.Println(" = f:", f)
 	for i := 0; g.Next(); i++ {
 		t = g.Term()
+		//fmt.Println(t)
 
 		// Set D_j = b_j + a_j*D{_j-1}
 		// Reuse D for the multiplication.
-		D.Add(t.B, D.Mul(t.A, D))
+		D.FMA(t.A, D, t.B) // D.Add(t.B, D.Mul(t.A, D))
+
+		//fmt.Println("d =", D)
 
 		// If D_j = 0, set D_j = tiny
 		if D.Sign() == 0 {
-			D.Set(tiny)
+			D.Copy(tiny)
 		}
 
 		// Set C_j = b_j + a_j/C{_j-1}
 		// Reuse C for the division.
 		C.Add(t.B, C.Quo(t.A, C))
 
+		//fmt.Println("c =", C)
+
 		// If C_j = 0, set C_j = tiny
 		if C.Sign() == 0 {
-			C.Set(tiny)
+			C.Copy(tiny)
 		}
 
 		// Set D_j = 1/D_j
 		D.Quo(one, D)
 
+		//fmt.Println("dq =", D)
+
 		// Set Δ_j = C_j*D_j
 		Δ.Mul(C, D)
 
+		//fmt.Println("Δ =", Δ)
+
 		// Set f_j = f{_j-1}*Δ_j
 		f.Mul(f, Δ)
+
+		//fmt.Println("f =", f)
 
 		// if i%1000 == 0 {
 		// 	fmt.Println(i)
 		// }
 
-		//f0 := new(decimal.Big).Copy(f).Round(prec)
-		//Δ0 := new(decimal.Big).Copy(Δ)
-		//fmt.Println(" = f:", f0)
-		//fmt.Println("Δ1 :", Δ0)
-		//fmt.Printf("Δ2 : %f\n", Δ0.Sub(Δ0, one))
-		//fmt.Printf("eps: %f\n", eps)
-		//fmt.Println()
+		/*
+			f0 := new(decimal.Big).Copy(f)
+			Δ0 := new(decimal.Big).Copy(Δ)
+			fmt.Println(" = f:", f0)
+			fmt.Println("Δ1 :", Δ0)
+			fmt.Printf("Δ2 : %f\n", Δ0.Sub(Δ0, one))
+			fmt.Printf("eps: %f\n", eps)
+			fmt.Println()
+		*/
 
 		// If |Δ_j - 1| < eps then exit
-		if Δ.Sub(Δ, one).Abs(Δ).Cmp(eps) < 0 {
+		if Δ.Sub(Δ, one).CmpAbs(eps) < 0 {
+			//fmt.Println(Δ)
+			//fmt.Println(eps)
 			break
 		}
 
 		//dump(f, Δ, D, C, eps)
 	}
-
 	return z.Set(f)
 }
 

@@ -2,8 +2,6 @@
 // "Floating-Point Test-Suite for IEEE"
 package suite
 
-//go:generate go run getcases.go
-
 import (
 	"bufio"
 	"fmt"
@@ -292,6 +290,7 @@ const (
 	Rat
 	Sign
 	Signbit
+	Exp
 )
 
 const maxOpLen = 6
@@ -342,6 +341,7 @@ var valToOp = map[string]Op{
 	"rat":     Rat,
 	"sign":    Sign,
 	"signbit": Signbit,
+	"exp":     Exp,
 }
 
 //go:generate stringer -type=Op

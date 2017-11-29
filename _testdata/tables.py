@@ -12,16 +12,17 @@ ops = {
     "-": "subtraction",
     "/": "division",
     "qC": "comparison",
-    "quant": "quantize",
-    "A": "abs",
+    "quant": "quantization",
+    "A": "absolute-value",
     "cfd": "convert-to-string",
-    "~": "neg",
+    "~": "negation",
     "*-": "fused-multiply-add",
 
     # Custom
     "rat": "convert-to-rat",
     "sign": "sign",
     "signbit": "signbit",
+    "exp": "exponential-function",
 }
 
 modes = {
@@ -41,17 +42,18 @@ def rand_bool():
 
 
 def make_dec():
-    sign = "+" if rand_bool() else "-"
     if rand_bool():
         f = random.uniform(1, sys.float_info.max)
     else:
-        f = random.getrandbits(5000)
+        f = random.getrandbits(54321)
 
     r = random.randint(0, 25)
     if r == 0:
         f = math.nan
     elif r == 1:
         f = math.inf
+
+    sign = "+" if rand_bool() else "-"
     return decimal.Decimal("{}{}".format(sign, f))
 
 
@@ -171,6 +173,8 @@ def perform_op(op):
             r = x.is_signed()
         elif op == "~":
             r = -x
+        elif op == "exp":
+            r = x.exp()
 
         # Ternary
         elif op == "*-":
@@ -211,7 +215,7 @@ def rand_traps():
     return (t, s)
 
     # set N higher for local testing.
-N = 1000
+N = 100
 
 
 def make_tables():

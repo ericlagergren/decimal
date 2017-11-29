@@ -17,7 +17,7 @@ const (
 	// Radix is the base in which decimal arithmetic is effected.
 	Radix = 10
 
-	// IsCanonical is true since we always normalize our Big decimals.
+	// IsCanonical is true since Big decimals are always normalized.
 	IsCanonical = true
 )
 
@@ -25,7 +25,7 @@ const (
 // canonical, it's identical to Copy.
 func Canonical(z, x *decimal.Big) *decimal.Big { return z.Copy(x) }
 
-// TODO(eric): these...
+// TODO(eric): do these...
 //
 // And sets z to the digit-wise logical ``and'' of x and y and returns z.
 // func And(z, x, y *Big) *Big
@@ -79,7 +79,6 @@ func CmpTotal(x, y *decimal.Big) int {
 func CmpTotalAbs(x, y *decimal.Big) int {
 	xs := ord(x, true)
 	ys := ord(y, true)
-
 	if xs != ys {
 		if xs > ys {
 			return +1
@@ -92,25 +91,17 @@ func CmpTotalAbs(x, y *decimal.Big) int {
 	return x.CmpAbs(y)
 }
 
-// CopyAbs is like Abs but no flags are changed (i.e., NaN values are accepted).
+// CopyAbs is like Abs, but no flags are changed and the result is not rounded.
 func CopyAbs(z, x *decimal.Big) *decimal.Big {
-	if x.IsNaN(0) {
-		z.CopySign(x, pos)
-	} else {
-		z.Abs(x)
-	}
-	return z
+	return z.CopySign(x, pos)
 }
 
-// CopyNegate is like Neg but no flags are changed (i.e., NaN values are
-// negated.)
-func CopyNegate(z, x *decimal.Big) *decimal.Big {
-	if x.IsNaN(0) {
-		z.CopySign(x, neg)
-	} else {
-		z.Neg(x)
+// CopyNeg is like Neg, but no flags are changed and the result is not rounded.
+func CopyNeg(z, x *decimal.Big) *decimal.Big {
+	if x.Signbit() {
+		return z.CopySign(x, pos)
 	}
-	return z
+	return z.CopySign(x, neg)
 }
 
 // Max returns the greater of the provided values. The result is undefined if no
@@ -180,15 +171,17 @@ func ord(x *decimal.Big, abs bool) (r int) {
 	return r
 }
 
-func precision(x *decimal.Big) int {
-	p := x.Context.Precision
+func precision(z *decimal.Big) int {
+	p := z.Context.Precision
+	if p > 0 {
+		return p
+	}
 	if p == 0 {
-		return decimal.DefaultPrecision
+		z.Context.Precision = decimal.DefaultPrecision
+	} else {
+		z.Context.Conditions |= decimal.InvalidContext
 	}
-	if p < 0 && p != decimal.UnlimitedPrecision {
-		p = -p
-	}
-	return p
+	return decimal.DefaultPrecision
 }
 
 // SameQuantum returns true if x and y have the same exponent (scale).
@@ -202,15 +195,6 @@ func SameQuantum(x, y *decimal.Big) bool { return x.Scale() == y.Scale() }
 func Shift(z, x *decimal.Big, shift int) *decimal.Big {
 	// TODO(eric): allow shifts with a negative scale?
 
-	if x.Scale() != 0 {
-		// "shift with a non-zero scale"
-		z.Context.Conditions |= decimal.InvalidOperation
-	}
-
-	if shift == 0 {
-		return z.Set(x) // no shift
-	}
-
 	if !x.IsFinite() {
 		if z.CheckNaNs(x, nil) {
 			return z
@@ -221,10 +205,21 @@ func Shift(z, x *decimal.Big, shift int) *decimal.Big {
 		return z.SetMantScale(0, 0) // zero
 	}
 
+	if x.Scale() != 0 {
+		// "shift with a non-zero scale"
+		z.Context.Conditions |= decimal.InvalidOperation
+		return z.SetNaN(false)
+	}
+
+	if shift == 0 {
+		return z.Set(x) // no shift
+	}
+
 	zp := precision(z)
 	if zp == decimal.UnlimitedPrecision {
 		return z.SetMantScale(0, 0) // undefined
 	}
+
 	if arith.Abs(int64(shift)) >= uint64(zp) {
 		return z.SetMantScale(0, 0) // zero-filled shift is too large
 	}
