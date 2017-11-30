@@ -184,9 +184,7 @@ def perform_op(op):
         else:
             raise ValueError("bad op {}".format(op))
     except Exception as e:
-        if op == "quant":
-            raise e
-        pass
+        raise e
 
     return (r, x, y, z0)
 

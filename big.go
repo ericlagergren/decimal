@@ -959,7 +959,7 @@ func (x *Big) IsBig() bool {
 	}
 
 	if x.isCompact() {
-		if x.exp == 0 {
+		if x.exp == 0 || x.compact == 0 {
 			return false
 		}
 		_, ok := scalex(x.compact, x.exp)
@@ -1495,6 +1495,7 @@ func (z *Big) quoAndRoundBig(x *big.Int, xneg bool, y *big.Int, yneg bool) *Big 
 
 	// q == z.unscaled, but it's easier to type q.
 	q, r := z.unscaled.QuoRem(x, y, new(big.Int))
+	//fmt.Println(q, r)
 	if r.Sign() == 0 {
 		return z.norm()
 	}

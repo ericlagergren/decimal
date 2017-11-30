@@ -34,3 +34,5 @@ func precision(z *decimal.Big) (p int) {
 	}
 	return decimal.DefaultPrecision
 }
+
+func etiny(z *decimal.Big) int { return decimal.MinScale - (precision(z) - 1) }

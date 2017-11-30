@@ -122,7 +122,6 @@ func Lentz(z *decimal.Big, g Generator) *decimal.Big {
 	f, Δ, C, D, eps := lz.Lentz()
 
 	t := g.Term()
-	//fmt.Println(t)
 
 	if t.B.Sign() != 0 {
 		f.Copy(t.B)
@@ -132,16 +131,12 @@ func Lentz(z *decimal.Big, g Generator) *decimal.Big {
 	C.Copy(f)
 	D.SetMantScale(0, 0)
 
-	//fmt.Println(" = f:", f)
 	for i := 0; g.Next(); i++ {
 		t = g.Term()
-		//fmt.Println(t)
 
 		// Set D_j = b_j + a_j*D{_j-1}
 		// Reuse D for the multiplication.
 		D.FMA(t.A, D, t.B) // D.Add(t.B, D.Mul(t.A, D))
-
-		//fmt.Println("d =", D)
 
 		// If D_j = 0, set D_j = tiny
 		if D.Sign() == 0 {
@@ -152,8 +147,6 @@ func Lentz(z *decimal.Big, g Generator) *decimal.Big {
 		// Reuse C for the division.
 		C.Add(t.B, C.Quo(t.A, C))
 
-		//fmt.Println("c =", C)
-
 		// If C_j = 0, set C_j = tiny
 		if C.Sign() == 0 {
 			C.Copy(tiny)
@@ -162,40 +155,16 @@ func Lentz(z *decimal.Big, g Generator) *decimal.Big {
 		// Set D_j = 1/D_j
 		D.Quo(one, D)
 
-		//fmt.Println("dq =", D)
-
 		// Set Δ_j = C_j*D_j
 		Δ.Mul(C, D)
-
-		//fmt.Println("Δ =", Δ)
 
 		// Set f_j = f{_j-1}*Δ_j
 		f.Mul(f, Δ)
 
-		//fmt.Println("f =", f)
-
-		// if i%1000 == 0 {
-		// 	fmt.Println(i)
-		// }
-
-		/*
-			f0 := new(decimal.Big).Copy(f)
-			Δ0 := new(decimal.Big).Copy(Δ)
-			fmt.Println(" = f:", f0)
-			fmt.Println("Δ1 :", Δ0)
-			fmt.Printf("Δ2 : %f\n", Δ0.Sub(Δ0, one))
-			fmt.Printf("eps: %f\n", eps)
-			fmt.Println()
-		*/
-
 		// If |Δ_j - 1| < eps then exit
 		if Δ.Sub(Δ, one).CmpAbs(eps) < 0 {
-			//fmt.Println(Δ)
-			//fmt.Println(eps)
 			break
 		}
-
-		//dump(f, Δ, D, C, eps)
 	}
 	return z.Set(f)
 }
