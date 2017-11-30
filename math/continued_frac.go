@@ -45,6 +45,12 @@ type Lentzer interface {
 	Lentz() (f, Δ, C, D, eps *decimal.Big)
 }
 
+// specialRounder is a private interface our package Generators implement so
+// we can properly round with a rounding mode that differ's from z's.
+type specialRounder interface {
+	mode() decimal.RoundingMode
+}
+
 // lentzer implements the Lentzer interface.
 type lentzer struct{ prec int }
 
@@ -165,6 +171,9 @@ func Lentz(z *decimal.Big, g Generator) *decimal.Big {
 		if Δ.Sub(Δ, one).CmpAbs(eps) < 0 {
 			break
 		}
+	}
+	if sr, ok := g.(specialRounder); ok {
+		sr.mode().Round(z, precision(z))
 	}
 	return z.Set(f)
 }

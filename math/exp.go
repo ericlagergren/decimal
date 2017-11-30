@@ -13,6 +13,8 @@ type expg struct {
 	t    Term         // Term storage. Does not need to be manually set.
 }
 
+func (e *expg) specialRounder() decimal.RoundingMode { return decimal.ToNearestEven }
+
 func (e *expg) Next() bool { return true }
 
 func (e *expg) Lentz() (f, Δ, C, D, eps *decimal.Big) {
@@ -180,14 +182,6 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 		return z.SetMantScale(1, 0).Quantize(prec - 1)
 	}
 
-	// GDA spec requires Exp be computed with ToNearestEven. Ideally, we
-	// wouldn't have to edit a Context at all. However, it's necessary since
-	// we do not have any methods like Add(x, y, *Big, ctx, Context). Since z
-	// is the reciever we have full access to it, so it shouldn't pose any
-	// problems.
-	old := z.Context.RoundingMode
-	z.Context.RoundingMode = decimal.ToNearestEven
-
 	if x.IsInt() && !x.IsBig() {
 		switch x.Uint64() {
 		case 1:
@@ -211,7 +205,6 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 		},
 	}
 	Lentz(z, &g)
-	z.Context.RoundingMode = old
 	return z
 }
 
