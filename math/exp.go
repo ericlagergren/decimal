@@ -2,7 +2,6 @@ package math
 
 import (
 	"github.com/ericlagergren/decimal"
-	"github.com/ericlagergren/decimal/misc"
 )
 
 // expg is a Generator that computes exp(z).
@@ -14,15 +13,13 @@ type expg struct {
 	t    Term         // Term storage. Does not need to be manually set.
 }
 
-var P int = 16
-
 func (e *expg) Next() bool { return true }
 
 func (e *expg) Lentz() (f, Δ, C, D, eps *decimal.Big) {
-	f = decimal.WithPrecision(500)
-	Δ = decimal.WithPrecision(500)
-	C = decimal.WithPrecision(500)
-	D = decimal.WithPrecision(500)
+	f = decimal.WithPrecision(e.prec)
+	Δ = decimal.WithPrecision(e.prec)
+	C = decimal.WithPrecision(e.prec)
+	D = decimal.WithPrecision(e.prec)
 	eps = decimal.New(1, e.prec)
 	return
 }
@@ -128,26 +125,74 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 	if x.IsInf(0) {
 		// e ** +Inf = +Inf
 		if x.IsInf(+1) {
-			return z.SetInf(true)
+			return z.SetInf(false)
 		}
 		// e ** -Inf = 0
 		return z.SetMantScale(0, 0)
 	}
 
-	if x.Signbit() {
-		// e ** -x = 1 / (e ** x)
-		return z.Quo(one, Exp(z, misc.CopyAbs(z, x)))
+	if x.Sign() == 0 {
+		// e ** 0 = 1
+		return z.SetMantScale(1, 0)
 	}
 
-	if x.IsInt() {
+	// The algorithm behind this section is taken from libmpdec, which uses an
+	// algorithm from Hull & Abraham, Variable Precision Exponential Function,
+	// ACM Transactions on Mathematical Software, Vol. 12, No. 2, June 1986.
+	// The comment explaining the algorithm in its original  format:
+	/*
+	 * We are calculating e^x = e^(r*10^t) = (e^r)^(10^t), where abs(r) < 1 and t >=
+	 * 0.
+	 *
+	 * If t > 0, we have:
+	 *
+	 *   (1) 0.1 <= r < 1, so e^0.1 <= e^r. If t > MAX_T, overflow occurs:
+	 *
+	 *     MAX-EMAX+1 < log10(e^(0.1*10*t)) <= log10(e^(r*10^t)) <
+	 * adjexp(e^(r*10^t))+1
+	 *
+	 *   (2) -1 < r <= -0.1, so e^r <= e^-0.1. If t > MAX_T, underflow occurs:
+	 *
+	 *     adjexp(e^(r*10^t)) <= log10(e^(r*10^t)) <= log10(e^(-0.1*10^t)) <
+	 * MIN-ETINY
+	 */
+	t := x.Precision() - x.Scale()
+	const expMax = 19
+	if t > expMax {
+		if x.Signbit() {
+			z.Context.Conditions |= decimal.Subnormal |
+				decimal.Underflow |
+				decimal.Clamped |
+				decimal.Inexact |
+				decimal.Rounded
+			return z.SetMantScale(0, -etiny(z))
+		}
+		z.Context.Conditions |= decimal.Overflow | decimal.Inexact | decimal.Rounded
+		return z.SetInf(false)
+	}
+
+	prec := precision(z)
+
+	// |x| <= 9 * 10 ** -(prec + 1)
+	lim := alias(z, x).SetMantScale(9, prec-1)
+	if x.CmpAbs(lim) <= 0 {
+		z.Context.Conditions |= decimal.Rounded | decimal.Inexact
+		return z.SetMantScale(1, 0).Quantize(prec - 1)
+	}
+
+	// GDA spec requires Exp be computed with ToNearestEven. Ideally, we
+	// wouldn't have to edit a Context at all. However, it's necessary since
+	// we do not have any methods like Add(x, y, *Big, ctx, Context). Since z
+	// is the reciever we have full access to it, so it shouldn't pose any
+	// problems.
+	old := z.Context.RoundingMode
+	z.Context.RoundingMode = decimal.ToNearestEven
+
+	if x.IsInt() && !x.IsBig() {
 		switch x.Uint64() {
-		case 0:
-			// e ** 0 = 1
-			return z.SetMantScale(1, 0)
 		case 1:
 			// e ** 1 = e
 			return E(z)
-		// TODO(eric): should we handle case 3?
 		case 2:
 			// e ** 2 = e * e
 			e := E(z)
@@ -155,17 +200,19 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 		}
 	}
 
-	t := Term{
-		A: decimal.WithPrecision(500),
-		B: decimal.WithPrecision(500),
-	}
+	prec *= 2
 	g := expg{
-		prec: precision(z),
+		prec: prec,
 		z:    x,
 		pow:  decimal.WithPrecision(decimal.UnlimitedPrecision).Mul(x, x),
-		t:    t,
+		t: Term{
+			A: decimal.WithPrecision(prec),
+			B: decimal.WithPrecision(prec),
+		},
 	}
-	return Lentz(z, &g)
+	Lentz(z, &g)
+	z.Context.RoundingMode = old
+	return z
 }
 
 var _ Lentzer = (*expg)(nil)
