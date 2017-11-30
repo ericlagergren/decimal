@@ -56,7 +56,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync/atomic"
 
 	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/arith/checked"
@@ -81,10 +80,6 @@ import (
 // Additionally, each Big value has a contextual object which governs arithmetic
 // operations.
 type Big struct {
-	// precision is a cached call to Precision. It's used first to ensure it's
-	// 64-bit aligned.
-	precision int64
-
 	// Context is the decimal's unique contextual object.
 	Context Context
 
@@ -104,6 +99,9 @@ type Big struct {
 	// form indicates whether a decimal is a finite number, an infinity, or a
 	// NaN value and whether it's signed or not.
 	form form
+
+	// precision is the current precision.
+	precision int
 }
 
 // form indicates whether a decimal is a finite number, an infinity, or a nan
@@ -291,10 +289,8 @@ func (x *Big) isInflated() bool { return !x.isCompact() }
 func (x *Big) isSpecial() bool  { return x.form&(inf|nan) != 0 }
 
 func (x *Big) adjusted() int { return (x.exp + x.Precision()) - 1 }
-func (x *Big) emax() int     { return MaxScale - (x.Precision() - 1) }
-func (x *Big) emin() int     { return MinScale - (x.Precision() - 1) }
-func (z *Big) etiny() int    { return z.emin() - (precision(z) - 1) }
-func (z *Big) etop() int     { return z.emax() - (precision(z) - 1) }
+func (z *Big) etiny() int    { return MinScale - (precision(z) - 1) }
+func (z *Big) etop() int     { return MaxScale - (precision(z) - 1) }
 
 // Abs sets z to the absolute value of x and returns z.
 func (z *Big) Abs(x *Big) *Big {
@@ -320,7 +316,6 @@ func (z *Big) Add(x, y *Big) *Big {
 		if neg {
 			z.form |= signbit
 		}
-		z.precision = 0
 		return z.norm().round()
 	}
 
@@ -684,7 +679,7 @@ func (z *Big) copyAbs(x *Big) *Big {
 	}
 
 	if z != x {
-		z.precision = 0
+		z.precision = x.precision
 		z.compact = x.compact
 		z.exp = x.exp
 		if x.isInflated() {
@@ -891,12 +886,12 @@ func (x *Big) Format(s fmt.State, c rune) {
 		// even though it's declared inside a function. Go thinks it's recursive.
 		// At least the fields are checked at compile time.
 		type Big struct {
-			precision int64
 			Context   Context
 			unscaled  big.Int
 			compact   uint64
 			exp       int
 			form      form
+			precision int
 		}
 		specs := ""
 		if dash {
@@ -1052,12 +1047,12 @@ func (x *Big) IsFinite() bool { return x.form & ^signbit == 0 }
 
 // IsNormal returns true if x is normal.
 func (x *Big) IsNormal() bool {
-	return x.IsFinite() && x.adjusted() >= x.emin()
+	return x.IsFinite() && x.adjusted() >= MinScale
 }
 
 // IsSubnormal returns true if x is subnormal.
 func (x *Big) IsSubnormal() bool {
-	return x.IsFinite() && x.adjusted() < x.emin()
+	return x.IsFinite() && x.adjusted() < MinScale
 }
 
 // IsInf returns true if x is an infinity according to sign.
@@ -1178,7 +1173,6 @@ func (z *Big) mul(x, y *Big, fma bool) *Big {
 
 		z.form = finite | sign
 		z.exp = x.exp + y.exp
-		z.precision = 0
 		z.norm()
 		if !fma {
 			z.round()
@@ -1217,7 +1211,9 @@ func (z *Big) Neg(x *Big) *Big {
 
 	if !z.checkNaNs(x, x, negation) {
 		z.copyAbs(x)
-		z.form = x.form ^ signbit
+		if !z.IsFinite() || z.compact != 0 || z.Context.RoundingMode == ToNegativeInf {
+			z.form = x.form ^ signbit
+		}
 	}
 	return z.round()
 }
@@ -1235,7 +1231,7 @@ func New(value int64, scale int) *Big {
 }
 
 // Payload returns the payload of x, provided x is a NaN value. If x is not a
-// NaN value the result is undefined.
+// NaN value, the result is undefined.
 func (x *Big) Payload() Payload {
 	if !x.IsNaN(0) {
 		return 0
@@ -1247,25 +1243,11 @@ func (x *Big) Payload() Payload {
 // digits in the unscaled form of x. x == 0 has a precision of 1. The result is
 // undefined if x is not finite.
 func (x *Big) Precision() int {
-	if debug {
-		// Do not call validate since validate calls Precision.
-	}
-
+	// Do not call validate since validate calls Precision.
 	if !x.IsFinite() {
 		return 0
 	}
-	// Must use atomics here since this method is technically not supposed to
-	// modify x.
-	p := atomic.LoadInt64(&x.precision)
-	if p == 0 {
-		if x.isCompact() {
-			p = int64(arith.Length(x.compact))
-		} else {
-			p = int64(arith.BigLength(&x.unscaled))
-		}
-		atomic.StoreInt64(&x.precision, p)
-	}
-	return int(p)
+	return x.precision
 }
 
 // Quantize sets z to the number equal in value and sign to z with the scale, n.
@@ -1283,7 +1265,7 @@ func (z *Big) Quantize(n int) *Big {
 		return z
 	}
 
-	if n > z.emax() || n < z.etiny() {
+	if n > MaxScale || n < z.etiny() {
 		return z.setNaN(InvalidOperation, qnan, quantminmax)
 	}
 
@@ -1306,12 +1288,11 @@ func (z *Big) Quantize(n int) *Big {
 		if shift > 0 {
 			if zc, ok := checked.MulPow10(z.compact, uint64(shift)); ok {
 				z.compact = zc
-				z.precision = 0
+				z.precision = arith.Length(zc)
 				return z
 			}
 			// shift < 0
 		} else if yc, ok := pow.Ten(uint64(-shift)); ok {
-			z.precision = 0
 			return z.quoAndRoundCompact(z.compact, neg, yc, false)
 		}
 		z.unscaled.SetUint64(z.compact)
@@ -1320,11 +1301,10 @@ func (z *Big) Quantize(n int) *Big {
 
 	if shift > 0 {
 		_ = checked.MulBigPow10(&z.unscaled, &z.unscaled, uint64(shift))
-		z.precision = 0
+		z.precision = arith.BigLength(&z.unscaled)
 		return z
 	}
 	z.quoAndRoundBig(&z.unscaled, neg, pow.BigTen(uint64(-shift)), false)
-	z.precision = 0
 	return z
 }
 
@@ -1352,6 +1332,7 @@ func (z *Big) Quo(x, y *Big) *Big {
 			z.exp = x.exp - y.exp
 			z.compact = 0
 			z.form = finite | sign
+			z.precision = 1
 			return z.test()
 		}
 
@@ -1360,7 +1341,6 @@ func (z *Big) Quo(x, y *Big) *Big {
 		} else {
 			z.quo(x, y)
 		}
-		z.precision = 0
 		return z
 	}
 
@@ -1382,6 +1362,8 @@ func (z *Big) Quo(x, y *Big) *Big {
 	// x / ±Inf
 	z.form = finite | sign
 	z.exp = z.etiny()
+	z.compact = 0
+	z.precision = 1
 	z.Context.Conditions |= Clamped
 	return z
 }
@@ -1435,11 +1417,13 @@ func (z *Big) quoAndRoundCompact(x uint64, xneg bool, y uint64, yneg bool) *Big 
 	z.compact = x / y
 	r := x % y
 	if r == 0 {
+		z.precision = arith.Length(z.compact)
 		return z
 	}
 
 	z.Context.Conditions |= Inexact | Rounded
 	if z.Context.RoundingMode == ToZero {
+		z.precision = arith.Length(z.compact)
 		return z
 	}
 
@@ -1452,6 +1436,7 @@ func (z *Big) quoAndRoundCompact(x uint64, xneg bool, y uint64, yneg bool) *Big 
 		z.Context.Conditions |= Rounded
 		z.compact++
 	}
+	z.precision = arith.Length(z.compact)
 	return z
 }
 
@@ -1471,7 +1456,6 @@ func (z *Big) quoCore(
 ) *Big {
 	// TODO(eric): re-work the quo methods. I don't like how they're laid out.
 
-	z.precision = 0
 	if xc != c.Inflated {
 		if yc != c.Inflated {
 			return z.quoCoreCompact(xc, xn, xs, xp, yc, yn, ys, yp)
@@ -1620,7 +1604,7 @@ func (z *Big) Set(x *Big) *Big {
 	}
 
 	if z != x {
-		z.precision = 0
+		z.precision = x.precision
 		z.compact = x.compact
 		z.form = x.form
 		z.exp = x.exp
@@ -1635,27 +1619,26 @@ func (z *Big) Set(x *Big) *Big {
 
 // SetBigMantScale sets z to the given value and scale.
 func (z *Big) SetBigMantScale(value *big.Int, scale int) *Big {
+	z.unscaled.Abs(value)
+	z.compact = c.Inflated
+	z.precision = arith.BigLength(value)
+
 	if arith.IsUint64(value) {
 		if v := value.Uint64(); v != c.Inflated {
 			z.compact = v
 		}
-	} else {
-		z.unscaled.Abs(value)
-		z.compact = c.Inflated
 	}
+
 	z.form = finite
 	if value.Sign() < 0 {
 		z.form |= signbit
 	}
 	z.exp = -scale
-	z.precision = 0
 	return z
 }
 
 // SetFloat sets z to x and returns z.
 func (z *Big) SetFloat(x *big.Float) *Big {
-	z.precision = 0
-
 	if x.IsInf() {
 		if x.Signbit() {
 			z.form = ninf
@@ -1667,10 +1650,11 @@ func (z *Big) SetFloat(x *big.Float) *Big {
 
 	neg := x.Signbit()
 	if x.Sign() == 0 {
-		z.compact = 0
 		if neg {
 			z.form |= signbit
 		}
+		z.compact = 0
+		z.precision = 1
 		return z
 	}
 
@@ -1686,9 +1670,11 @@ func (z *Big) SetFloat(x *big.Float) *Big {
 
 	if mant, acc := x0.Uint64(); acc == big.Exact {
 		z.compact = mant
+		z.precision = arith.Length(mant)
 	} else {
 		z.compact = c.Inflated
 		x0.Int(&z.unscaled)
+		z.precision = arith.BigLength(&z.unscaled)
 	}
 	z.form = finite
 	if neg {
@@ -1702,11 +1688,10 @@ func (z *Big) SetFloat(x *big.Float) *Big {
 // 0.1000000000000000055511151231257827021181583404541015625. Use SetMantScale
 // or SetString if you require exact conversions.
 func (z *Big) SetFloat64(x float64) *Big {
-	z.precision = 0
-
 	if x == 0 {
 		z.compact = 0
 		z.form = finite
+		z.precision = 1
 		if math.Signbit(x) {
 			z.form |= signbit
 		}
@@ -1744,8 +1729,8 @@ func (x *Big) SetInf(signbit bool) *Big {
 
 // SetMantScale sets z to the given value and scale.
 func (z *Big) SetMantScale(value int64, scale int) *Big {
-	z.precision = 0
 	z.compact = arith.Abs(value)
+	z.precision = arith.Length(z.compact)
 	z.form = finite
 	if value < 0 {
 		z.form |= signbit
@@ -1899,7 +1884,6 @@ func (z *Big) Sub(x, y *Big) *Big {
 		if neg {
 			z.form |= signbit
 		}
-		z.precision = 0
 		return z.norm().round()
 	}
 
@@ -1942,12 +1926,12 @@ func (x *Big) validate() {
 				fmt.Println("called by:", caller.Name())
 			}
 			type Big struct {
-				precision int64
 				Context   Context
 				unscaled  big.Int
 				compact   uint64
 				exp       int
 				form      form
+				precision int
 			}
 			fmt.Printf("%#v\n", (*Big)(x))
 			panic(err)
