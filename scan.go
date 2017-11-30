@@ -304,7 +304,7 @@ func (z *Big) scanMant(r io.ByteScanner) (err error) {
 	// small—followed by our io.ByteScanner—into z.uncaled.
 	var (
 		small  [20 + 1]byte
-		scale  int = noScale
+		scale  = noScale
 		length int
 		i      int
 	)

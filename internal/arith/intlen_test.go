@@ -1,12 +1,11 @@
 package arith
 
 import (
+	"crypto/rand"
+	"io"
 	"math"
 	"math/big"
-	"math/rand"
 	"testing"
-
-	"github.com/ericlagergren/decimal/internal/arith/pow"
 )
 
 func TestLength(t *testing.T) {
@@ -105,21 +104,45 @@ func TestBigLength(t *testing.T) {
 	}
 }
 
+func randSize(bits uint) *big.Int {
+	b := bits % 8
+	if b == 0 {
+		b = 8
+	}
+	bytes := make([]byte, (bits+7)/8)
+	if _, err := io.ReadFull(rand.Reader, bytes); err != nil {
+		panic(err)
+	}
+	bytes[0] &= uint8(int(1<<b) - 1)
+	bytes[0] |= 3 << (b - 2)
+	return new(big.Int).SetBytes(bytes)
+}
+
 var lengths = func() []*big.Int {
-	var n [4096]*big.Int
+	var n [150000]*big.Int
 	for i := range n {
-		n[i] = pow.BigTen(uint64(rand.Int63n(5000)))
+		n[i] = randSize(128 * 64)
 	}
 	return n[:]
 }()
 
 var gl int
 
+func BenchmarkBigLength(b *testing.B) {
+	var ll int
+	for i := 0; i < b.N; i++ {
+		for _, x := range lengths {
+			ll = BigLength(x)
+		}
+	}
+	gl = ll
+}
+
 func BenchmarkLogarithm(b *testing.B) {
 	var ll int
 	for i := 0; i < b.N; i++ {
 		for _, x := range lengths {
-			ll = logLength(x)
+			ll = logLength(x, x.BitLen())
 		}
 	}
 	gl = ll
@@ -135,11 +158,11 @@ func BenchmarkLogarithmNoCmp(b *testing.B) {
 	gl = ll
 }
 
-func BenchmarkReductions(b *testing.B) {
+func BenchmarkLogarithmIterative(b *testing.B) {
 	var ll int
 	for i := 0; i < b.N; i++ {
 		for _, x := range lengths {
-			ll = reductionLength(x)
+			ll = logLengthIter(x)
 		}
 	}
 	gl = ll

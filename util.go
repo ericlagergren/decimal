@@ -10,23 +10,30 @@ import (
 )
 
 func (z *Big) norm() *Big {
-	if z.isInflated() && arith.IsUint64(&z.unscaled) {
-		if v := z.unscaled.Uint64(); v != c.Inflated {
-			z.compact = v
+	if z.isInflated() {
+		if arith.IsUint64(&z.unscaled) {
+			if v := z.unscaled.Uint64(); v != c.Inflated {
+				z.compact = v
+				z.precision = arith.Length(v)
+			}
+		} else {
+			z.precision = arith.BigLength(&z.unscaled)
 		}
+	} else {
+		z.precision = arith.Length(z.compact)
 	}
 	return z
 }
 
 func (z *Big) test() *Big {
 	adj := z.adjusted()
-	if emax := z.emax(); adj > emax {
+	if adj > MaxScale {
 		if z.IsFinite() {
-			z.exp = emax
+			z.exp = MaxScale
 			// TODO(eric): mandatory clamping?
 		}
 		z.Context.Conditions |= Clamped
-	} else if adj < z.emin() {
+	} else if adj < MinScale {
 		tiny := z.etiny()
 		if z.IsFinite() {
 			if z.exp < tiny {
