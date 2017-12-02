@@ -16,7 +16,7 @@ const (
 	// MaxPrecision and UnlimitedPrecision relies on the relationship
 	// MaxPrecision = -(UnlimitedPrecision + 1)
 
-	MaxPrecision       = MaxScale / 5     // largest allowed Context precision.
+	MaxPrecision       = MaxScale         // largest allowed Context precision.
 	MinPrecision       = 1                // smallest allowed Context precision.
 	UnlimitedPrecision = MaxPrecision + 1 // no precision, but may error.
 	DefaultPrecision   = 16               // default precision for literals.

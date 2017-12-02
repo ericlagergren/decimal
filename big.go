@@ -154,7 +154,7 @@ func (f form) String() string {
 	case ninf:
 		return "-Infinity"
 	default:
-		return fmt.Sprintf("unknown form: %.16b", f)
+		return fmt.Sprintf("unknown form: %0.8b", f)
 	}
 }
 
@@ -522,23 +522,32 @@ func (z *Big) addBig(hi *big.Int, hineg bool, lo *big.Int, loneg bool, shift uin
 //  +Infinity
 //
 func (x *Big) Class() string {
-	if !x.IsFinite() {
-		return x.form.String()
-	}
-	if x.compact == 0 {
-		if x.Signbit() {
-			return "-Zero"
+	if x.IsNaN(0) {
+		if x.IsNaN(+1) {
+			return "NaN"
 		}
-		return "Zero"
-	}
-	if x.IsSubnormal() {
-		if x.Signbit() {
-			return "-Subnormal"
-		}
-		return "+Subnormal"
+		return "sNaN"
 	}
 	if x.Signbit() {
+		if x.IsInf(0) {
+			return "-Infinity"
+		}
+		if x.compact == 0 {
+			return "-Zero"
+		}
+		if x.IsSubnormal() {
+			return "-Subnormal"
+		}
 		return "-Normal"
+	}
+	if x.IsInf(0) {
+		return "+Infinity"
+	}
+	if x.compact == 0 {
+		return "+Zero"
+	}
+	if x.IsSubnormal() {
+		return "+Subnormal"
 	}
 	return "+Normal"
 }

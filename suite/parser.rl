@@ -91,6 +91,8 @@ func ParseCase(data []byte) (c Case, err error) {
 			| 'sign'    # Sign
 			| 'signbit' # Signbit
 			| 'exp'     # Exponential function
+			| 'log'     # Natural logarithm
+			| 'log10'   # Common logarithm
         ) >mark %set_op; 
         mode = (
               '>'  # ToPositiveInf
@@ -122,16 +124,24 @@ func ParseCase(data []byte) (c Case, err error) {
         trap = condition* >mark %set_trap;
         excep = condition* >mark %set_excep;
 
-		sign      = '+' | '-';
-		indicator = 'e' | 'E';
-		exponent  = indicator? sign? digit+;
-        number    = digit+ ('.' digit+)? exponent?;
+		sign       = '+' | '-';
+		indicator  = 'e' | 'E';
+		exponent   = indicator? sign? digit+;
+        number     = digit+ ('.' digit+)? exponent?;
 		nan_prefix = [sSqQ];
+		nan        = (nan_prefix | nan_prefix? 'nan'i);
+		class      = (nan_prefix? 'nan'i | (sign? 
+				  'Subnormal'
+				| 'Normal'
+				| 'Zero'
+				| 'Infinity')
+		);
         numeric_string = sign? (
-			  ('true'i | 'false'i)
-        	| (nan_prefix | nan_prefix? 'nan'i) # S, Q, NaN, sNaN, ...
-            | ('inf'i 'inity'i?)                # +inf, -inf, ...
-            | number                            # 10, 10.1, +0e-392, ...
+			  ('true'i | 'false'i) # True, truE, false, FalSe, ...
+			| nan                  # S, Q, NaN, sNaN, ...
+            | ('inf'i 'inity'i?)   # +inf, -inf, ...
+            | number               # 10, 10.1, +0e-392, ...
+			| class                # +Normal, -Zero, ...
         );
         input = numeric_string >mark %add_input;
         output = (numeric_string | '#') >mark %set_output;

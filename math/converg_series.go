@@ -1,10 +1,9 @@
 package math
 
-import "github.com/ericlagergren/decimal"
-
 // TODO: generic taylor series function?
 
 // expTaylor sets z to exp(x).
+/*
 func expTaylor(z, x *decimal.Big) *decimal.Big {
 	return nil
 }
@@ -25,3 +24,4 @@ func expTaylorCompact(z *decimal.Big, x int64) *decimal.Big {
 	}
 	return nil
 }
+*/

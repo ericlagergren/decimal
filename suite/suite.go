@@ -291,6 +291,8 @@ const (
 	Sign
 	Signbit
 	Exp
+	Log
+	Log10
 )
 
 const maxOpLen = 6
@@ -342,6 +344,8 @@ var valToOp = map[string]Op{
 	"sign":    Sign,
 	"signbit": Signbit,
 	"exp":     Exp,
+	"log":     Log,
+	"log10":   Log10,
 }
 
 //go:generate stringer -type=Op

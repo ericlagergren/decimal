@@ -21,18 +21,13 @@ func (p phiGenerator) Term() math.Term {
 }
 
 func (p phiGenerator) Lentz() (f, Δ, C, D, eps *decimal.Big) {
-	f = new(decimal.Big)
-	Δ = new(decimal.Big)
-	C = new(decimal.Big)
-	D = new(decimal.Big)
-	eps = decimal.New(1, p.prec)
-
 	// Add a little extra precision to C and D so we get an "exact" result after
 	// rounding.
-	f.Context.Precision = p.prec + 1
-	Δ.Context.Precision = p.prec + 1
-	C.Context.Precision = p.prec + 1
-	D.Context.Precision = p.prec + 1
+	f = decimal.WithPrecision(p.prec + 1)
+	Δ = decimal.WithPrecision(p.prec + 1)
+	C = decimal.WithPrecision(p.prec + 1)
+	D = decimal.WithPrecision(p.prec + 1)
+	eps = decimal.New(1, p.prec)
 	return f, Δ, C, D, eps
 }
 

@@ -1,61 +1,109 @@
 package math
 
-import "github.com/ericlagergren/decimal"
+import (
+	"github.com/ericlagergren/decimal"
+	"github.com/ericlagergren/decimal/internal/arith"
+)
 
 // Log sets z to the natural logarithm of x.
 func Log(z, x *decimal.Big) *decimal.Big {
-	x0 := new(decimal.Big).Copy(x)
-	x0.Sub(x0, one)
-	g := lng{
-		recv: alias(z, x),
-		z:    x0,
-		t:    Term{A: new(decimal.Big).Set(x0), B: new(decimal.Big)},
+	if z.CheckNaNs(x, nil) {
+		return z
 	}
-	return z.Quo(x0, Lentz(z, &g))
+
+	if x.Signbit() {
+		// ln x is undefined.
+		z.Context.Conditions |= decimal.InvalidOperation
+		return z.SetNaN(false)
+	}
+
+	if x.IsInf(+1) {
+		// ln +Inf = +Inf
+		return z.SetInf(false)
+	}
+
+	if x.Sign() == 0 {
+		// ln 0 = -Inf
+		return z.SetInf(false)
+	}
+
+	if x.IsInt() && !x.IsBig() && x.Uint64() == 1 {
+		// ln 1 = 0
+		return z.SetMantScale(0, 0)
+	}
+
+	t := (x.Scale() - x.Precision()) - 1
+	if t < 0 {
+		t = -t - 1
+	}
+	t *= 2
+
+	if arith.Length(arith.Abs(int64(t)))-1 > decimal.MaxScale {
+		z.Context.Conditions |= decimal.Overflow | decimal.Inexact | decimal.Rounded
+		return z.SetInf(t < 0)
+	}
+	return log(z, x)
 }
 
-type lng struct {
-	recv *decimal.Big // reciever in Ln, can be nil
-	z    *decimal.Big // input value
-	k    int64        // term number
-	a    int64
+// lgen is algorithm 2.4.4 from Cuyt.
+type lgen struct {
+	prec int
+	pow  *decimal.Big // z*z
+	z2   *decimal.Big // z+2
+	k    int64
 	t    Term
 }
 
-func (l *lng) Next() bool { return true }
+func (l *lgen) mode() decimal.RoundingMode { return decimal.ToNearestEven }
 
-var LP = 16
-
-func (l *lng) Lentz() (f, Δ, C, D, eps *decimal.Big) {
-	prec := precision(l.recv)
-
-	f = new(decimal.Big)
-	Δ = new(decimal.Big)
-	C = new(decimal.Big)
-	D = new(decimal.Big)
-	eps = decimal.New(1, prec-1)
-
-	// TODO(eric): (mathematically) figure out why we need this extra precision.
-	//n := 1 + int32(math.Ceil(float64(prec)/25))
-	//fmt.Println(n)
-	C.Context.Precision = LP //prec + n)
-	D.Context.Precision = LP //prec + n)
+func (l *lgen) Lentz() (f, Δ, C, D, eps *decimal.Big) {
+	f = decimal.WithPrecision(l.prec)
+	Δ = decimal.WithPrecision(l.prec)
+	C = decimal.WithPrecision(l.prec)
+	D = decimal.WithPrecision(l.prec)
+	eps = decimal.New(1, l.prec)
 	return
 }
 
-func (l *lng) Term() Term {
+func (a *lgen) Next() bool { return true }
+
+func log(z, x *decimal.Big) *decimal.Big {
+	// log(z) can be expressed as the following continued fraction:
+	//
+	//          2z      1^2 * z^2   2^2 * z^2   3^2 * z^2   4^2 * z^2
+	//     ----------- ----------- ----------- ----------- -----------
+	//      1 * (2+z) - 3 * (2+z) - 5 * (2+z) - 7 * (2+z) - 9 * (2+z) - ···
+	//
+	// (Cuyt, p 271).
+	//
 	// References:
 	//
 	// [Cuyt] - Cuyt, A.; Petersen, V.; Brigette, V.; Waadeland, H.; Jones, W.B.
 	// (2008). Handbook of Continued Fractions for Special Functions. Springer
 	// Netherlands. https://doi.org/10.1007/978-1-4020-6949-9
 
-	l.k++
-	if l.k&1 == 0 && l.k != 1 {
-		l.a++
-		l.t.A.SetMantScale(l.a*l.a, 0)
-		l.t.A.Mul(l.t.A, l.z)
+	prec := precision(z) + 3
+	x0 := decimal.WithPrecision(prec).Sub(x, one)
+	g := lgen{
+		prec: prec,
+		pow:  decimal.WithPrecision(prec).Mul(x0, x0),
+		z2:   decimal.WithPrecision(prec).Add(x0, two),
+		k:    -1,
+		t: Term{
+			A: decimal.WithPrecision(prec),
+			B: decimal.WithPrecision(prec),
+		},
 	}
-	l.t.B.SetMantScale(l.k, 0)
-	return l.t
+	return z.Quo(x0.Mul(x0, two), Lentz(z, &g))
+}
+
+func (a *lgen) Term() Term {
+	a.k += 2
+	if a.k != 1 {
+		a.t.A.SetMantScale(-((a.k / 2) * (a.k / 2)), 0)
+		a.t.A.Mul(a.t.A, a.pow)
+	}
+	a.t.B.SetMantScale(a.k, 0)
+	a.t.B.Mul(a.t.B, a.z2)
+	return a.t
 }

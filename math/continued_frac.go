@@ -8,8 +8,8 @@ import (
 
 // Term is a specific term in a continued fraction. A and B correspond with the
 // a and b variables of the typical representation of a continued fraction. An
-// example can be seen in the book, "Numerical Recipes in C: The Art of
-// Scientific Computing" (ISBN 0-521-43105-5) in figure 5.2.1 on page 169.
+// example can be seen in the book, ``Numerical Recipes in C: The Art of
+// Scientific Computing'' (ISBN 0-521-43105-5) in figure 5.2.1 on page 169.
 type Term struct {
 	A, B *decimal.Big
 }
@@ -55,16 +55,11 @@ type specialRounder interface {
 type lentzer struct{ prec int }
 
 func (l lentzer) Lentz() (f, Δ, C, D, eps *decimal.Big) {
-	f = new(decimal.Big)
-	Δ = new(decimal.Big)
-	C = new(decimal.Big)
-	D = new(decimal.Big)
-	eps = decimal.New(1, l.prec-1)
-
-	f.Context.Precision = l.prec
-	Δ.Context.Precision = l.prec
-	C.Context.Precision = l.prec
-	D.Context.Precision = l.prec
+	f = decimal.WithPrecision(l.prec)
+	Δ = decimal.WithPrecision(l.prec)
+	C = decimal.WithPrecision(l.prec)
+	D = decimal.WithPrecision(l.prec)
+	eps = decimal.New(1, l.prec)
 	return f, Δ, C, D, eps
 }
 
@@ -89,8 +84,16 @@ var tiny = decimal.New(10, 60)
 //     f(x) = b0 + ---- ---- ----
 //                  b1 + b2 + b3 + ···
 //
-// If terms need to be subtracted, aN should be negative. To compute a continued
-// fraction without b0, divide the result by a1.
+// If terms need to be subtracted, the a_N terms should be negative. To compute
+// a continued fraction without b_0, divide the result by a_1.
+//
+// Unlike the normal convention for ``recievers'' named ``z'', Lentz will not
+// modify ``z'' until the terms have converged. This is so functions like Exp
+// and Log can allow their arguments to alias without having to defensively
+// copy the input (``x'').
+//
+// If the first call to the Generator's Next method returns false, the result
+// of Lentz is undefined.
 //
 // Note: the accuracy of the result may be affected by the precision of
 // intermedite results. If larger precision is desired it may be necessary for
@@ -127,6 +130,12 @@ func Lentz(z *decimal.Big, g Generator) *decimal.Big {
 	}
 	f, Δ, C, D, eps := lz.Lentz()
 
+	// tiny should be less than typical values of eps.
+	tiny := tiny
+	if eps.Scale() > tiny.Scale() {
+		tiny = decimal.New(10, min(eps.Scale()*2, decimal.MaxScale))
+	}
+
 	t := g.Term()
 
 	if t.B.Sign() != 0 {
@@ -137,7 +146,7 @@ func Lentz(z *decimal.Big, g Generator) *decimal.Big {
 	C.Copy(f)
 	D.SetMantScale(0, 0)
 
-	for i := 0; g.Next(); i++ {
+	for g.Next() {
 		t = g.Term()
 
 		// Set D_j = b_j + a_j*D{_j-1}
@@ -178,6 +187,7 @@ func Lentz(z *decimal.Big, g Generator) *decimal.Big {
 	return z.Set(f)
 }
 
+/*
 func dump(f, Δ, D, C, eps *decimal.Big) {
 	fmt.Printf(`
 f  : %s
@@ -187,3 +197,4 @@ C  : %s
 eps: %s
 `, f, Δ, D, C, eps)
 }
+*/

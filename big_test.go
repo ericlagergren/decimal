@@ -14,6 +14,7 @@ import (
 
 func TestBig_Abs(t *testing.T)       { test.Abs.Test(t) }
 func TestBig_Add(t *testing.T)       { test.Add.Test(t) }
+func TestBig_Class(t *testing.T)     { test.Class.Test(t) }
 func TestBig_Cmp(t *testing.T)       { test.Cmp.Test(t) }
 func TestBig_FMA(t *testing.T)       { test.FMA.Test(t) }
 func TestBig_Mul(t *testing.T)       { test.Mul.Test(t) }
@@ -26,11 +27,6 @@ func TestBig_Sign(t *testing.T)      { test.Sign.Test(t) }
 func TestBig_SignBit(t *testing.T)   { test.Signbit.Test(t) }
 func TestBig_String(t *testing.T)    { test.CTS.Test(t) }
 func TestBig_Sub(t *testing.T)       { test.Sub.Test(t) }
-
-func TestBig_Class(t *testing.T) {
-	// visually check form.String since the tests for this would be essentially
-	// re-writing form.String...
-}
 
 func TestBig_Float(t *testing.T) {
 	for i, test := range [...]string{

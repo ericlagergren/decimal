@@ -17,12 +17,17 @@ ops = {
     "cfd": "convert-to-string",
     "~": "negation",
     "*-": "fused-multiply-add",
+    "L": "base-b-logarithm",
+    "?": "class",
+    "V": "square-root",
 
     # Custom
     "rat": "convert-to-rat",
     "sign": "sign",
     "signbit": "signbit",
     "exp": "exponential-function",
+    "log": "natural-logarithm",
+    "log10": "common-logarithm",
 }
 
 modes = {
@@ -175,6 +180,16 @@ def perform_op(op):
             r = -x
         elif op == "exp":
             r = x.exp()
+        elif op == "log":
+            r = x.ln()
+        elif op == "L":
+            r = x.logb()
+        elif op == "log10":
+            r = x.log10()
+        elif op == "?":
+            r = x.number_class()
+        elif op == "V":
+            r = x.sqrt()
 
         # Ternary
         elif op == "*-":
