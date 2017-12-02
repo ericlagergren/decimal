@@ -24,7 +24,7 @@ func alias(a, b *decimal.Big) *decimal.Big {
 
 func precision(z *decimal.Big) (p int) {
 	p = z.Context.Precision
-	if p > 0 {
+	if p > 0 && p <= decimal.UnlimitedPrecision {
 		return p
 	}
 	if p == 0 {
@@ -36,3 +36,10 @@ func precision(z *decimal.Big) (p int) {
 }
 
 func etiny(z *decimal.Big) int { return decimal.MinScale - (precision(z) - 1) }
+
+func min(x, y int) int {
+	if x < y {
+		return x
+	}
+	return y
+}

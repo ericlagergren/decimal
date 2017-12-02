@@ -4,9 +4,9 @@ package suite
 
 import "strconv"
 
-const _Op_name = "AddSubMulDivFMASqrtRemRFICFFCFICIFCFDCDFQuietCmpSigCmpCopyNegAbsCopySignScalbLogbNextAfterClassIsSignedIsNormalIsInfIsZeroIsSubNormalIsNaNIsSignalingIsFiniteMinNumMaxNumMinNumMagMaxNumMagSameQuantumQuantizeNextUpNextDownEquivRatSignSignbitExp"
+const _Op_name = "AddSubMulDivFMASqrtRemRFICFFCFICIFCFDCDFQuietCmpSigCmpCopyNegAbsCopySignScalbLogbNextAfterClassIsSignedIsNormalIsInfIsZeroIsSubNormalIsNaNIsSignalingIsFiniteMinNumMaxNumMinNumMagMaxNumMagSameQuantumQuantizeNextUpNextDownEquivRatSignSignbitExpLogLog10"
 
-var _Op_index = [...]uint8{0, 3, 6, 9, 12, 15, 19, 22, 25, 28, 31, 34, 37, 40, 48, 54, 58, 61, 64, 72, 77, 81, 90, 95, 103, 111, 116, 122, 133, 138, 149, 157, 163, 169, 178, 187, 198, 206, 212, 220, 225, 228, 232, 239, 242}
+var _Op_index = [...]uint8{0, 3, 6, 9, 12, 15, 19, 22, 25, 28, 31, 34, 37, 40, 48, 54, 58, 61, 64, 72, 77, 81, 90, 95, 103, 111, 116, 122, 133, 138, 149, 157, 163, 169, 178, 187, 198, 206, 212, 220, 225, 228, 232, 239, 242, 245, 250}
 
 func (i Op) String() string {
 	if i >= Op(len(_Op_index)-1) {

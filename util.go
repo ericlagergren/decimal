@@ -67,7 +67,7 @@ func alias(z, x *big.Int) *big.Int {
 
 func precision(z *Big) (p int) {
 	p = z.Context.Precision
-	if p > 0 {
+	if p > 0 && p <= UnlimitedPrecision {
 		return p
 	}
 	if p == 0 {
