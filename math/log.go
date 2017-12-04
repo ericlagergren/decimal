@@ -42,10 +42,52 @@ func Log(z, x *decimal.Big) *decimal.Big {
 		z.Context.Conditions |= decimal.Overflow | decimal.Inexact | decimal.Rounded
 		return z.SetInf(t < 0)
 	}
-	return log(z, x)
+
+	// Argument reduction:
+	// Given
+	//    ln(a) = ln(b) + ln(c)
+	// Where
+	//    a = b * c
+	// Given
+	//    x = m * 10**n
+	// Reduce x (as y) so that
+	//    1 <= y <= 10
+	// And create p so that
+	//    x = y * 10**p
+	// Compute
+	//    log(y) + p*log(10)
+
+	prec := precision(z)
+	y := decimal.WithPrecision(prec).Copy(x).SetScale(x.Precision() - 1)
+
+	var p decimal.Big
+	p.SetUint64(arith.Abs(int64(x.Scale() - x.Precision() + 1)))
+
+	// Algorithm is for log(1+x)
+	y.Sub(y, one)
+
+	prec += adj
+	g := lgen{
+		prec: prec,
+		pow:  decimal.WithPrecision(prec).Mul(y, y),
+		z2:   decimal.WithPrecision(prec).Add(y, two),
+		k:    -1,
+		t: Term{
+			A: decimal.WithPrecision(prec),
+			B: decimal.WithPrecision(prec),
+		},
+	}
+
+	y.Quo(y.Mul(y, two), Lentz(z, &g))
+	if p.Sign() != 0 {
+		// Avoid the call to log10 if it'll result in 0.
+		y.FMA(&p, log10(prec), y)
+	}
+	return z.Set(y)
 }
 
-// lgen is algorithm 2.4.4 from Cuyt.
+const adj = 3
+
 type lgen struct {
 	prec int
 	pow  *decimal.Big // z*z
@@ -67,7 +109,7 @@ func (l *lgen) Lentz() (f, Δ, C, D, eps *decimal.Big) {
 
 func (a *lgen) Next() bool { return true }
 
-func log(z, x *decimal.Big) *decimal.Big {
+func (a *lgen) Term() Term {
 	// log(z) can be expressed as the following continued fraction:
 	//
 	//          2z      1^2 * z^2   2^2 * z^2   3^2 * z^2   4^2 * z^2
@@ -82,22 +124,6 @@ func log(z, x *decimal.Big) *decimal.Big {
 	// (2008). Handbook of Continued Fractions for Special Functions. Springer
 	// Netherlands. https://doi.org/10.1007/978-1-4020-6949-9
 
-	prec := precision(z) + 3
-	x0 := decimal.WithPrecision(prec).Sub(x, one)
-	g := lgen{
-		prec: prec,
-		pow:  decimal.WithPrecision(prec).Mul(x0, x0),
-		z2:   decimal.WithPrecision(prec).Add(x0, two),
-		k:    -1,
-		t: Term{
-			A: decimal.WithPrecision(prec),
-			B: decimal.WithPrecision(prec),
-		},
-	}
-	return z.Quo(x0.Mul(x0, two), Lentz(z, &g))
-}
-
-func (a *lgen) Term() Term {
 	a.k += 2
 	if a.k != 1 {
 		a.t.A.SetMantScale(-((a.k / 2) * (a.k / 2)), 0)

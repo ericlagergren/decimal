@@ -943,11 +943,17 @@ var _ fmt.Formatter = (*Big)(nil)
 
 // FMA sets z to (x * y) + u without any intermediate rounding.
 func (z *Big) FMA(x, y, u *Big) *Big {
-	z.mul(x, y, true)
-	if z.Context.Conditions&InvalidOperation != 0 {
-		return z
+	// Create a temporary reciever in the case z == u so we handle the case
+	// z.FMA(x, y, z) without clobbering z.
+	z0 := z
+	if z == u {
+		z0 = WithContext(z.Context)
 	}
-	return z.Add(z, u)
+	z0.mul(x, y, true)
+	if z0.Context.Conditions&InvalidOperation != 0 {
+		return z.setShared(z0)
+	}
+	return z.setShared(z0.Add(z0, u))
 }
 
 // IsBig returns true if x, with its fractional part truncated, cannot fit
@@ -1627,6 +1633,22 @@ func (z *Big) Set(x *Big) *Big {
 	return z.round()
 }
 
+// setShared sets z to x, but does not copy—z will now possibly alias x.
+func (z *Big) setShared(x *Big) *Big {
+	if debug {
+		x.validate()
+	}
+
+	if z != x {
+		z.precision = x.precision
+		z.compact = x.compact
+		z.form = x.form
+		z.exp = x.exp
+		z.unscaled = x.unscaled
+	}
+	return z.round()
+}
+
 // SetBigMantScale sets z to the given value and scale.
 func (z *Big) SetBigMantScale(value *big.Int, scale int) *Big {
 	z.unscaled.Abs(value)
@@ -1819,6 +1841,14 @@ func (z *Big) SetString(s string) (*Big, bool) {
 		return nil, false
 	}
 	return z, true
+}
+
+// SetUint64 is shorthand for SetMantScale(x, 0).
+func (z *Big) SetUint64(x uint64) *Big {
+	z.form = finite
+	z.compact = x
+	z.exp = 0
+	return z
 }
 
 // ord returns similar to Sign except -Inf is -2 and +Inf is +2.
