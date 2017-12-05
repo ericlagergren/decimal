@@ -83,6 +83,9 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 		}
 	}
 
+	// Argument reduction:
+	//    exp(x) = 10**k * e**r where x = r + k*log(10)
+
 	// TODO(eric): the +8 might not be enough extra precision for very large
 	// precisions...
 	prec += t + 8
@@ -95,8 +98,7 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 			B: decimal.WithPrecision(prec),
 		},
 	}
-	Lentz(z, &g)
-	return z
+	return Lentz(z, &g)
 }
 
 // expg is a Generator that computes exp(z).

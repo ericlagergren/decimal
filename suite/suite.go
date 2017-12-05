@@ -287,12 +287,13 @@ const (
 	Equiv                 // equivalent
 
 	// Custom
-	Rat
+	SetRat
 	Sign
 	Signbit
 	Exp
 	Log
 	Log10
+	Pow
 )
 
 const maxOpLen = 6
@@ -340,12 +341,13 @@ var valToOp = map[string]Op{
 	"eq":     Equiv,
 
 	// Custom
-	"rat":     Rat,
+	"rat":     SetRat,
 	"sign":    Sign,
 	"signbit": Signbit,
 	"exp":     Exp,
 	"log":     Log,
 	"log10":   Log10,
+	"pow":     Pow,
 }
 
 //go:generate stringer -type=Op

@@ -164,18 +164,15 @@ func (r RoundingMode) Round(z *Big, n int) *Big {
 	neg := z.Signbit()
 	if z.isCompact() {
 		if z.compact == 0 {
-			z.precision = n
 			return z
 		}
 		if val, ok := pow.Ten(uint64(shift)); ok {
-			z.precision = n
 			return z.quoAndRoundCompact(z.compact, neg, val, false)
 		}
 		z.unscaled.SetUint64(z.compact)
 		z.compact = c.Inflated
 	}
 	z.quoAndRoundBig(&z.unscaled, neg, pow.BigTen(uint64(shift)), false)
-	z.precision = n
 	return z
 }
 

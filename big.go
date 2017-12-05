@@ -13,7 +13,9 @@
 //     func (z *T) Binary(x, y *T) *T    // z = x binary y
 //     func (x *T) Pred() P              // p = pred(x)
 //
-// In general, its conventions will mirror math/big's.
+// In general, its conventions mirror math/big's. It is suggested to read the
+// math/big package comments to gain an understanding of this package's
+// conventions.
 //
 // Arguments to Binary and Unary methods are allowed to alias, so the following
 // is valid:
@@ -21,8 +23,11 @@
 //     x := New(1, 0)
 //     x.Add(x, x) // x == 2
 //
+//     y := New(1, 0)
+//     y.FMA(y, x, y) // y == 3
+//
 // Unless otherwise specified, the only argument that will be modified is the
-// reciever, meaning the following is valid and race-free:
+// result (``z''). This means the following is valid and race-free:
 //
 //    x := New(1, 0)
 //    var g1, g2 Big
@@ -676,8 +681,9 @@ func (z *Big) Copy(x *Big) *Big {
 	if debug {
 		x.validate()
 	}
+	sign := x.form & signbit
 	z.copyAbs(x)
-	z.form |= x.form & signbit
+	z.form |= sign
 	return z
 }
 
@@ -686,7 +692,6 @@ func (z *Big) copyAbs(x *Big) *Big {
 	if debug {
 		x.validate()
 	}
-
 	if z != x {
 		z.precision = x.precision
 		z.compact = x.compact
@@ -1015,7 +1020,7 @@ func (x *Big) Int(z *big.Int) *big.Int {
 
 // Int64 returns x as an int64, truncating the fractional portion, if any. The
 // result is undefined if x is an infinity, a NaN value, or if x does not fit
-// inside an uint64.
+// inside a int64.
 func (x *Big) Int64() int64 {
 	u := x.Uint64()
 	if u > math.MaxInt64 {
@@ -1030,7 +1035,7 @@ func (x *Big) Int64() int64 {
 
 // Uint64 returns x as a uint64, truncating the fractional portion, if any. The
 // result is undefined if x is an infinity, a NaN value, or if x does not fit
-// inside an uint64.
+// inside a uint64.
 func (x *Big) Uint64() uint64 {
 	if debug {
 		x.validate()
@@ -1510,7 +1515,6 @@ func (z *Big) quoAndRoundBig(x *big.Int, xneg bool, y *big.Int, yneg bool) *Big 
 
 	// q == z.unscaled, but it's easier to type q.
 	q, r := z.unscaled.QuoRem(x, y, new(big.Int))
-	//fmt.Println(q, r)
 	if r.Sign() == 0 {
 		return z.norm()
 	}
@@ -1551,26 +1555,35 @@ func (x *Big) Rat(z *big.Rat) *big.Rat {
 		return z.SetInt64(0)
 	}
 
-	var num *big.Int
-	if x.isCompact() {
-		num = new(big.Int).SetUint64(x.compact)
-	} else {
-		num = new(big.Int).Set(&x.unscaled)
-	}
-	if x.Signbit() {
-		num.Neg(num)
+	// Fast path for decimals <= math.MaxInt64.
+	if x.exp >= 0 && x.compact <= math.MaxInt64 {
+		// If profiled we can call scalex ourselves and save the overhead of
+		// calling Int64. But I doubt it'll matter much.
+		return z.SetInt64(x.Int64())
 	}
 
-	var denom *big.Int
+	// A little ugly, but it saves us an allocation if x > 0 and inflated.
+	num := &x.unscaled
+	if x.isCompact() {
+		// We would ideally clobber x.unscaled here, but that's not allowed per
+		// our API.
+		num = new(big.Int).SetUint64(x.compact)
+		if x.Signbit() {
+			num.Neg(num)
+		}
+	} else if x.Signbit() {
+		num = new(big.Int).Neg(&x.unscaled)
+	}
+
+	denom := c.OneInt
 	if x.exp < 0 {
+		denom = new(big.Int)
 		if shift, ok := pow.Ten(uint64(-x.exp)); ok {
-			denom = new(big.Int).SetUint64(shift)
+			denom.SetUint64(shift)
 		} else {
 			tmp := new(big.Int).SetUint64(uint64(-x.exp))
-			denom = tmp.Exp(c.TenInt, tmp, nil)
+			denom.Exp(c.TenInt, tmp, nil)
 		}
-	} else {
-		denom = big.NewInt(1)
 	}
 	return z.SetFrac(num, denom)
 }
@@ -1618,19 +1631,7 @@ func (z *Big) Set(x *Big) *Big {
 	if debug {
 		x.validate()
 	}
-
-	if z != x {
-		z.precision = x.precision
-		z.compact = x.compact
-		z.form = x.form
-		z.exp = x.exp
-
-		// Copy over unscaled if need be.
-		if x.isInflated() {
-			z.unscaled.Set(&x.unscaled)
-		}
-	}
-	return z.round()
+	return z.Copy(x).round()
 }
 
 // setShared sets z to x, but does not copy—z will now possibly alias x.
@@ -1784,7 +1785,7 @@ func (z *Big) setNaN(c Condition, f form, p Payload) *Big {
 }
 
 // SetNaN sets z to a signaling NaN if signal is true or quiet NaN otherwise and
-// returns z.
+// returns z. No conditions are raised.
 func (z *Big) SetNaN(signal bool) *Big {
 	if signal {
 		z.form = snan
@@ -1798,10 +1799,8 @@ func (z *Big) SetNaN(signal bool) *Big {
 // SetRat sets z to to the possibly rounded value of x and return z.
 func (z *Big) SetRat(x *big.Rat) *Big {
 	if x.IsInt() {
-		z.form = finite
-		return z.SetBigMantScale(x.Num(), 0)
+		return z.SetBigMantScale(x.Num(), 0).round()
 	}
-
 	var num, denom Big
 	num.SetBigMantScale(x.Num(), 0)
 	denom.SetBigMantScale(x.Denom(), 0)

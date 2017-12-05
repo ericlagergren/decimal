@@ -50,3 +50,4 @@ fuzz/
 benchmarks/decbench
 *.xml
 *.class
+*.gz

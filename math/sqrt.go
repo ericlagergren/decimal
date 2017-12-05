@@ -11,19 +11,21 @@ func Hypot(z, p, q *decimal.Big) *decimal.Big {
 	if z.CheckNaNs(p, q) {
 		return z
 	}
-	// TODO(eric): figure out what precision these intermediate variables need
-	// and if we even need 'r' at all.
-	var p0, q0, r decimal.Big
-	p0.Context.Precision = decimal.UnlimitedPrecision
-	q0.Context.Precision = decimal.UnlimitedPrecision
-	r.Context.Precision = decimal.UnlimitedPrecision
-	p0.Mul(p, p)
-	q0.Mul(q, q)
-	return Sqrt(z, r.Add(p0.Mul(p, p), q0.Mul(q, q)))
+	prec := precision(z) + 1
+	p0 := decimal.WithPrecision(prec).Mul(p, p)
+	q0 := p0
+	if p.Cmp(q) != 0 {
+		q0 = decimal.WithPrecision(prec).Mul(q, q)
+	}
+	return Sqrt(z, decimal.WithPrecision(prec).Add(p0, q0))
 }
 
 // Sqrt sets z to the square root of x and returns z.
 func Sqrt(z, x *decimal.Big) *decimal.Big {
+	if z.CheckNaNs(x, nil) {
+		return z
+	}
+
 	if xs := x.Sign(); xs <= 0 {
 		if xs == 0 {
 			return z.SetMantScale(0, x.Scale()>>1)
@@ -31,9 +33,6 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 		// errors.New("math.Sqrt: cannot take square root of negative number"),
 		z.Context.Conditions |= decimal.InvalidOperation
 		return z.SetNaN(false)
-	}
-	if z.CheckNaNs(x, nil) {
-		return z
 	}
 
 	// Already checked for negative numbers.
@@ -77,11 +76,11 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 		// to normalize f, adjusting its scale is the quickest. However, it then
 		// requires us to increment approx's scale by e/2 instead of simply
 		// setting it to e/2.
-		f = decimal.WithContext(x.Context).Copy(x).SetScale(xprec)
+		f = decimal.WithPrecision(prec).Copy(x).SetScale(xprec)
 		e = -x.Scale() + xprec
 
-		tmp    = decimal.WithContext(decimal.ContextUnlimited)
-		approx = decimal.WithContext(z.Context)
+		tmp    = decimal.WithPrecision(prec)
+		approx = decimal.WithPrecision(prec)
 	)
 
 	if e&1 == 0 {
@@ -119,7 +118,8 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 	// anyway.
 
 	approx.SetScale(approx.Scale() - e/2)
-	decimal.ToNearestEven.Round(approx, precision(z))
+	decimal.ToNearestEven.Round(approx, prec)
+	z.Context.Conditions |= approx.Context.Conditions
 	return z.Set(approx)
 }
 

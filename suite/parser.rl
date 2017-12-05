@@ -93,6 +93,7 @@ func ParseCase(data []byte) (c Case, err error) {
 			| 'exp'     # Exponential function
 			| 'log'     # Natural logarithm
 			| 'log10'   # Common logarithm
+			| 'pow'     # Power
         ) >mark %set_op; 
         mode = (
               '>'  # ToPositiveInf

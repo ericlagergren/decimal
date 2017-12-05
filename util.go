@@ -10,17 +10,19 @@ import (
 )
 
 func (z *Big) norm() *Big {
-	if z.isInflated() {
-		if arith.IsUint64(&z.unscaled) {
-			if v := z.unscaled.Uint64(); v != c.Inflated {
-				z.compact = v
-				z.precision = arith.Length(v)
-			}
-		} else {
-			z.precision = arith.BigLength(&z.unscaled)
-		}
-	} else {
+	if !z.isInflated() {
 		z.precision = arith.Length(z.compact)
+		return z
+	}
+	if !arith.IsUint64(&z.unscaled) {
+		z.precision = arith.BigLength(&z.unscaled)
+		return z
+	}
+	if v := z.unscaled.Uint64(); v != c.Inflated {
+		z.compact = v
+		z.precision = arith.Length(v)
+	} else {
+		z.precision = arith.BigLength(&z.unscaled)
 	}
 	return z
 }

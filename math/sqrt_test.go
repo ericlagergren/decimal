@@ -24,6 +24,7 @@ func TestDecimal_Hypot(t *testing.T) {
 		4: {"1.234", "98.76543", 6, "98.7731"},
 		5: {"3", "4", 1, "5"},
 		6: {pi.String(), pi.String(), 75, "4.4428829381583662470158809900606936986146216893756902230853956069564347931"},
+		7: {"95", "95", 2, "1.3e+2"},
 	}
 	for i, v := range tests {
 		z := decimal.WithPrecision(v.c)
@@ -34,7 +35,7 @@ func TestDecimal_Hypot(t *testing.T) {
 			t.Errorf(`#%d:
 wanted: %q
 got:    %q
-`, i, a, &z)
+`, i, a, z)
 		}
 	}
 }
