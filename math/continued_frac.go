@@ -182,8 +182,9 @@ func Lentz(z *decimal.Big, g Generator) *decimal.Big {
 		}
 	}
 	if sr, ok := g.(specialRounder); ok {
-		sr.mode().Round(z, precision(z))
+		sr.mode().Round(f, precision(z))
 	}
+	z.Context.Conditions |= f.Context.Conditions
 	return z.Set(f)
 }
 

@@ -9,6 +9,7 @@ import (
 const Inflated uint64 = math.MaxUint64
 
 var (
+	OneInt = big.NewInt(1)
 	TwoInt = big.NewInt(2)
 	TenInt = big.NewInt(10)
 

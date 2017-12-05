@@ -28,6 +28,7 @@ ops = {
     "exp": "exponential-function",
     "log": "natural-logarithm",
     "log10": "common-logarithm",
+    "pow": "power",
 }
 
 modes = {
@@ -46,47 +47,58 @@ def rand_bool():
     return random.randint(0, 1) % 2 == 0
 
 
-def make_dec():
-    if rand_bool():
-        f = random.uniform(1, sys.float_info.max)
-    else:
-        f = random.getrandbits(54321)
-
+def make_dec(nbits=54321):
     r = random.randint(0, 25)
     if r == 0:
         f = math.nan
     elif r == 1:
         f = math.inf
+    else:
+        f = random.getrandbits(random.randint(1, nbits))
 
-    sign = "+" if rand_bool() else "-"
-    return decimal.Decimal("{}{}".format(sign, f))
+    if rand_bool():
+        if r > 1:
+            f = -f
+        else:
+            f = math.copysign(f, -1)
+
+    fs = "{}".format(f)
+    if rand_bool():
+        l = list(fs)
+        if len(l) == 1:
+            l.insert(0, '.')
+        else:
+            l[random.randint(0, len(l) - 1)] = '.'
+        fs = "".join(l)
+
+    return decimal.Decimal(fs)
 
 
 DEC_TEN = decimal.Decimal(10)
 
 
-def rand_dec(quant=False):
+def rand_dec(quant=False, nbits=54321):
     with decimal.localcontext() as ctx:
         ctx.clear_traps()
 
         if quant:
-            x = random.randint(0, 500)
+            x = random.randint(0, 750)
             if rand_bool():
                 d = DEC_TEN ** x
             else:
                 d = DEC_TEN ** -x
         else:
-            d = make_dec()
+            d = make_dec(nbits)
             for _ in range(random.randint(0, 3)):
                 q = random.randint(0, 4)
                 if q == 1:
-                    d *= make_dec()
+                    d *= make_dec(nbits)
                 elif q == 2:
-                    d /= make_dec()
+                    d /= make_dec(nbits)
                 elif q == 3:
-                    d -= make_dec()
+                    d -= make_dec(nbits)
                 elif q == 4:
-                    d += make_dec()
+                    d += make_dec(nbits)
                 # else: == 0
     return d
 
@@ -102,18 +114,18 @@ def conv(x):
     return x
 
 
-def write_line(out, prec, op, mode, r, x, y=None, z0=None, flags=None):
+def write_line(out, prec, op, mode, r, x, y=None, u=None, flags=None):
     if x is None:
         raise ValueError("bad args")
 
     x = conv(x)
     y = conv(y)
-    z0 = conv(z0)
+    u = conv(u)
     r = conv(r)
     if y is not None:
-        if z0 is not None:
+        if u is not None:
             str = "d{}{} {} {} {} {} -> {} {}\n".format(
-                prec, op, mode, x, y, z0, r, flags)
+                prec, op, mode, x, y, u, r, flags)
         else:
             str = "d{}{} {} {} {} -> {} {}\n".format(
                 prec, op, mode, x, y, r, flags)
@@ -125,9 +137,9 @@ def write_line(out, prec, op, mode, r, x, y=None, z0=None, flags=None):
 
 def perform_op(op):
     r = None
-    x = rand_dec()
+    x = rand_dec(nbits=64 if op == "pow" else None)
     y = None  # possibly unused
-    z0 = None  # possibly unused
+    u = None  # possibly unused
 
     try:
         # Binary
@@ -150,6 +162,10 @@ def perform_op(op):
             y = rand_dec(True)
             r = x.quantize(y)
             y = -y.as_tuple().exponent
+        elif op == "pow":
+            y = rand_dec(nbits=64)
+            #u = rand_dec(nbits=64)
+            r = decimal.getcontext().power(x, y, u)
 
         # Unary
         elif op == "A":
@@ -159,14 +175,14 @@ def perform_op(op):
         elif op == "rat":
             while True:
                 try:
-                    n, d = x.as_integer_ratio()
+                    x, y = x.as_integer_ratio()
+                    if y == 1:
+                        r = +decimal.Decimal(x)
+                    else:
+                        r = decimal.Decimal(x) / decimal.Decimal(y)
                     break
                 except Exception:  # ValueError if nan, etc.
                     x = rand_dec()
-            x, y = n, d
-            # 'suite' can't parse the following:
-            # r = "{}/{}".format(n, d)
-            r = "#"
         elif op == "sign":
             if x < 0:
                 r = -1
@@ -194,14 +210,14 @@ def perform_op(op):
         # Ternary
         elif op == "*-":
             y = rand_dec()
-            z0 = rand_dec()
-            r = x.fma(y, z0)
+            u = rand_dec()
+            r = x.fma(y, u)
         else:
             raise ValueError("bad op {}".format(op))
     except Exception as e:
         raise e
 
-    return (r, x, y, z0)
+    return (r, x, y, u)
 
 
 traps = {
@@ -227,12 +243,13 @@ def rand_traps():
         t[key] = int(b)
     return (t, s)
 
-    # set N higher for local testing.
+
+# set N higher for local testing.
 N = 100
 
 
-def make_tables():
-    for op, name in ops.items():
+def make_tables(items):
+    for op, name in items:
         with gzip.open("{}-tables.gz".format(name), "wt") as f:
             for i in range(1, N):
                 mode = random.choice(list(modes.keys()))
@@ -246,13 +263,17 @@ def make_tables():
                 ctx.clear_traps()
                 ctx.clear_flags()
 
-                r, x, y, z0 = perform_op(op)
+                r, x, y, u = perform_op(op)
 
                 conds = ""
                 for key, value in ctx.flags.items():
                     if value == 1 and key != decimal.FloatOperation:
                         conds += traps[key]
-                write_line(f, ctx.prec, op, mode, r, x, y, z0, conds)
+                write_line(f, ctx.prec, op, mode, r, x, y, u, conds)
 
 
-make_tables()
+items = ops.items()
+if len(sys.argv) > 1:
+    arg = sys.argv[1]
+    items = [(arg, ops[arg])]
+make_tables(items)

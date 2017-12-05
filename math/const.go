@@ -14,18 +14,20 @@ func newDecimal(s string) *decimal.Big {
 	return x
 }
 
+const constPrec = 100
+
 var (
-	_E  = newDecimal("2.718281828459045235360287471352662497757247093699959574966967627724076630353547594571382178525166427")
-	_Pi = newDecimal("3.141592653589793238462643383279502884197169399375105820974944592307816406286208998628034825342117067")
+	_E    = newDecimal("2.718281828459045235360287471352662497757247093699959574966967627724076630353547594571382178525166427")
+	_Pi   = newDecimal("3.141592653589793238462643383279502884197169399375105820974944592307816406286208998628034825342117067")
+	_Ln10 = newDecimal("2.302585092994045684017991454684364207601101488628772976033327900967572609677352480235997205089598298")
 	//_Gamma = newDecimal("0.577215664901532860606512090082402431042159335939923598805767234884867726777664670936947063291746749")
 	//_Ln2   = newDecimal("0.693147180559945309417232121458176568075500134360255254120680009493393621969694715605863326996418687")
-	//_Ln10  = newDecimal("2.302585092994045684017991454684364207601101488628772976033327900967572609677352480235997205089598298")
 )
 
 // E sets z to the mathematical constant e.
 func E(z *decimal.Big) *decimal.Big {
 	prec := precision(z)
-	if prec <= 100 {
+	if prec <= constPrec {
 		return z.Set(_E)
 	}
 
@@ -48,7 +50,7 @@ func E(z *decimal.Big) *decimal.Big {
 // Pi sets z to the mathematical constant π.
 func Pi(z *decimal.Big) *decimal.Big {
 	prec := precision(z)
-	if prec <= 100 {
+	if prec <= constPrec {
 		return z.Set(_Pi)
 	}
 
@@ -73,6 +75,27 @@ func Pi(z *decimal.Big) *decimal.Big {
 		s.Add(s, t)
 	}
 	return s
+}
+
+// log10 sets z to log(10) and returns z.
+func log10(z *decimal.Big) *decimal.Big {
+	prec := precision(z) + 3
+	if prec <= constPrec {
+		return z.Set(_Ln10)
+	}
+
+	// TODO(eric): we can speed this up by selecting a log10 constant that's some
+	// truncation of our continued fraction and setting the starting term to
+	// that position in our continued fraction.
+
+	g := lgen{
+		prec: prec,
+		pow:  eightyOne, // 9 * 9
+		z2:   eleven,    // 9 + 2
+		k:    -1,
+		t:    Term{A: decimal.WithPrecision(prec), B: decimal.WithPrecision(prec)},
+	}
+	return z.Quo(eighteen /* 9 * 2 */, Lentz(z, &g))
 }
 
 /*

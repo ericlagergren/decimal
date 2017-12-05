@@ -5,8 +5,17 @@ import (
 	"github.com/ericlagergren/decimal/internal/arith"
 )
 
+// Log10 sets z to the common logarithm of x and returns z.
+func Log10(z, x *decimal.Big) *decimal.Big {
+	return log(z, x, true)
+}
+
 // Log sets z to the natural logarithm of x.
 func Log(z, x *decimal.Big) *decimal.Big {
+	return log(z, x, false)
+}
+
+func log(z, x *decimal.Big, ten bool) *decimal.Big {
 	if z.CheckNaNs(x, nil) {
 		return z
 	}
@@ -27,9 +36,15 @@ func Log(z, x *decimal.Big) *decimal.Big {
 		return z.SetInf(false)
 	}
 
-	if x.IsInt() && !x.IsBig() && x.Uint64() == 1 {
-		// ln 1 = 0
-		return z.SetMantScale(0, 0)
+	if x.IsInt() && !x.IsBig() {
+		switch x.Uint64() {
+		case 1:
+			// ln 1 = 0
+			return z.SetMantScale(0, 0)
+		case 10:
+			// Specialized function.
+			return log10(z)
+		}
 	}
 
 	t := (x.Scale() - x.Precision()) - 1
@@ -51,20 +66,29 @@ func Log(z, x *decimal.Big) *decimal.Big {
 	// Given
 	//    x = m * 10**n
 	// Reduce x (as y) so that
-	//    1 <= y <= 10
+	//    1 <= y < 10
 	// And create p so that
 	//    x = y * 10**p
 	// Compute
 	//    log(y) + p*log(10)
 
 	prec := precision(z)
-	y := decimal.WithPrecision(prec).Copy(x).SetScale(x.Precision() - 1)
-
-	var p decimal.Big
-	p.SetUint64(arith.Abs(int64(x.Scale() - x.Precision() + 1)))
-
+	y := decimal.WithPrecision(prec + 4).Copy(x).SetScale(x.Precision() - 1)
 	// Algorithm is for log(1+x)
 	y.Sub(y, one)
+
+	var p int64
+	switch {
+	// 1e+1000
+	case x.Scale() <= 0:
+		p = int64(x.Precision() - x.Scale() - 1)
+	// 0.0001
+	case x.Scale() >= x.Precision():
+		p = -int64(x.Scale() - x.Precision() + 1)
+	// 12.345
+	default:
+		p = int64(-x.Scale() + x.Precision() - 1)
+	}
 
 	prec += adj
 	g := lgen{
@@ -72,18 +96,23 @@ func Log(z, x *decimal.Big) *decimal.Big {
 		pow:  decimal.WithPrecision(prec).Mul(y, y),
 		z2:   decimal.WithPrecision(prec).Add(y, two),
 		k:    -1,
-		t: Term{
-			A: decimal.WithPrecision(prec),
-			B: decimal.WithPrecision(prec),
-		},
+		t:    Term{A: decimal.WithPrecision(prec), B: decimal.WithPrecision(prec)},
 	}
 
 	y.Quo(y.Mul(y, two), Lentz(z, &g))
-	if p.Sign() != 0 {
-		// Avoid the call to log10 if it'll result in 0.
-		y.FMA(&p, log10(prec), y)
+
+	// Avoid the call to log10 if it'll result in 0.
+	if p != 0 {
+		p := new(decimal.Big).SetMantScale(p, 0)
+		t := log10(decimal.WithPrecision(prec + 4))
+		y.FMA(p, t, y)
+		// We're calculating log10(x)
+		if ten {
+			y.Quo(y, t)
+		}
 	}
-	return z.Set(y)
+	decimal.ToNearestEven.Round(y, prec-adj)
+	return z.Copy(y)
 }
 
 const adj = 3
