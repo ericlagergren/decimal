@@ -26,25 +26,16 @@ _testmain.go
 _test*
 *.tags
 
-*.sublime-*
 .git
 *.swp
-.tags
+*.txt
+*.tags
 old.*
-.vagrant/
-Vagrantfile
 *.test
 *.out
-old/
-tags
-out.txt
-test.go
 algos/
 j/
 *.txt
-[a-z].go
-math/x.py
-math/t.bash
 !_testdata/
 fuzz/
 benchmarks/decbench
