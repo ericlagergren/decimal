@@ -6,10 +6,10 @@
 - [ ] compare-signal
 - [x] divide
 - [ ] divide-integer
-- [ ] exp
+- [x] exp
 - [x] fused-multiply-add
-- [ ] ln
-- [ ] log10
+- [x] ln
+- [x] log10
 - [x] max
 - [x] max-magnitude
 - [x] min
@@ -22,11 +22,11 @@
 - [ ] power
 - [x] quantize
 - [ ] reduce
-- [ ] remainder
+- [x] remainder
 - [ ] remainder-near
 - [ ] round-to-integral-exact
 - [ ] round-to-integral-value
-- [ ] square-root
+- [x] square-root
 - [x] subtract
 
 ## Miscellaneous operations
@@ -53,7 +53,7 @@
 - [x] is-zero
 - [ ] logb
 - [ ] or
-- [ ] radix
+- [x] radix
 - [ ] rotate
 - [x] same-quantum
 - [ ] scaleb
