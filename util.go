@@ -27,17 +27,36 @@ func (z *Big) norm() *Big {
 	return z
 }
 
+func Test(z *Big) *Big { return z.test() }
+
 func (z *Big) test() *Big {
 	adj := z.adjusted()
 	if adj > MaxScale {
-		if z.IsFinite() {
+		prec := precision(z)
+		if z.Sign() == 0 {
 			z.exp = MaxScale
-			// TODO(eric): mandatory clamping?
+			z.Context.Conditions |= Clamped
+			return z
 		}
-		z.Context.Conditions |= Clamped
+
+		switch m := z.Context.RoundingMode; m {
+		case ToNearestAway, ToNearestEven:
+			z.SetInf(z.Signbit())
+		case AwayFromZero:
+		case ToZero:
+			z.exp = MaxScale - prec + 1
+		case ToPositiveInf, ToNegativeInf:
+			if m == ToPositiveInf == z.Signbit() {
+				z.exp = MaxScale - prec + 1
+			} else {
+				z.SetInf(false)
+			}
+		}
+		z.Context.Conditions |= Overflow | Inexact | Rounded
 	} else if adj < MinScale {
 		tiny := z.etiny()
-		if z.IsFinite() {
+
+		if z.Sign() == 0 {
 			if z.exp < tiny {
 				z.exp = tiny
 				z.Context.Conditions |= Clamped
@@ -138,8 +157,7 @@ func cmpNormBig(z, x *big.Int, xs int, y *big.Int, ys int) (ok bool) {
 // x = x / 10^-scale.
 func scalex(x uint64, scale int) (sx uint64, ok bool) {
 	if scale > 0 {
-		sx, ok = checked.MulPow10(x, uint64(scale))
-		if !ok {
+		if sx, ok = checked.MulPow10(x, uint64(scale)); !ok {
 			return 0, false
 		}
 		return sx, true
@@ -157,4 +175,11 @@ func bigScalex(z, x *big.Int, scale int) *big.Int {
 		return checked.MulBigPow10(z, x, uint64(scale))
 	}
 	return z.Quo(x, pow.BigTen(uint64(-scale)))
+}
+
+func min(x, y int) int {
+	if x < y {
+		return x
+	}
+	return y
 }

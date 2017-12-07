@@ -294,6 +294,7 @@ const (
 	Log
 	Log10
 	Pow
+	IntDiv
 )
 
 const maxOpLen = 6
@@ -348,6 +349,7 @@ var valToOp = map[string]Op{
 	"log":     Log,
 	"log10":   Log10,
 	"pow":     Pow,
+	"//":      IntDiv,
 }
 
 //go:generate stringer -type=Op

@@ -10,7 +10,7 @@ func Log10(z, x *decimal.Big) *decimal.Big {
 	return log(z, x, true)
 }
 
-// Log sets z to the natural logarithm of x.
+// Log sets z to the natural logarithm of x and returns z.
 func Log(z, x *decimal.Big) *decimal.Big {
 	return log(z, x, false)
 }
@@ -106,7 +106,10 @@ func log(z, x *decimal.Big, ten bool) *decimal.Big {
 		p := new(decimal.Big).SetMantScale(p, 0)
 		t := log10(decimal.WithPrecision(prec + 4))
 		y.FMA(p, t, y)
+
 		// We're calculating log10(x)
+		//
+		// log10(x) = log(x) / log(10)
 		if ten {
 			y.Quo(y, t)
 		}

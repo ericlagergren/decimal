@@ -20,6 +20,7 @@ ops = {
     "L": "base-b-logarithm",
     "?": "class",
     "V": "square-root",
+    "%": "remainder",
 
     # Custom
     "rat": "convert-to-rat",
@@ -29,6 +30,7 @@ ops = {
     "log": "natural-logarithm",
     "log10": "common-logarithm",
     "pow": "power",
+    "//": "integer-division",
 }
 
 modes = {
@@ -47,7 +49,7 @@ def rand_bool():
     return random.randint(0, 1) % 2 == 0
 
 
-def make_dec(nbits=54321):
+def make_dec(nbits=5000):
     r = random.randint(0, 25)
     if r == 0:
         f = math.nan
@@ -77,7 +79,11 @@ def make_dec(nbits=54321):
 DEC_TEN = decimal.Decimal(10)
 
 
-def rand_dec(quant=False, nbits=54321):
+def rand_dec(quant=None, nbits=None):
+    if quant is None:
+        quant = False
+    if nbits is None:
+        nbits = 5000
     with decimal.localcontext() as ctx:
         ctx.clear_traps()
 
@@ -155,6 +161,12 @@ def perform_op(op):
         elif op == "/":
             y = rand_dec()
             r = x / y
+        elif op == "//":
+            y = rand_dec()
+            r = x // y
+        elif op == "%":
+            y = rand_dec()
+            r = x % y
         elif op == "qC":
             y = rand_dec()
             r = x.compare(y)
@@ -245,7 +257,7 @@ def rand_traps():
 
 
 # set N higher for local testing.
-N = 100
+N = 2500
 
 
 def make_tables(items):
