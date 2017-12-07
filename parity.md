@@ -5,7 +5,7 @@
 - [x] compare
 - [ ] compare-signal
 - [x] divide
-- [ ] divide-integer
+- [x] divide-integer
 - [x] exp
 - [x] fused-multiply-add
 - [x] ln

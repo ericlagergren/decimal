@@ -308,9 +308,9 @@ func (z *Big) Abs(x *Big) *Big {
 		x.validate()
 	}
 	if !z.checkNaNs(x, x, absvalue) {
-		z.copyAbs(x)
+		z.copyAbs(x).round()
 	}
-	return z.round()
+	return z
 }
 
 // Add sets z to x + y and returns z.
@@ -1641,8 +1641,9 @@ func quorem(z0, z1, x, y *Big) (*Big, *Big) {
 		yb = checked.MulBigPow10(tmp, yb, uint64(-shift))
 	}
 	return m.quoremBig(z0, z1, xb, x.form, yb, y.form)
-
 }
+
+// TODO(eric): quorem and quoremBig should not be methods on RoundingMode
 
 func (m RoundingMode) quorem(
 	z0, z1 *Big,
@@ -1826,7 +1827,7 @@ func (z *Big) Set(x *Big) *Big {
 	return z.Copy(x).round()
 }
 
-// setShared sets z to x, but does not copy—z will now possibly alias x.
+// setShared sets z to x, but does not copy—z may possibly alias x.
 func (z *Big) setShared(x *Big) *Big {
 	if debug {
 		x.validate()
