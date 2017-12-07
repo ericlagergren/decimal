@@ -21,7 +21,9 @@ func TestBig_Mul(t *testing.T)       { test.Mul.Test(t) }
 func TestBig_Neg(t *testing.T)       { test.Neg.Test(t) }
 func TestBig_Quantize(t *testing.T)  { test.Quant.Test(t) }
 func TestBig_Quo(t *testing.T)       { test.Quo.Test(t) }
+func TestBig_QuoInt(t *testing.T)    { test.QuoInt.Test(t) }
 func TestBig_Rat(t *testing.T)       { test.CTR.Test(t) }
+func TestBig_Rem(t *testing.T)       { test.Rem.Test(t) }
 func TestBig_SetString(t *testing.T) { test.CTS.Test(t) /* Same as CFS */ }
 func TestBig_Sign(t *testing.T)      { test.Sign.Test(t) }
 func TestBig_SignBit(t *testing.T)   { test.Signbit.Test(t) }

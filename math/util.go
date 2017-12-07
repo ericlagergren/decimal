@@ -1,22 +1,16 @@
 package math
 
 import (
-	"math/big"
-
 	"github.com/ericlagergren/decimal"
-	"github.com/ericlagergren/decimal/internal/arith/pow"
-	"github.com/ericlagergren/decimal/internal/c"
+	"github.com/ericlagergren/decimal/misc"
 )
 
 var (
-	neg       = decimal.New(-1, 0)
 	negfour   = decimal.New(-4, 0)
 	one       = decimal.New(1, 0)
 	two       = decimal.New(2, 0)
 	six       = decimal.New(6, 0)
 	eight     = decimal.New(8, 0)
-	nine      = decimal.New(9, 0)
-	ten       = decimal.New(10, 0)
 	eleven    = decimal.New(11, 0)
 	sixteen   = decimal.New(16, 0)
 	eighteen  = decimal.New(18, 0)
@@ -47,7 +41,8 @@ func precision(z *decimal.Big) (p int) {
 	return decimal.DefaultPrecision
 }
 
-func etiny(z *decimal.Big) int { return decimal.MinScale - (precision(z) - 1) }
+func etiny(z *decimal.Big) int    { return decimal.MinScale - (precision(z) - 1) }
+func adjusted(x *decimal.Big) int { return (-x.Scale() + x.Precision()) - 1 }
 
 func min(x, y int) int {
 	if x < y {
@@ -56,12 +51,7 @@ func min(x, y int) int {
 	return y
 }
 
-func firstDigit(x *decimal.Big) uint64 {
-	xp := x.Precision()
-	t, m := decimal.Raw(x)
-	if t != c.Inflated {
-		p, _ := pow.Ten(uint64(xp - 1))
-		return t / p
-	}
-	return new(big.Int).Quo(m, pow.BigTen(uint64(xp))).Uint64()
+func abs(x *decimal.Big) *decimal.Big {
+	x0 := *x
+	return misc.CopyAbs(&x0, &x0)
 }

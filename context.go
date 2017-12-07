@@ -10,12 +10,8 @@ import (
 
 // Precision and scale limits.
 const (
-	MaxScale = maxScale  // largest allowed scale.
-	MinScale = -MaxScale // smallest allowed scale.
-
-	// MaxPrecision and UnlimitedPrecision relies on the relationship
-	// MaxPrecision = -(UnlimitedPrecision + 1)
-
+	MaxScale           = c.MaxScale       // largest allowed scale.
+	MinScale           = -MaxScale        // smallest allowed scale.
 	MaxPrecision       = MaxScale         // largest allowed Context precision.
 	MinPrecision       = 1                // smallest allowed Context precision.
 	UnlimitedPrecision = MaxPrecision + 1 // no precision, but may error.
@@ -139,7 +135,7 @@ const (
 // undefined if z is not finite. No rounding will occur if n <= 0. The result of
 // Round will always be within the interval [⌊10**x⌋, z] where x = the precision
 // of z.
-func (r RoundingMode) Round(z *Big, n int) *Big {
+func (m RoundingMode) Round(z *Big, n int) *Big {
 	if debug {
 		z.validate()
 	}
@@ -160,26 +156,23 @@ func (r RoundingMode) Round(z *Big, n int) *Big {
 	z.exp += shift
 
 	z.Context.Conditions |= Rounded
-
-	neg := z.Signbit()
 	if z.isCompact() {
 		if z.compact == 0 {
 			return z
 		}
-		if val, ok := pow.Ten(uint64(shift)); ok {
-			return z.quoAndRoundCompact(z.compact, neg, val, false)
+		if y, ok := pow.Ten(uint64(shift)); ok {
+			return z.quo(m, z.compact, z.form, y, 0)
 		}
 		z.unscaled.SetUint64(z.compact)
 		z.compact = c.Inflated
 	}
-	z.quoAndRoundBig(&z.unscaled, neg, pow.BigTen(uint64(shift)), false)
-	return z
+	return z.quoBig(m, &z.unscaled, z.form, pow.BigTen(uint64(shift)), 0)
 }
 
 //go:generate stringer -type RoundingMode
 
-func (z *Big) needsInc(r int, pos bool) bool {
-	switch z.Context.RoundingMode {
+func (m RoundingMode) needsInc(odd bool, r int, pos bool) bool {
+	switch m {
 	case AwayFromZero:
 		return true // always up
 	case ToZero:
@@ -192,19 +185,15 @@ func (z *Big) needsInc(r int, pos bool) bool {
 	//  r <  0: closer to higher
 	//  r == 0: halfway
 	//  r >  0: closer to lower
-	//
 	case ToNearestEven:
 		if r != 0 {
 			return r > 0
 		}
-		if z.isCompact() {
-			return z.compact&1 != 0
-		}
-		return z.unscaled.Bit(0) != 0
+		return odd
 	case ToNearestAway:
 		return r >= 0
 	default:
-		z.Context.Conditions |= InvalidContext
+		// z.Context.Conditions |= InvalidContext
 		return false
 	}
 }
