@@ -1,4 +1,4 @@
-package pow
+package arith
 
 import (
 	"fmt"
@@ -17,11 +17,11 @@ func TestBigTen(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	for i := uint64(0); i < BigTabLen+10; i++ {
+	for i := uint64(0); i < BigPowTabLen+10; i++ {
 		<-workc
 		wg.Add(1)
 		go func(i uint64) {
-			comp := BigTen(i)
+			comp := BigPow10(i)
 			n := new(big.Int).SetUint64(i)
 			act := n.Exp(c.TenInt, n, nil)
 			if act.Cmp(comp) != 0 {

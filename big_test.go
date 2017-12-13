@@ -46,28 +46,6 @@ func TestBig_Float(t *testing.T) {
 	}
 }
 
-func TestBig_IsBig(t *testing.T) {
-	for i, test := range [...]struct {
-		x   string
-		big bool
-	}{
-		0: {"100", false},
-		1: {"-100", false},
-		2: {"5000", false},
-		3: {"-5000", false},
-		4: {"9999999999999999999999999999", true},
-		5: {"1000.5000E+500", true},
-		6: {"1000.5000E-500", true},
-		7: {"+Inf", false},
-		8: {"0", false},
-	} {
-		x, _ := new(decimal.Big).SetString(test.x)
-		if ib := x.IsBig(); ib != test.big {
-			t.Fatalf("#%d: wanted %t, got %t", i, test.big, ib)
-		}
-	}
-}
-
 func TestBig_Int(t *testing.T) {
 	for i, test := range [...]string{
 		"1.234", "4.567", "11111111111111111111111111111111111.2",
@@ -110,7 +88,10 @@ func TestBig_Int64(t *testing.T) {
 		case x == 0:
 			iv = "0"
 		}
-		n := a.Int64()
+		n, ok := a.Int64()
+		if !ok {
+			t.Fatal("!ok")
+		}
 		if ns := strconv.FormatInt(n, 10); ns != iv {
 			t.Fatalf("#%d: wanted %q, got %q", i, iv, ns)
 		}
@@ -119,6 +100,7 @@ func TestBig_Int64(t *testing.T) {
 
 func TestBig_IsInt(t *testing.T) {
 	for i, test := range [...]string{
+		"1.087581170583171279366331325163992810993060588169144153517806339238748036659594606503711549623097075801903290898984816913699837852618679612062658508694865627080580343806827457751585727929883451128788810220782555198023845932678964045544369555311671308165766927777574386318610481491980102511680466744045522904137471213980283536704254600843996379022514957521",
 		"0 int",
 		"-0 int",
 		"1 int",
@@ -232,16 +214,20 @@ func TestBig_SetFloat64(t *testing.T) {
 		return
 	}
 
-	z := decimal.WithPrecision(25)
+	const eps = 1e-15
+	z := decimal.WithPrecision(17)
 	for x := uint32(0); x != math.MaxUint32; x++ {
 		f := float64(math.Float32frombits(x))
-		z.SetFloat64(f)
-		zf := z.Float64()
-		if zf != f && (!math.IsNaN(f) && !math.IsNaN(zf)) {
-			t.Fatalf(`#%d:
+		zf, _ := z.SetFloat64(f).Float64()
+		if math.Float64bits(zf) != math.Float64bits(f) {
+			if isSpecial(f) || isSpecial(zf) || math.Abs(zf-f) > eps {
+				t.Fatalf(`#%d:
 wanted: %g
 got   : %g
 `, x, f, zf)
+			}
 		}
 	}
 }
+
+func isSpecial(f float64) bool { return math.IsInf(f, 0) || math.IsNaN(f) }

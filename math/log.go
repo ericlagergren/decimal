@@ -3,60 +3,102 @@ package math
 import (
 	"github.com/ericlagergren/decimal"
 	"github.com/ericlagergren/decimal/internal/arith"
+	"github.com/ericlagergren/decimal/internal/c"
 )
 
 // Log10 sets z to the common logarithm of x and returns z.
 func Log10(z, x *decimal.Big) *decimal.Big {
+	if logSpecials(z, x) {
+		return z
+	}
+
+	// If x is a power of 10 the result is the exponent and exact.
+	tpow := false
+	if m, u := decimal.Raw(x); m != c.Inflated {
+		tpow = arith.PowOfTen(m)
+	} else {
+		tpow = arith.PowOfTenBig(u)
+	}
+	if tpow {
+		return z.SetMantScale(int64(adjusted(x)), 0)
+	}
 	return log(z, x, true)
 }
 
 // Log sets z to the natural logarithm of x and returns z.
 func Log(z, x *decimal.Big) *decimal.Big {
+	if logSpecials(z, x) {
+		return z
+	}
+	if x.IsInt() {
+		if v, ok := x.Uint64(); ok {
+			switch v {
+			case 1:
+				// ln 1 = 0
+				return z.SetMantScale(0, 0)
+			case 10:
+				prec := precision(z)
+				// Specialized function.
+				return round(ln10(z, prec+3), prec)
+			}
+		}
+	}
 	return log(z, x, false)
 }
 
-func log(z, x *decimal.Big, ten bool) *decimal.Big {
+// logSepcials checks for special values (Inf, NaN, 0) for logarithms.
+func logSpecials(z, x *decimal.Big) bool {
 	if z.CheckNaNs(x, nil) {
-		return z
+		return true
 	}
 
-	if x.Signbit() {
-		// ln x is undefined.
-		z.Context.Conditions |= decimal.InvalidOperation
-		return z.SetNaN(false)
+	if sgn := x.Sign(); sgn <= 0 {
+		if sgn == 0 {
+			// ln 0 = -Inf
+			z.SetInf(true)
+		} else {
+			// ln -x is undefined.
+			z.Context.Conditions |= decimal.InvalidOperation
+			z.SetNaN(false)
+		}
+		return true
 	}
 
 	if x.IsInf(+1) {
 		// ln +Inf = +Inf
-		return z.SetInf(false)
+		z.SetInf(false)
+		return true
 	}
+	return false
+}
 
-	if x.Sign() == 0 {
-		// ln 0 = -Inf
-		return z.SetInf(false)
-	}
+// log set z to log(x), or log10(x) if ten. It does not check for special values,
+// nor implement any special casing.
+func log(z, x *decimal.Big, ten bool) *decimal.Big {
+	prec := precision(z)
 
-	if x.IsInt() && !x.IsBig() {
-		switch x.Uint64() {
-		case 1:
-			// ln 1 = 0
-			return z.SetMantScale(0, 0)
-		case 10:
-			// Specialized function.
-			return log10(z)
-		}
-	}
-
-	t := (x.Scale() - x.Precision()) - 1
+	t := int64(x.Scale()-x.Precision()) - 1
 	if t < 0 {
 		t = -t - 1
 	}
 	t *= 2
 
-	if arith.Length(arith.Abs(int64(t)))-1 > decimal.MaxScale {
+	if arith.Length(arith.Abs(t))-1 > decimal.MaxScale {
 		z.Context.Conditions |= decimal.Overflow | decimal.Inexact | decimal.Rounded
 		return z.SetInf(t < 0)
 	}
+
+	/* TODO(eric): figure out how to ensure this is corectly rounded.
+	if f, exact := x.Float64(); exact && prec <= exactFloatPrec {
+		var res float64
+		if ten {
+			res = math.Log10(f)
+		} else {
+			res = math.Log(f)
+		}
+		return round(z.SetFloat64(res), prec)
+	}
+	*/
 
 	// Argument reduction:
 	// Given
@@ -72,8 +114,9 @@ func log(z, x *decimal.Big, ten bool) *decimal.Big {
 	// Compute
 	//    log(y) + p*log(10)
 
-	prec := precision(z)
-	y := decimal.WithPrecision(prec + 4).Copy(x).SetScale(x.Precision() - 1)
+	const adj = 4
+	prec += adj
+	y := decimal.WithPrecision(prec).Copy(x).SetScale(x.Precision() - 1)
 	// Algorithm is for log(1+x)
 	y.Sub(y, one)
 
@@ -90,35 +133,43 @@ func log(z, x *decimal.Big, ten bool) *decimal.Big {
 		p = int64(-x.Scale() + x.Precision() - 1)
 	}
 
-	prec += adj
+	lgp := prec + 2
 	g := lgen{
-		prec: prec,
-		pow:  decimal.WithPrecision(prec).Mul(y, y),
-		z2:   decimal.WithPrecision(prec).Add(y, two),
+		prec: lgp,
+		pow:  decimal.WithPrecision(lgp).Mul(y, y),
+		z2:   decimal.WithPrecision(lgp).Add(y, two),
 		k:    -1,
-		t:    Term{A: decimal.WithPrecision(prec), B: decimal.WithPrecision(prec)},
+		t:    Term{A: decimal.WithPrecision(lgp), B: decimal.WithPrecision(lgp)},
 	}
 
-	y.Quo(y.Mul(y, two), Lentz(z, &g))
+	tmp := decimal.WithPrecision(prec)
+	y.Quo(y.Mul(y, two), Lentz(tmp, &g))
 
-	// Avoid the call to log10 if it'll result in 0.
-	if p != 0 {
-		p := new(decimal.Big).SetMantScale(p, 0)
-		t := log10(decimal.WithPrecision(prec + 4))
-		y.FMA(p, t, y)
+	if p != 0 || ten {
+		t := ln10(tmp, prec) // recycle tmp
 
-		// We're calculating log10(x)
-		//
-		// log10(x) = log(x) / log(10)
+		// Avoid doing unnecessary work.
+		switch p {
+		default:
+			p := g.pow.SetMantScale(p, 0) // recycle g.pow
+			y.FMA(p, t, y)
+		case 0:
+			// OK
+		case -1:
+			y.Sub(y, t) // (-1 * t) + y = -t + y = y - t
+		case 1:
+			y.Add(t, y) // (+1 * t) + y = t + y
+		}
+
+		// We're calculating log10(x):
+		//    log10(x) = log(x) / log(10)
 		if ten {
 			y.Quo(y, t)
 		}
 	}
-	decimal.ToNearestEven.Round(y, prec-adj)
-	return z.Copy(y)
+	z.Context.Conditions |= tmp.Context.Conditions
+	return z.Copy(round(y, prec-adj))
 }
-
-const adj = 3
 
 type lgen struct {
 	prec int

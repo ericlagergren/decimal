@@ -5,7 +5,6 @@ import (
 	"github.com/ericlagergren/decimal"
 	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/arith/checked"
-	"github.com/ericlagergren/decimal/internal/arith/pow"
 )
 
 var (
@@ -236,14 +235,14 @@ func Shift(z, x *decimal.Big, shift int) *decimal.Big {
 	}
 
 	if shift < 0 {
-		xb.Quo(xb, pow.BigTen(uint64(-shift))) // remove trailing N digits
+		xb.Quo(xb, arith.BigPow10(uint64(-shift))) // remove trailing N digits
 	} else {
 		if xp < zp {
-			xb.Rem(xb, pow.BigTen(uint64(shift)))    // remove first N digits
-			xb.Mul(xb, pow.BigTen(uint64(zp-shift))) // fill with zeros
+			xb.Rem(xb, arith.BigPow10(uint64(shift)))    // remove first N digits
+			xb.Mul(xb, arith.BigPow10(uint64(zp-shift))) // fill with zeros
 		} else {
-			xb.Rem(xb, pow.BigTen(uint64(zp-shift)))
-			xb.Mul(xb, pow.BigTen(uint64(shift)))
+			xb.Rem(xb, arith.BigPow10(uint64(zp-shift)))
+			xb.Mul(xb, arith.BigPow10(uint64(shift)))
 		}
 	}
 	return z.SetBigMantScale(xb, 0)

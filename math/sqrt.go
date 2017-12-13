@@ -26,9 +26,10 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 		return z
 	}
 
+	ideal := -((-x.Scale() - (-x.Scale() & 1)) / 2)
 	if xs := x.Sign(); xs <= 0 {
 		if xs == 0 {
-			return z.SetMantScale(0, x.Scale()>>1)
+			return z.SetMantScale(0, ideal).CopySign(z, x)
 		}
 		// errors.New("math.Sqrt: cannot take square root of negative number"),
 		z.Context.Conditions |= decimal.InvalidOperation
@@ -42,25 +43,9 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 
 	prec := precision(z)
 
-	// Fast path #1: use math.Sqrt if our decimal is small enough. 0 and 22
-	// are implementation details of the Float64 method. If Float64 is altered,
-	// change them.
-	if prec <= 16 && (x.Scale() >= 0 && x.Scale() < 22) {
-		return z.SetFloat64(math.Sqrt(x.Float64()))
-	}
-
-	// Fast path #2: x is a small perfect square.
-	if x.IsInt() && !x.IsBig() {
-		// https://stackoverflow.com/a/295678/2967113
-		switch xc := x.Int64(); xc & 0xF {
-		case 0, 1, 4, 9:
-			// "Show that floating point sqrt(x*x) >= x for all long x."
-			// https://math.stackexchange.com/a/238885/153292
-			sqrt := int64(math.Sqrt(float64(xc)))
-			if sqrt*sqrt == xc {
-				return z.SetMantScale(sqrt, 0)
-			}
-		}
+	// Fast path #1: use math.Sqrt if our decimal is small enough.
+	if f, exact := x.Float64(); exact && prec <= 15 {
+		return z.SetFloat64(math.Sqrt(f))
 	}
 
 	// Source for the following algorithm:
@@ -84,15 +69,15 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 	)
 
 	if e&1 == 0 {
-		approx.Add(approx1, tmp.Mul(approx2, f)) // approx := .259 + .819f
+		approx.FMA(approx2, f, approx1) // approx := .259 + .819f
 	} else {
-		f.SetScale(f.Scale() + 1)                // f := f/10
-		e++                                      // e := e + 1
-		approx.Add(approx3, tmp.Mul(approx4, f)) // approx := 0.819 + 2.59*f
+		f.SetScale(f.Scale() + 1)       // f := f/10
+		e++                             // e := e + 1
+		approx.FMA(approx4, f, approx3) // approx := .0819 + 2.59f
 	}
 
 	var (
-		maxp     = prec + 2
+		maxp     = prec + 5 // extra prec to skip weird +/- 0.5 adjustments
 		p    int = 3
 	)
 
@@ -120,6 +105,9 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 	approx.SetScale(approx.Scale() - e/2)
 	decimal.ToNearestEven.Round(approx, prec)
 	z.Context.Conditions |= approx.Context.Conditions
+	if ideal != approx.Scale() {
+		z.Context.Conditions |= decimal.Rounded | decimal.Inexact
+	}
 	return z.Set(approx)
 }
 

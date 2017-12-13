@@ -1,14 +1,13 @@
 package math
 
 import (
+	"math"
+
 	"github.com/ericlagergren/decimal"
 )
 
 // Exp sets z to e ** x and returns z.
 func Exp(z, x *decimal.Big) *decimal.Big {
-	// TODO(eric): "pestle_: eric_lagergren, that is, exp(z+z0) = exp(z)*exp(z0)
-	// 						 and exp(z) ~ 1+z for small enough z"
-
 	if z.CheckNaNs(x, nil) {
 		return z
 	}
@@ -30,7 +29,7 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 	// The algorithm behind this section is taken from libmpdec, which uses an
 	// algorithm from Hull & Abraham, Variable Precision Exponential Function,
 	// ACM Transactions on Mathematical Software, Vol. 12, No. 2, June 1986.
-	// The comment explaining the algorithm in its original  format:
+	// The comment explaining the algorithm in its original format:
 	/*
 	 * We are calculating e^x = e^(r*10^t) = (e^r)^(10^t), where abs(r) < 1 and t >=
 	 * 0.
@@ -47,7 +46,10 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 	 *     adjexp(e^(r*10^t)) <= log10(e^(r*10^t)) <= log10(e^(-0.1*10^t)) <
 	 * MIN-ETINY
 	 */
-	t := x.Precision() - x.Scale()
+	t := x.Precision() + -x.Scale()
+	if t < 0 {
+		t = 0
+	}
 	const expMax = 19
 	if t > expMax {
 		if x.Signbit() {
@@ -61,18 +63,26 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 		z.Context.Conditions |= decimal.Overflow | decimal.Inexact | decimal.Rounded
 		return z.SetInf(false)
 	}
+	t += 5
 
 	prec := precision(z)
 
+	tmp := decimal.WithPrecision(prec + t) // scratch space
+
 	// |x| <= 9 * 10 ** -(prec + 1)
-	lim := alias(z, x).SetMantScale(9, prec-1)
+	lim := tmp.SetMantScale(9, prec+1)
 	if x.CmpAbs(lim) <= 0 {
 		z.Context.Conditions |= decimal.Rounded | decimal.Inexact
-		return z.SetMantScale(1, 0).Quantize(prec - 1)
+		return z.SetMantScale(1, 0).Round(prec)
 	}
 
-	if x.IsInt() && !x.IsBig() {
-		switch x.Uint64() {
+	// Fast path #1: use math.Exp if our decimal is small enough.
+	if f, exact := x.Float64(); exact && prec <= 15 {
+		return z.SetFloat64(math.Exp(f))
+	}
+
+	if v, ok := x.Uint64(); ok {
+		switch v {
 		case 1:
 			// e ** 1 = e
 			return E(z)
@@ -86,19 +96,32 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 	// Argument reduction:
 	//    exp(x) = 10**k * e**r where x = r + k*log(10)
 
-	// TODO(eric): the +8 might not be enough extra precision for very large
-	// precisions...
-	prec += t + 8
+	prec += t
+	k := log10e(decimal.WithPrecision(prec))
+	ki, ok := k.Mul(k, x).Quantize(0).Int64()
+	if !ok || ki > decimal.MaxScale {
+		// Given log10(e) ~= 0.43, if we can't compute 10 ** (log10(e) * x), how
+		// can we possibly compute e**x?
+		z.Context.Conditions |= decimal.Overflow | decimal.Inexact | decimal.Rounded
+		return z.SetInf(false)
+	}
+
+	r := tmp.Sub(x, k.Mul(k, ln10(tmp, prec)))
+
 	g := expg{
 		prec: prec,
-		z:    x,
-		pow:  decimal.WithPrecision(decimal.UnlimitedPrecision).Mul(x, x),
-		t: Term{
-			A: decimal.WithPrecision(prec),
-			B: decimal.WithPrecision(prec),
-		},
+		z:    r,
+		pow:  decimal.WithPrecision(prec).Mul(r, r),
+		t:    Term{A: decimal.WithPrecision(prec), B: decimal.WithPrecision(prec)},
 	}
-	return Lentz(z, &g)
+
+	k.SetMantScale(1, -int(ki))                      // 10**k
+	k.Mul(k, Lentz(decimal.WithPrecision(prec), &g)) // 10**k * e**r
+
+	k.Context.Precision -= t
+	decimal.ToNearestEven.Round(k, prec-t)
+	z.Context.Conditions |= k.Context.Conditions
+	return z.Copy(k)
 }
 
 // expg is a Generator that computes exp(z).

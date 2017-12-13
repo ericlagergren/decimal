@@ -5,6 +5,34 @@ import decimal
 import random
 import sys
 import math
+from functools import wraps
+import errno
+import os
+import signal
+
+
+class TimeoutError(Exception):
+    pass
+
+
+def timeout(seconds=10, error_message=os.strerror(errno.ETIME)):
+    def decorator(func):
+        def _handle_timeout(signum, frame):
+            raise TimeoutError(error_message)
+
+        def wrapper(*args, **kwargs):
+            signal.signal(signal.SIGALRM, _handle_timeout)
+            signal.alarm(seconds)
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                signal.alarm(0)
+            return result
+
+        return wraps(func)(wrapper)
+
+    return decorator
+
 
 ops = {
     "*": "multiplication",
@@ -50,7 +78,7 @@ def rand_bool():
 
 
 def make_dec(nbits=5000):
-    r = random.randint(0, 25)
+    r = random.randint(0, 50)
     if r == 0:
         f = math.nan
     elif r == 1:
@@ -141,50 +169,65 @@ def write_line(out, prec, op, mode, r, x, y=None, u=None, flags=None):
     out.write(str)
 
 
+@timeout()
 def perform_op(op):
     r = None
-    x = rand_dec(nbits=64 if op == "pow" else None)
+    x = None
     y = None  # possibly unused
     u = None  # possibly unused
 
     try:
         # Binary
         if op == "*":
+            x = rand_dec()
             y = rand_dec()
             r = x * y
         elif op == "+":
+            x = rand_dec()
             y = rand_dec()
             r = x + y
         elif op == "-":
+            x = rand_dec()
             y = rand_dec()
             r = x - y
         elif op == "/":
+            x = rand_dec()
             y = rand_dec()
             r = x / y
         elif op == "//":
+            x = rand_dec()
             y = rand_dec()
             r = x // y
         elif op == "%":
+            x = rand_dec()
             y = rand_dec()
             r = x % y
         elif op == "qC":
+            x = rand_dec()
             y = rand_dec()
             r = x.compare(y)
         elif op == "quant":
+            x = rand_dec()
             y = rand_dec(True)
             r = x.quantize(y)
             y = -y.as_tuple().exponent
         elif op == "pow":
+            decimal.getcontext().prec += 11
+            decimal.getcontext().prec //= 10
+            x = rand_dec(nbits=64)
             y = rand_dec(nbits=64)
             #u = rand_dec(nbits=64)
             r = decimal.getcontext().power(x, y, u)
 
         # Unary
         elif op == "A":
+            x = rand_dec()
             r = decimal.getcontext().abs(x)
         elif op == "cfd":
+            x = rand_dec()
             r = str(x)
         elif op == "rat":
+            x = rand_dec()
             while True:
                 try:
                     x, y = x.as_integer_ratio()
@@ -196,6 +239,7 @@ def perform_op(op):
                 except Exception:  # ValueError if nan, etc.
                     x = rand_dec()
         elif op == "sign":
+            x = rand_dec()
             if x < 0:
                 r = -1
             elif x > 0:
@@ -203,24 +247,41 @@ def perform_op(op):
             else:
                 r = 0
         elif op == "signbit":
+            x = rand_dec()
             r = x.is_signed()
         elif op == "~":
+            x = rand_dec()
             r = -x
         elif op == "exp":
+            decimal.getcontext().prec += 11
+            decimal.getcontext().prec //= 10
+            x = rand_dec(nbits=128)
             r = x.exp()
         elif op == "log":
+            decimal.getcontext().prec += 11
+            decimal.getcontext().prec //= 10
+            x = rand_dec(nbits=128)
             r = x.ln()
         elif op == "L":
+            decimal.getcontext().prec += 11
+            decimal.getcontext().prec //= 10
+            x = rand_dec(nbits=128)
             r = x.logb()
         elif op == "log10":
+            decimal.getcontext().prec += 11
+            decimal.getcontext().prec //= 10
+            x = rand_dec(nbits=128)
             r = x.log10()
         elif op == "?":
+            x = rand_dec()
             r = x.number_class()
         elif op == "V":
+            x = rand_dec()
             r = x.sqrt()
 
         # Ternary
         elif op == "*-":
+            x = rand_dec()
             y = rand_dec()
             u = rand_dec()
             r = x.fma(y, u)

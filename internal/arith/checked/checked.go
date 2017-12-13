@@ -4,7 +4,7 @@ package checked
 import (
 	"math/big"
 
-	"github.com/ericlagergren/decimal/internal/arith/pow"
+	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/c"
 )
 
@@ -55,7 +55,7 @@ func MulPow10(x uint64, n uint64) (p uint64, ok bool) {
 	case c.Inflated:
 		return 0, false
 	default:
-		if p, ok = pow.Ten(n); !ok {
+		if p, ok = arith.Pow10(n); !ok {
 			return 0, false
 		}
 		return Mul(x, p)
@@ -67,5 +67,5 @@ func MulBigPow10(z, x *big.Int, n uint64) *big.Int {
 	if x.Sign() == 0 {
 		return z.SetUint64(0)
 	}
-	return z.Mul(x, pow.BigTen(n))
+	return z.Mul(x, arith.BigPow10(n))
 }

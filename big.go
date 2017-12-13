@@ -59,12 +59,10 @@ import (
 	"math/big"
 	"regexp"
 	"runtime"
-	"strconv"
 	"strings"
 
 	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/arith/checked"
-	"github.com/ericlagergren/decimal/internal/arith/pow"
 	"github.com/ericlagergren/decimal/internal/buf"
 	"github.com/ericlagergren/decimal/internal/c"
 	"github.com/ericlagergren/decimal/internal/compat"
@@ -186,6 +184,7 @@ const (
 	quorem_
 	reminfy
 	remx0
+	quotermexp
 )
 
 var payloads = [...]string{
@@ -208,6 +207,7 @@ var payloads = [...]string{
 	quorem_:        "integer division or remainder has too many digits",
 	reminfy:        "remainder of infinity",
 	remx0:          "remainder by zero",
+	quotermexp:     "division with unlimitedprecision has a non-terminating decimal expansion",
 }
 
 func (p Payload) String() string {
@@ -299,7 +299,7 @@ func (x *Big) isCompact() bool  { return x.compact != c.Inflated }
 func (x *Big) isInflated() bool { return !x.isCompact() }
 func (x *Big) isSpecial() bool  { return x.form&(inf|nan) != 0 }
 
-func (x *Big) adjusted() int { return (x.exp + x.Precision()) - 1 }
+func (x *Big) adjusted() int { return (x.exp + x.precision) - 1 }
 func (z *Big) etiny() int    { return MinScale - (precision(z) - 1) }
 
 // Abs sets z to the absolute value of x and returns z.
@@ -387,7 +387,7 @@ func (z *Big) tryTinyAdd(hi *Big, hineg bool, lo *Big, loneg bool) (neg, ok bool
 	}
 
 	exp := hi.exp - 1
-	if hp, zp := hi.Precision(), precision(z); hp <= zp {
+	if hp, zp := hi.precision, precision(z); hp <= zp {
 		exp += hp - zp - 1
 	}
 
@@ -656,8 +656,8 @@ func cmpabs(x, y *Big) int {
 
 	diff := int64(x.exp) - int64(y.exp)
 	shift := uint64(arith.Abs(diff))
-	if pow.Safe(shift) && x.isCompact() && y.isCompact() {
-		p, _ := pow.Ten(shift)
+	if arith.Safe(shift) && x.isCompact() && y.isCompact() {
+		p, _ := arith.Pow10(shift)
 		if diff < 0 {
 			return arith.AbsCmp128(x.compact, y.compact, p)
 		}
@@ -723,8 +723,11 @@ func (z *Big) CopySign(x, y *Big) *Big {
 
 }
 
-// Float64 returns x as a float64.
-func (x *Big) Float64() float64 {
+// Float64 returns x as a float64 and a bool indicating whether x can be
+// exactly represented as a float64. Special values are considered exact;
+// however, special values that occur because the magnitude of x is too large
+// to be represented as a float64 are not.
+func (x *Big) Float64() (f float64, exact bool) {
 	if debug {
 		x.validate()
 	}
@@ -732,36 +735,35 @@ func (x *Big) Float64() float64 {
 	if !x.IsFinite() {
 		switch x.form {
 		case pinf, ninf:
-			return math.Inf(int(x.form & signbit))
+			return math.Inf(int(x.form & signbit)), true
 		case snan, qnan:
-			return math.NaN()
+			return math.NaN(), true
 		case ssnan, sqnan:
-			return math.Copysign(math.NaN(), -1)
+			return math.Copysign(math.NaN(), -1), true
 		}
 	}
-	if x.isCompact() {
-		if x.exp == 0 {
-			return float64(x.compact)
-		}
-		const maxMantissa = 1 << 52
-		if x.compact < maxMantissa {
-			const maxPow10 = 22
 
-			var f float64
-			if x.exp > 0 && x.exp < maxPow10 {
-				f = float64(x.compact) * math.Pow10(x.exp)
-			} else if x.exp < 0 && x.exp > -maxPow10 {
-				f = float64(x.compact) / math.Pow10(-x.exp)
-			}
-			if x.form&signbit != 0 {
-				math.Copysign(f, -1)
-			}
-			return f
-		}
+	const maxPow10 = 22         // largest exact power of 10
+	const maxMantissa = 1 << 52 // largest exact mantissa
+
+	switch {
+	case !x.isCompact():
+		f, exact = math.Inf(0), false
+	case x.compact == 0:
+		exact = true
+	case x.exp == 0:
+		f, exact = float64(x.compact), true
+	case x.exp > 0:
+		f = float64(x.compact) * math.Pow10(x.exp)
+		exact = x.compact < maxMantissa && x.exp < maxPow10
+	case x.exp < 0:
+		f = float64(x.compact) / math.Pow10(-x.exp)
+		exact = x.compact < maxMantissa && x.exp > -maxPow10
 	}
-	// TODO(eric): find a better way of doing this.
-	f, _ := strconv.ParseFloat(x.String(), 64)
-	return f
+	if x.form&signbit != 0 {
+		f = math.Copysign(f, -1)
+	}
+	return f, exact
 }
 
 // Float sets z to x and returns z. z is allowed to be nil. The result is
@@ -842,7 +844,7 @@ func (x *Big) Format(s fmt.State, c rune) {
 	// empty buffer.
 	tmpbuf := lpZero || lpSpace
 	if tmpbuf {
-		f.w = buf.New(x.Precision())
+		f.w = buf.New(x.precision)
 	} else {
 		f.w = stateWrapper{s}
 	}
@@ -882,11 +884,11 @@ func (x *Big) Format(s fmt.State, c rune) {
 		// %f's precision means "number of digits after the radix"
 		if x.exp < 0 {
 			f.prec -= x.exp
-			if trail := x.Precision() + x.exp; trail >= f.prec {
+			if trail := x.precision + x.exp; trail >= f.prec {
 				f.prec += trail
 			}
 		} else {
-			f.prec += x.Precision()
+			f.prec += x.precision
 		}
 		f.format(x, plain, noE)
 	case 'g':
@@ -954,7 +956,7 @@ var _ fmt.Formatter = (*Big)(nil)
 // FMA sets z to (x * y) + u without any intermediate rounding.
 func (z *Big) FMA(x, y, u *Big) *Big {
 	// Create a temporary reciever in the case z == u so we handle the case
-	// z.FMA(x, y, z) without clobbering z.
+	// z.FMA(x, y, z) without clobbering z partway through.
 	z0 := z
 	if z == u {
 		z0 = WithContext(z.Context)
@@ -964,33 +966,6 @@ func (z *Big) FMA(x, y, u *Big) *Big {
 		return z.setShared(z0)
 	}
 	return z.setShared(z0.Add(z0, u))
-}
-
-// IsBig returns true if x, with its fractional part truncated, cannot fit
-// inside a uint64. If x is an infinity or a NaN value the result is undefined.
-func (x *Big) IsBig() bool {
-	if debug {
-		x.validate()
-	}
-
-	// !x.IsFinite() == zero, infinity, or nan
-	if !x.IsFinite() {
-		return false
-	}
-
-	// Too large.
-	if x.adjusted() > 20 {
-		return true
-	}
-
-	if x.isCompact() {
-		if x.exp == 0 || x.compact == 0 {
-			return false
-		}
-		_, ok := scalex(x.compact, x.exp)
-		return !ok
-	}
-	return !arith.IsUint64(bigScalex(new(big.Int), &x.unscaled, x.exp))
 }
 
 // Int sets z to x, truncating the fractional portion (if any) and returns z. z
@@ -1023,48 +998,64 @@ func (x *Big) Int(z *big.Int) *big.Int {
 	return bigScalex(z, z, x.exp)
 }
 
-// Int64 returns x as an int64, truncating the fractional portion, if any. The
-// result is undefined if x is an infinity, a NaN value, or if x does not fit
-// inside an int64.
-func (x *Big) Int64() int64 {
-	u := x.Uint64()
-	if u > math.MaxInt64 {
-		return 0
-	}
-	b := int64(u)
-	if x.form&signbit != 0 {
-		b = -b
-	}
-	return b
-}
-
-// Uint64 returns x as a uint64, truncating the fractional portion, if any. The
-// result is undefined if x is an infinity, a NaN value, or if x does not fit
-// inside a uint64.
-func (x *Big) Uint64() uint64 {
+// Int64 returns x as an int64, truncating towards zero. The returned boolean
+// indicates whether the conversion to an int64 was successful.
+func (x *Big) Int64() (int64, bool) {
 	if debug {
 		x.validate()
 	}
 
 	if !x.IsFinite() {
-		return 0
+		return 0, false
 	}
 
 	// x might be too large to fit into an uint64 *now*, but rescaling x might
 	// shrink it enough. See issue #20.
 	if !x.isCompact() {
-		return x.Int(nil).Uint64()
+		xb := x.Int(nil)
+		return xb.Int64(), xb.IsInt64()
+	}
+
+	u := x.compact
+	if x.exp != 0 {
+		var ok bool
+		if u, ok = scalex(u, x.exp); !ok {
+			return 0, false
+		}
+	}
+	if u > math.MaxInt64 {
+		return 0, false
+	}
+	b := int64(u)
+	if x.form&signbit != 0 {
+		b = -b
+	}
+	return b, true
+}
+
+// Uint64 returns x as an int64, truncating towards zero. The returned boolean
+// indicates whether the conversion to a uint64 was successful.
+func (x *Big) Uint64() (uint64, bool) {
+	if debug {
+		x.validate()
+	}
+
+	if !x.IsFinite() || x.Signbit() {
+		return 0, false
+	}
+
+	// x might be too large to fit into an uint64 *now*, but rescaling x might
+	// shrink it enough. See issue #20.
+	if !x.isCompact() {
+		xb := x.Int(nil)
+		return xb.Uint64(), arith.IsUint64(xb)
 	}
 
 	b := x.compact
 	if x.exp == 0 {
-		return b
+		return b, true
 	}
-	b, ok := scalex(b, x.exp)
-	if !ok {
-		return 0
-	}
-	return b
+	return scalex(b, x.exp)
 }
 
 // IsFinite returns true if x is finite.
@@ -1106,20 +1097,18 @@ func (x *Big) IsInt() bool {
 	if !x.IsFinite() {
 		return false
 	}
-	if x.compact == 0 {
+
+	// 0, 5000, 40
+	if x.compact == 0 || x.exp >= 0 {
 		return true
 	}
 
-	// 5000, 420
-	if x.exp >= 0 {
-		return true
-	}
-
-	xp := x.Precision()
+	xp := x.precision
+	exp := x.exp
 
 	// 0.001
 	// 0.5
-	if -x.exp >= xp {
+	if -exp >= xp {
 		return false
 	}
 
@@ -1127,7 +1116,7 @@ func (x *Big) IsInt() bool {
 	// 1.000
 	if x.isCompact() {
 		for v := x.compact; v%10 == 0; v /= 10 {
-			xp--
+			exp++
 		}
 	} else {
 		v := new(big.Int).Set(&x.unscaled)
@@ -1137,10 +1126,10 @@ func (x *Big) IsInt() bool {
 			if r.Sign() != 0 {
 				break
 			}
-			xp--
+			exp++
 		}
 	}
-	return xp <= -x.exp
+	return exp >= 0
 }
 
 // MarshalText implements encoding.TextMarshaler.
@@ -1150,7 +1139,7 @@ func (x *Big) MarshalText() ([]byte, error) {
 	}
 
 	var (
-		b = buf.New(x.Precision())
+		b = buf.New(x.precision)
 		f = formatter{w: b, prec: noPrec, width: noWidth}
 		e = sciE[x.Context.OperatingMode]
 	)
@@ -1160,7 +1149,7 @@ func (x *Big) MarshalText() ([]byte, error) {
 
 // Mul sets z to x * y and returns z.
 func (z *Big) Mul(x, y *Big) *Big {
-	return z.mul(x, y, false).test()
+	return z.mul(x, y, false).fix()
 }
 
 // mul is the implementation of Mul, but with a boolean to toggle rounding. This
@@ -1185,11 +1174,11 @@ func (z *Big) mul(x, y *Big, fma bool) *Big {
 					z.compact = c.Inflated
 				}
 			} else { // y.isInflated
-				arith.MulInt64(&z.unscaled, &y.unscaled, x.compact)
+				arith.MulUint64(&z.unscaled, &y.unscaled, x.compact)
 				z.compact = c.Inflated
 			}
 		} else if y.isCompact() { // x.isInflated
-			arith.MulInt64(&z.unscaled, &x.unscaled, y.compact)
+			arith.MulUint64(&z.unscaled, &x.unscaled, y.compact)
 			z.compact = c.Inflated
 		} else {
 			z.unscaled.Mul(&x.unscaled, &y.unscaled)
@@ -1295,7 +1284,7 @@ func (z *Big) Quantize(n int) *Big {
 	}
 
 	shift := z.exp - n
-	if z.Precision()+shift > precision(z) {
+	if z.precision+shift > precision(z) {
 		return z.setNaN(InvalidOperation, qnan, quantprec)
 	}
 
@@ -1316,7 +1305,7 @@ func (z *Big) Quantize(n int) *Big {
 				return z.setTriple(zc, neg, n)
 			}
 			// shift < 0
-		} else if yc, ok := pow.Ten(uint64(-shift)); ok {
+		} else if yc, ok := arith.Pow10(uint64(-shift)); ok {
 			return z.quo(m, z.compact, neg, yc, 0)
 		}
 		z.unscaled.SetUint64(z.compact)
@@ -1328,7 +1317,7 @@ func (z *Big) Quantize(n int) *Big {
 		z.precision = arith.BigLength(&z.unscaled)
 		return z
 	}
-	return z.quoBig(m, &z.unscaled, neg, pow.BigTen(uint64(-shift)), 0)
+	return z.quoBig(m, &z.unscaled, neg, arith.BigPow10(uint64(-shift)), 0)
 }
 
 // Quo sets z to x / y and returns z.
@@ -1354,7 +1343,7 @@ func (z *Big) Quo(x, y *Big) *Big {
 		}
 		// x / ±Inf
 		z.Context.Conditions |= Clamped
-		return z.setTriple(0, sign, z.etiny())
+		return z.setZero(sign, z.etiny())
 	}
 
 	if y.compact == 0 {
@@ -1368,12 +1357,16 @@ func (z *Big) Quo(x, y *Big) *Big {
 	}
 	if x.compact == 0 {
 		// 0 / y
-		return z.setTriple(0, sign, x.exp-y.exp).test()
+		return z.setZero(sign, x.exp-y.exp).fix()
 	}
 
 	m := z.Context.RoundingMode
-	zp := precision(z)
 	yp := y.precision
+	zp := precision(z)
+	if zp == UnlimitedPrecision {
+		m = unnecessary
+		zp = x.precision + int(math.Ceil(10*float64(yp)/3))
+	}
 
 	if x.isCompact() && y.isCompact() {
 		if cmpNorm(x.compact, x.precision, y.compact, yp) {
@@ -1446,6 +1439,10 @@ func (z *Big) quo(m RoundingMode, x uint64, xneg form, y uint64, yneg form) *Big
 		rc = arith.Cmp(r2, y)
 	}
 
+	if m == unnecessary {
+		return z.setNaN(
+			InvalidOperation|InvalidContext|InsufficientStorage, qnan, quotermexp)
+	}
 	if m.needsInc(z.compact&1 != 0, rc, xneg == yneg) {
 		z.Context.Conditions |= Rounded
 		z.compact++
@@ -1477,6 +1474,10 @@ func (z *Big) quoBig(m RoundingMode, x *big.Int, xneg form, y *big.Int, yneg for
 		rc = compat.BigCmpAbs(new(big.Int).Mul(r, c.TwoInt), y)
 	}
 
+	if m == unnecessary {
+		return z.setNaN(
+			InvalidOperation|InvalidContext|InsufficientStorage, qnan, quotermexp)
+	}
 	if m.needsInc(q.Bit(0) != 0, rc, xneg == yneg) {
 		z.Context.Conditions |= Rounded
 		arith.Add(q, q, 1)
@@ -1505,7 +1506,7 @@ func (z *Big) QuoInt(x, y *Big) *Big {
 		}
 		if x.compact == 0 {
 			// 0 / y
-			return z.setTriple(0, sign, 0).test()
+			return z.setZero(sign, 0).fix()
 		}
 		z, _ = quorem(z, nil, x, y)
 		z.exp = 0
@@ -1528,7 +1529,7 @@ func (z *Big) QuoInt(x, y *Big) *Big {
 		return z.SetInf(sign != 0)
 	}
 	// x / ±Inf
-	return z.setTriple(0, sign, 0)
+	return z.setZero(sign, 0)
 }
 
 // QuoRem sets z to the quotient x / y and r to the remainder x % y, such that
@@ -1554,9 +1555,9 @@ func (z *Big) QuoRem(x, y, r *Big) (*Big, *Big) {
 		}
 		if x.compact == 0 {
 			// 0 / y
-			z.setTriple(0, (x.form^y.form)&signbit, 0)
-			r.setTriple(0, x.form, y.exp-x.exp)
-			return z.test(), r.test()
+			z.setZero((x.form^y.form)&signbit, 0)
+			r.setZero(x.form, y.exp-x.exp)
+			return z.fix(), r.fix()
 		}
 		return quorem(z, r, x, y)
 	}
@@ -1579,8 +1580,8 @@ func (z *Big) QuoRem(x, y, r *Big) (*Big, *Big) {
 	}
 	// x / ±Inf
 	z.Context.Conditions |= Clamped
-	z.setTriple(0, sign, z.etiny())
-	r.setTriple(0, x.form&signbit /* ??? */, 0)
+	z.setZero(sign, z.etiny())
+	r.setZero(x.form&signbit /* ??? */, 0)
 	return z, r
 }
 
@@ -1653,7 +1654,7 @@ func (m RoundingMode) quorem(
 		z0.setTriple(x/y, xneg^yneg, 0)
 	}
 	if z1 != nil {
-		z1.setTuple(x%y, xneg)
+		z1.setTriple(x%y, xneg, 0)
 	}
 	return z0, z1
 }
@@ -1705,10 +1706,12 @@ func (x *Big) Rat(z *big.Rat) *big.Rat {
 	}
 
 	// Fast path for decimals <= math.MaxInt64.
-	if x.exp >= 0 && x.compact <= math.MaxInt64 {
-		// If profiled we can call scalex ourselves and save the overhead of
-		// calling Int64. But I doubt it'll matter much.
-		return z.SetInt64(x.Int64())
+	if x.IsInt() {
+		if u, ok := x.Int64(); ok {
+			// If profiled we can call scalex ourselves and save the overhead of
+			// calling Int64. But I doubt it'll matter much.
+			return z.SetInt64(u)
+		}
 	}
 
 	// A little ugly, but it saves us an allocation if x > 0 and inflated.
@@ -1727,11 +1730,10 @@ func (x *Big) Rat(z *big.Rat) *big.Rat {
 	denom := c.OneInt
 	if x.exp < 0 {
 		denom = new(big.Int)
-		if shift, ok := pow.Ten(uint64(-x.exp)); ok {
+		if shift, ok := arith.Pow10(uint64(-x.exp)); ok {
 			denom.SetUint64(shift)
 		} else {
-			tmp := new(big.Int).SetUint64(uint64(-x.exp))
-			denom.Exp(c.TenInt, tmp, nil)
+			denom.Set(arith.BigPow10(uint64(-x.exp)))
 		}
 	}
 	return z.SetFrac(num, denom)
@@ -1765,7 +1767,7 @@ func (z *Big) Rem(x, y *Big) *Big {
 		}
 		if x.compact == 0 {
 			// 0 / y
-			return z.setTriple(0, x.form&signbit, min(x.exp, y.exp))
+			return z.setZero(x.form&signbit, min(x.exp, y.exp))
 		}
 		_, z = quorem(nil, z, x, y)
 		z.exp = min(x.exp, y.exp)
@@ -1909,10 +1911,7 @@ func (z *Big) SetFloat(x *big.Float) *Big {
 	return z
 }
 
-// SetFloat64 sets z to exactly x. It's an exact conversion, meaning
-// SetFloat64(0.1) results in a decimal with a value of
-// 0.1000000000000000055511151231257827021181583404541015625. Use SetMantScale
-// or SetString if you require exact conversions.
+// SetFloat64 sets z to exactly x.
 func (z *Big) SetFloat64(x float64) *Big {
 	if x == 0 {
 		z.compact = 0
@@ -1939,7 +1938,50 @@ func (z *Big) SetFloat64(x float64) *Big {
 		z.Context.Conditions |= InvalidOperation
 		return z
 	}
-	return z.SetRat(new(big.Rat).SetFloat64(x))
+
+	// The gist of the following is lifted from math/big/rat.go, but adapted for
+	// base-10 decimals.
+
+	const expMask = 1<<11 - 1
+	bits := math.Float64bits(x)
+	mantissa := bits & (1<<52 - 1)
+	exp := int((bits >> 52) & expMask)
+	if exp == 0 { // denormal
+		exp -= 1022
+	} else { // normal
+		mantissa |= 1 << 52
+		exp -= 1023
+	}
+
+	if mantissa == 0 {
+		return z.SetUint64(0)
+	}
+
+	shift := 52 - exp
+	for mantissa&1 == 0 {
+		mantissa >>= 1
+		shift--
+	}
+
+	z.exp = 0
+	z.form = finite | form(bits>>63)
+
+	if shift > 0 {
+		z.compact = c.Inflated
+		z.unscaled.SetUint64(uint64(shift))
+		z.unscaled.Exp(c.FiveInt, &z.unscaled, nil)
+		arith.MulUint64(&z.unscaled, &z.unscaled, mantissa)
+		z.exp = -shift
+	} else {
+		if s := uint(-shift); s < 64 {
+			z.compact = mantissa << s
+		} else {
+			z.compact = c.Inflated
+			z.unscaled.SetUint64(mantissa)
+			z.unscaled.Lsh(&z.unscaled, s)
+		}
+	}
+	return z.norm()
 }
 
 // SetInf sets z to -Inf if signbit is set or +Inf is signbit is not set, and
@@ -1955,13 +1997,11 @@ func (z *Big) SetInf(signbit bool) *Big {
 
 // SetMantScale sets z to the given value and scale.
 func (z *Big) SetMantScale(value int64, scale int) *Big {
-	z.compact = arith.Abs(value)
-	z.precision = arith.Length(z.compact)
-	z.form = finite
+	z.SetUint64(arith.Abs(value))
+	z.exp = -scale // compiler should optimize out z.exp = 0 in SetUint64
 	if value < 0 {
 		z.form |= signbit
 	}
-	z.exp = -scale
 	return z
 }
 
@@ -2035,24 +2075,28 @@ func (z *Big) SetString(s string) (*Big, bool) {
 	return z, true
 }
 
-func (z *Big) setTuple(compact uint64, sign form) *Big {
+func (z *Big) setTriple(compact uint64, sign form, exp int) *Big {
 	z.compact = compact
+	z.precision = arith.Length(compact)
+	z.exp = exp
 	z.form = finite | sign
 	return z
 }
 
-func (z *Big) setTriple(compact uint64, sign form, exp int) *Big {
-	z.setTuple(compact, sign)
+func (z *Big) setZero(sign form, exp int) *Big {
+	z.compact = 0
+	z.precision = 1
 	z.exp = exp
-	z.precision = arith.Length(compact)
+	z.form = finite | sign
 	return z
 }
 
 // SetUint64 is shorthand for SetMantScale(x, 0).
 func (z *Big) SetUint64(x uint64) *Big {
-	z.form = finite
 	z.compact = x
+	z.precision = arith.Length(x)
 	z.exp = 0
+	z.form = finite
 	return z
 }
 
@@ -2106,7 +2150,7 @@ func (x *Big) Signbit() bool {
 // OperatingMode.
 func (x *Big) String() string {
 	var (
-		b = buf.New(x.Precision())
+		b = buf.New(x.precision)
 		f = formatter{w: b, prec: noPrec, width: noWidth}
 		e = sciE[x.Context.OperatingMode]
 	)
@@ -2191,12 +2235,12 @@ func (x *Big) validate() {
 			if x.unscaled.Sign() < 0 {
 				panic("x.unscaled.Sign() < 0")
 			}
-			if bl, xp := arith.BigLength(&x.unscaled), x.Precision(); bl != xp {
+			if bl, xp := arith.BigLength(&x.unscaled), x.precision; bl != xp {
 				panic(fmt.Sprintf("BigLength (%d) != x.Precision (%d)", bl, xp))
 			}
 		}
 		if x.isCompact() {
-			if bl, xp := arith.Length(x.compact), x.Precision(); bl != xp {
+			if bl, xp := arith.Length(x.compact), x.precision; bl != xp {
 				panic(fmt.Sprintf("BigLength (%d) != x.Precision (%d)", bl, xp))
 			}
 		}

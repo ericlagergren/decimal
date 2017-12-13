@@ -5,7 +5,6 @@ import (
 
 	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/arith/checked"
-	"github.com/ericlagergren/decimal/internal/arith/pow"
 	"github.com/ericlagergren/decimal/internal/c"
 )
 
@@ -27,13 +26,13 @@ func (z *Big) norm() *Big {
 	return z
 }
 
-func Test(z *Big) *Big { return z.test() }
-
-func (z *Big) test() *Big {
+func (z *Big) fix() *Big {
 	adj := z.adjusted()
+
 	if adj > MaxScale {
 		prec := precision(z)
-		if z.Sign() == 0 {
+
+		if z.compact == 0 {
 			z.exp = MaxScale
 			z.Context.Conditions |= Clamped
 			return z
@@ -53,12 +52,15 @@ func (z *Big) test() *Big {
 			}
 		}
 		z.Context.Conditions |= Overflow | Inexact | Rounded
-	} else if adj < MinScale {
+		return z
+	}
+
+	if adj < MinScale {
 		tiny := z.etiny()
 
-		if z.Sign() == 0 {
+		if z.compact == 0 {
 			if z.exp < tiny {
-				z.exp = tiny
+				z.setTriple(0, z.form, tiny)
 				z.Context.Conditions |= Clamped
 			}
 			return z
@@ -66,8 +68,13 @@ func (z *Big) test() *Big {
 
 		z.Context.Conditions |= Subnormal
 		if z.exp < tiny {
-			z.Round(tiny - z.exp)
+			shiftr(z, uint64(tiny-z.exp))
+			z.Context.Conditions |= Underflow
 			z.exp = tiny
+			if z.compact == 0 {
+				z.compact = 0
+				z.Context.Conditions |= Clamped
+			}
 		}
 	}
 	return z
@@ -162,7 +169,7 @@ func scalex(x uint64, scale int) (sx uint64, ok bool) {
 		}
 		return sx, true
 	}
-	p, ok := pow.Ten(uint64(-scale))
+	p, ok := arith.Pow10(uint64(-scale))
 	if !ok {
 		return 0, false
 	}
@@ -174,7 +181,7 @@ func bigScalex(z, x *big.Int, scale int) *big.Int {
 	if scale > 0 {
 		return checked.MulBigPow10(z, x, uint64(scale))
 	}
-	return z.Quo(x, pow.BigTen(uint64(-scale)))
+	return z.Quo(x, arith.BigPow10(uint64(-scale)))
 }
 
 func min(x, y int) int {
@@ -182,4 +189,34 @@ func min(x, y int) int {
 		return x
 	}
 	return y
+}
+
+func oddMantissa(x *Big) bool {
+	if x.isCompact() {
+		return x.compact&1 == 1
+	}
+	return x.unscaled.Bit(0) == 1
+}
+
+func shiftr(z *Big, n uint64) bool {
+	// TODO(eric): return value from this function.
+	if n >= uint64(z.precision) {
+		z.compact = 0
+		return true
+	}
+
+	if z.compact == 0 {
+		return true
+	}
+	m := z.Context.RoundingMode
+	if z.isCompact() {
+		if y, ok := arith.Pow10(n); ok {
+			z.quo(m, z.compact, z.form, y, 0).fix()
+			return true
+		}
+		z.unscaled.SetUint64(z.compact)
+		z.compact = c.Inflated
+	}
+	z.quoBig(m, &z.unscaled, z.form, arith.BigPow10(n), 0).fix()
+	return true
 }
