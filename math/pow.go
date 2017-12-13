@@ -58,13 +58,20 @@ func Pow(z, x, y, m *decimal.Big) *decimal.Big {
 		return z.SetUint64(1)
 	}
 
+	if x.Cmp(ptFive) == 0 {
+		// x ** 0.5 = sqrt(x)
+		return Sqrt(z, x)
+	}
+
 	if powOverflows(z, x, y) {
 		return z
 	}
 
 	if y.IsInt() {
-		if !y.Signbit() && !y.IsBig() {
-			return powToCompact(z, x, y.Uint64())
+		if y.IsInt() {
+			if v, ok := y.Uint64(); ok {
+				return powToCompact(z, x, v)
+			}
 		}
 		return powToInflated(z, x, y.Int(nil))
 	}
@@ -91,7 +98,7 @@ func powOverflows(z, x, y *decimal.Big) bool {
 			if neg {
 				misc.CopyNeg(z, z)
 			}
-			decimal.Test(z)
+			// decimal.Test(z)
 			return true
 		}
 	} else {
@@ -101,7 +108,7 @@ func powOverflows(z, x, y *decimal.Big) bool {
 			if neg {
 				misc.CopyNeg(z, z)
 			}
-			decimal.Test(z)
+			// decimal.Test(z)
 			return true
 		}
 	}

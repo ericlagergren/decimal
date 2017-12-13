@@ -103,8 +103,8 @@ func Mul128(z *big.Int, x, y uint64) *big.Int {
 	return z.SetBits(ww[:])
 }
 
-// MulInt64 sets z to x * y and returns z.
-func MulInt64(z, x *big.Int, y uint64) *big.Int {
+// MulUint64 sets z to x * y and returns z.
+func MulUint64(z, x *big.Int, y uint64) *big.Int {
 	if y == 0 || x.Sign() == 0 {
 		return z.SetUint64(0)
 	}

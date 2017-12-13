@@ -18,6 +18,8 @@ var (
 	eightyOne = decimal.New(81, 0)
 )
 
+const exactFloatPrec = 15
+
 // alias returns a if a != b, otherwise it returns a newly-allocated Big. It
 // should be used if a *might* be able to be used for storage, but only if it
 // doesn't alias b. The returned Big will have a's Context.
@@ -41,7 +43,7 @@ func precision(z *decimal.Big) (p int) {
 	return decimal.DefaultPrecision
 }
 
-func etiny(z *decimal.Big) int    { return decimal.MinScale - (precision(z) - 1) }
+func etiny(x *decimal.Big) int    { return decimal.MinScale - (precision(x) - 1) }
 func adjusted(x *decimal.Big) int { return (-x.Scale() + x.Precision()) - 1 }
 
 func min(x, y int) int {
@@ -54,4 +56,8 @@ func min(x, y int) int {
 func abs(x *decimal.Big) *decimal.Big {
 	x0 := *x
 	return misc.CopyAbs(&x0, &x0)
+}
+
+func round(z *decimal.Big, prec int) *decimal.Big {
+	return decimal.ToNearestEven.Round(z, prec)
 }

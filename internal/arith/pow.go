@@ -1,5 +1,5 @@
 // Package pow implements basic power functions.
-package pow
+package arith
 
 import (
 	"math/big"
@@ -10,15 +10,15 @@ import (
 )
 
 const (
-	// TabLen is the largest cached power for integers.
-	TabLen = 20
+	// PowTabLen is the largest cached power for integers.
+	PowTabLen = 20
 
-	// BigTabLen is the largest cached power for *big.Ints.
-	BigTabLen = 1e5
+	// BigPowTabLen is the largest cached power for *big.Ints.
+	BigPowTabLen = 1e5
 )
 
 var (
-	pow10tab = [TabLen]uint64{
+	pow10tab = [PowTabLen]uint64{
 		0:  1,
 		1:  10,
 		2:  100,
@@ -47,8 +47,58 @@ var (
 func loadBigTable() []*big.Int    { return *(bigPow10Tab.Load().(*[]*big.Int)) }
 func storeBigTable(x *[]*big.Int) { bigPow10Tab.Store(x) }
 
-// BigTen computes 10 ** n. The returned *big.Int must not be modified.
-func BigTen(n uint64) *big.Int {
+// PowOfTenBig returns true if x is a power of 10.
+func PowOfTenBig(x *big.Int) bool {
+	if x.Bit(0) != 0 {
+		return x.Cmp(c.OneInt) == 0
+	}
+	if x.Sign() == 0 {
+		return true
+	}
+	q := new(big.Int).Set(x)
+	r := new(big.Int)
+	for len := BigLength(x); len > 20; len-- {
+		q.QuoRem(q, c.TenInt, r)
+		if r.Sign() != 0 {
+			return false
+		}
+	}
+	return PowOfTen(q.Uint64())
+}
+
+// PowOfTen returns strue if x is a power of 10.
+func PowOfTen(x uint64) bool {
+	if x&1 != 0 {
+		return x == 1
+	}
+	switch x {
+	case 10,
+		100,
+		1000,
+		10000,
+		100000,
+		1000000,
+		10000000,
+		100000000,
+		1000000000,
+		10000000000,
+		100000000000,
+		1000000000000,
+		10000000000000,
+		100000000000000,
+		1000000000000000,
+		10000000000000000,
+		100000000000000000,
+		1000000000000000000,
+		10000000000000000000:
+		return true
+	default:
+		return false
+	}
+}
+
+// BigPow10 computes 10 ** n. The returned *big.Int must not be modified.
+func BigPow10(n uint64) *big.Int {
 	tab := loadBigTable()
 
 	tabLen := uint64(len(tab))
@@ -57,7 +107,7 @@ func BigTen(n uint64) *big.Int {
 	}
 
 	// Too large for our table.
-	if n >= BigTabLen {
+	if n >= BigPowTabLen {
 		// Optimization: we don't need to start from scratch each time. Start
 		// from the largest term we've found so far.
 		partial := tab[tabLen-1]
@@ -86,8 +136,8 @@ func growBigTen(n uint64) *big.Int {
 	for newLen <= n {
 		newLen *= 2
 	}
-	if newLen > BigTabLen {
-		newLen = BigTabLen
+	if newLen > BigPowTabLen {
+		newLen = BigPowTabLen
 	}
 	for i := tableLen; i < newLen; i++ {
 		tab = append(tab, new(big.Int).Mul(tab[i-1], c.TenInt))
@@ -98,21 +148,21 @@ func growBigTen(n uint64) *big.Int {
 	return tab[n]
 }
 
-func Safe(e uint64) bool { return e < TabLen }
+func Safe(e uint64) bool { return e < PowTabLen }
 
-// Ten returns 10 ** e and a boolean indicating whether the result fits into
+// Pow10 returns 10 ** e and a boolean indicating whether the result fits into
 // a uint64.
-func Ten(e uint64) (uint64, bool) {
-	if e < TabLen {
+func Pow10(e uint64) (uint64, bool) {
+	if e < PowTabLen {
 		return pow10tab[e], true
 	}
 	return 0, false
 }
 
-// Ten returns 10 ** e and a boolean indicating whether the result fits into
-// an int64.
-func TenInt(e uint64) (int64, bool) {
-	if e < TabLen-1 {
+// Pow10Int returns 10 ** e and a boolean indicating whether the result fits
+// into an int64.
+func Pow10Int(e uint64) (int64, bool) {
+	if e < PowTabLen-1 {
 		return int64(pow10tab[e]), true
 	}
 	return 0, false

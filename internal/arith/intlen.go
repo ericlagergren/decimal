@@ -3,7 +3,6 @@ package arith
 import (
 	"math/big"
 
-	"github.com/ericlagergren/decimal/internal/arith/pow"
 	"github.com/ericlagergren/decimal/internal/compat"
 )
 
@@ -44,7 +43,7 @@ func ilog10(x uint64) int {
 
 	// From https://graphics.stanford.edu/~seander/bithacks.html#IntegerLog10
 	t := int(((64 - LeadingZeros64(x) + 1) * 1233) >> 12)
-	if v, ok := pow.Ten(uint64(t)); !ok || x < v {
+	if v, ok := Pow10(uint64(t)); !ok || x < v {
 		return t
 	}
 	return t + 1
@@ -67,7 +66,7 @@ func logLength(x *big.Int, nb int) int {
 	// The more accurate approximation 0x268826A13EF3FE08/2^63 overflows.
 	r += int(((nb + 1) * 0x268826A1) >> 31)
 
-	if compat.BigCmpAbs(x, pow.BigTen(uint64(r))) < 0 {
+	if compat.BigCmpAbs(x, BigPow10(uint64(r))) < 0 {
 		return r
 	}
 	return r + 1

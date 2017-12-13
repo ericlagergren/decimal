@@ -3,7 +3,6 @@ package decimal
 import (
 	"fmt"
 
-	"github.com/ericlagergren/decimal/internal/arith/pow"
 	"github.com/ericlagergren/decimal/internal/buf"
 	"github.com/ericlagergren/decimal/internal/c"
 )
@@ -129,6 +128,8 @@ const (
 	AwayFromZero                      // no IEEE 754-2008 equivalent
 	ToNegativeInf                     // == IEEE 754-2008 roundTowardNegative
 	ToPositiveInf                     // == IEEE 754-2008 roundTowardPositive
+
+	unnecessary // placeholder for x / y with UnlimitedPrecision.
 )
 
 // Round rounds z down to n digits of precision and returns z. The result is
@@ -146,7 +147,7 @@ func (m RoundingMode) Round(z *Big, n int) *Big {
 
 	zp := z.Precision()
 	if zp <= n {
-		return z
+		return z.fix()
 	}
 
 	shift := zp - n
@@ -156,17 +157,8 @@ func (m RoundingMode) Round(z *Big, n int) *Big {
 	z.exp += shift
 
 	z.Context.Conditions |= Rounded
-	if z.isCompact() {
-		if z.compact == 0 {
-			return z
-		}
-		if y, ok := pow.Ten(uint64(shift)); ok {
-			return z.quo(m, z.compact, z.form, y, 0)
-		}
-		z.unscaled.SetUint64(z.compact)
-		z.compact = c.Inflated
-	}
-	return z.quoBig(m, &z.unscaled, z.form, pow.BigTen(uint64(shift)), 0)
+	shiftr(z, uint64(shift))
+	return z.fix()
 }
 
 //go:generate stringer -type RoundingMode
@@ -193,7 +185,7 @@ func (m RoundingMode) needsInc(odd bool, r int, pos bool) bool {
 	case ToNearestAway:
 		return r >= 0
 	default:
-		// z.Context.Conditions |= InvalidContext
+		// TODO(eric): z.Context.Conditions |= InvalidContext
 		return false
 	}
 }
