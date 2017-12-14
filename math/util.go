@@ -57,7 +57,3 @@ func abs(x *decimal.Big) *decimal.Big {
 	x0 := *x
 	return misc.CopyAbs(&x0, &x0)
 }
-
-func round(z *decimal.Big, prec int) *decimal.Big {
-	return decimal.ToNearestEven.Round(z, prec)
-}

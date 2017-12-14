@@ -61,37 +61,30 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 		// to normalize f, adjusting its scale is the quickest. However, it then
 		// requires us to increment approx's scale by e/2 instead of simply
 		// setting it to e/2.
-		f = decimal.WithPrecision(prec).Copy(x).SetScale(xprec)
-		e = -x.Scale() + xprec
+		f   = new(decimal.Big).Copy(x).SetScale(xprec)
+		e   = -x.Scale() + xprec
+		ctx = decimal.Context{Precision: prec}
 
-		tmp    = decimal.WithPrecision(prec)
-		approx = decimal.WithPrecision(prec)
+		tmp decimal.Big // scratch space
 	)
 
 	if e&1 == 0 {
-		approx.FMA(approx2, f, approx1) // approx := .259 + .819f
+		ctx.FMA(z, approx2, f, approx1) // approx := .259 + .819f
 	} else {
 		f.SetScale(f.Scale() + 1)       // f := f/10
 		e++                             // e := e + 1
-		approx.FMA(approx4, f, approx3) // approx := .0819 + 2.59f
+		ctx.FMA(z, approx4, f, approx3) // approx := .0819 + 2.59f
 	}
 
-	var (
-		maxp     = prec + 5 // extra prec to skip weird +/- 0.5 adjustments
-		p    int = 3
-	)
-
+	maxp := prec + 5 // extra prec to skip weird +/- 0.5 adjustments
+	ctx.Precision = 3
 	for {
 		// p := min(2*p - 2, maxp)
-		if p = 2*p - 2; p > maxp {
-			p = maxp
-		}
-		// precision p
-		tmp.Context.Precision = p
-		approx.Context.Precision = p
+		ctx.Precision = min(2*ctx.Precision-2, maxp)
+
 		// approx := .5*(approx + f/approx)
-		approx.Mul(ptFive, tmp.Add(approx, tmp.Quo(f, approx)))
-		if p == maxp {
+		ctx.Mul(z, ptFive, ctx.Add(&tmp, z, ctx.Quo(&tmp, f, z)))
+		if ctx.Precision == maxp {
 			break
 		}
 	}
@@ -102,13 +95,12 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 	// rounding mode half even (speleotrove.com/decimal/daops.html#refsqrt)
 	// anyway.
 
-	approx.SetScale(approx.Scale() - e/2)
-	decimal.ToNearestEven.Round(approx, prec)
-	z.Context.Conditions |= approx.Context.Conditions
-	if ideal != approx.Scale() {
+	z.SetScale(z.Scale() - e/2)
+	if ideal != z.Scale() {
 		z.Context.Conditions |= decimal.Rounded | decimal.Inexact
 	}
-	return z.Set(approx)
+	ctx.Precision = prec
+	return ctx.Round(z)
 }
 
 var (

@@ -21,51 +21,54 @@ var (
 	_Pi     = newDecimal("3.141592653589793238462643383279502884197169399375105820974944592307816406286208998628034825342117067")
 	_Ln10   = newDecimal("2.302585092994045684017991454684364207601101488628772976033327900967572609677352480235997205089598298")
 	_Log10e = newDecimal("0.4342944819032518276511289189166050822943970058036665661144537831658646492088707747292249493384317483")
+
 	//_Gamma = newDecimal("0.577215664901532860606512090082402431042159335939923598805767234884867726777664670936947063291746749")
 	//_Ln2   = newDecimal("0.693147180559945309417232121458176568075500134360255254120680009493393621969694715605863326996418687")
 )
 
 // E sets z to the mathematical constant e.
 func E(z *decimal.Big) *decimal.Big {
-	prec := precision(z)
-	if prec <= constPrec {
-		return z.Set(_E)
+	ctx := decimal.Context{Precision: precision(z)}
+	if ctx.Precision <= constPrec {
+		return ctx.Set(z, _E)
 	}
 
+	ctx.Precision += 3
 	var (
-		fac  = decimal.WithContext(z.Context).SetMantScale(1, 0)
-		incr = decimal.WithContext(z.Context).SetMantScale(1, 0)
-		sum  = decimal.WithContext(z.Context).SetMantScale(2, 0)
-		term = decimal.WithContext(z.Context).SetMantScale(0, 0)
-		prev = decimal.WithContext(z.Context).SetMantScale(0, 0)
+		fac  = decimal.WithContext(ctx).SetMantScale(1, 0)
+		incr = decimal.WithContext(ctx).SetMantScale(1, 0)
+		sum  = z.SetMantScale(2, 0)
+		term = decimal.WithContext(ctx).SetMantScale(0, 0)
+		prev = decimal.WithContext(ctx).SetMantScale(0, 0)
 	)
 
-	for sum.Round(prec).Cmp(prev) != 0 {
+	for sum.Cmp(prev) != 0 {
 		fac.Mul(fac, incr.Add(incr, one))
 		prev.Copy(sum)
-		sum.Add(sum, term.Quo(one, fac))
+		ctx.Add(sum, sum, term.Quo(one, fac))
 	}
-	return sum
+	ctx.Precision -= 3
+	return ctx.Set(z, sum)
 }
 
 // Pi sets z to the mathematical constant π.
 func Pi(z *decimal.Big) *decimal.Big {
-	prec := precision(z)
-	if prec <= constPrec {
-		return z.Set(_Pi)
+	ctx := decimal.Context{Precision: precision(z)}
+	if ctx.Precision <= constPrec {
+		return ctx.Set(z, _Pi)
 	}
 
 	var (
-		lasts = decimal.WithContext(z.Context).SetMantScale(0, 0)
-		t     = decimal.WithContext(z.Context).SetMantScale(3, 0)
-		s     = decimal.WithContext(z.Context).SetMantScale(3, 0)
-		n     = decimal.WithContext(z.Context).SetMantScale(1, 0)
-		na    = decimal.WithContext(z.Context).SetMantScale(0, 0)
-		d     = decimal.WithContext(z.Context).SetMantScale(0, 0)
-		da    = decimal.WithContext(z.Context).SetMantScale(24, 0)
+		lasts = decimal.WithContext(ctx).SetMantScale(0, 0)
+		t     = decimal.WithContext(ctx).SetMantScale(3, 0)
+		s     = z.SetMantScale(3, 0)
+		n     = decimal.WithContext(ctx).SetMantScale(1, 0)
+		na    = decimal.WithContext(ctx).SetMantScale(0, 0)
+		d     = decimal.WithContext(ctx).SetMantScale(0, 0)
+		da    = decimal.WithContext(ctx).SetMantScale(24, 0)
 	)
 
-	for s.Round(prec).Cmp(lasts) != 0 {
+	for s.Cmp(lasts) != 0 {
 		lasts.Set(s)
 		n.Add(n, na)
 		na.Add(na, eight)
@@ -73,15 +76,16 @@ func Pi(z *decimal.Big) *decimal.Big {
 		da.Add(da, thirtyTwo)
 		t.Mul(t, n)
 		t.Quo(t, d)
-		s.Add(s, t)
+		ctx.Add(s, s, t)
 	}
-	return s
+	return ctx.Set(z, s)
 }
 
 // ln10 sets z to log(10) and returns z.
 func ln10(z *decimal.Big, prec int) *decimal.Big {
-	if prec <= constPrec {
-		return z.Set(_Ln10)
+	ctx := decimal.Context{Precision: prec}
+	if ctx.Precision <= constPrec {
+		return ctx.Set(z, _Ln10)
 	}
 
 	// TODO(eric): we can speed this up by selecting a log10 constant that's some
@@ -96,13 +100,14 @@ func ln10(z *decimal.Big, prec int) *decimal.Big {
 		k:    -1,
 		t:    Term{A: decimal.WithPrecision(prec), B: decimal.WithPrecision(prec)},
 	}
-	return z.Quo(eighteen /* 9 * 2 */, Lentz(z, &g))
+	return ctx.Quo(z, eighteen /* 9 * 2 */, Lentz(z, &g))
 }
 
 // log10e sets z to log10(e).
 func log10e(z *decimal.Big) *decimal.Big {
-	if prec := precision(z); prec < constPrec {
-		return z.Set(_Log10e)
+	ctx := decimal.Context{Precision: precision(z)}
+	if ctx.Precision <= constPrec {
+		return ctx.Set(z, _Log10e)
 	}
 	return Log10(z, E(z))
 }

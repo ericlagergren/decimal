@@ -1,10 +1,6 @@
 package math
 
-import (
-	"math"
-
-	"github.com/ericlagergren/decimal"
-)
+import "github.com/ericlagergren/decimal"
 
 // Exp sets z to e ** x and returns z.
 func Exp(z, x *decimal.Big) *decimal.Big {
@@ -63,42 +59,32 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 		z.Context.Conditions |= decimal.Overflow | decimal.Inexact | decimal.Rounded
 		return z.SetInf(false)
 	}
-	t += 5
+	t += 2
 
-	prec := precision(z)
+	ctx := decimal.Context{Precision: precision(z) + 3}
 
-	tmp := decimal.WithPrecision(prec + t) // scratch space
+	tmp := alias(z, x) // scratch space
 
 	// |x| <= 9 * 10 ** -(prec + 1)
-	lim := tmp.SetMantScale(9, prec+1)
+	lim := tmp.SetMantScale(9, ctx.Precision+1)
 	if x.CmpAbs(lim) <= 0 {
 		z.Context.Conditions |= decimal.Rounded | decimal.Inexact
-		return z.SetMantScale(1, 0).Round(prec)
+		return ctx.Round(z.SetMantScale(1, 0).Quantize(ctx.Precision - 1 - 3))
 	}
 
-	// Fast path #1: use math.Exp if our decimal is small enough.
-	if f, exact := x.Float64(); exact && prec <= 15 {
-		return z.SetFloat64(math.Exp(f))
-	}
-
-	if v, ok := x.Uint64(); ok {
-		switch v {
-		case 1:
+	if x.IsInt() {
+		if v, ok := x.Uint64(); ok && v == 1 {
 			// e ** 1 = e
 			return E(z)
-		case 2:
-			// e ** 2 = e * e
-			e := E(z)
-			return z.Mul(e, e)
 		}
 	}
 
 	// Argument reduction:
 	//    exp(x) = 10**k * e**r where x = r + k*log(10)
 
-	prec += t
-	k := log10e(decimal.WithPrecision(prec))
-	ki, ok := k.Mul(k, x).Quantize(0).Int64()
+	ctx.Precision += t
+	k := log10e(decimal.WithContext(ctx))
+	ki, ok := ctx.Mul(k, k, x).Quantize(0).Int64()
 	if !ok || ki > decimal.MaxScale {
 		// Given log10(e) ~= 0.43, if we can't compute 10 ** (log10(e) * x), how
 		// can we possibly compute e**x?
@@ -106,22 +92,21 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 		return z.SetInf(false)
 	}
 
-	r := tmp.Sub(x, k.Mul(k, ln10(tmp, prec)))
+	r := ctx.Sub(tmp, x, ctx.Mul(k, k, ln10(tmp, ctx.Precision)))
 
 	g := expg{
-		prec: prec,
+		prec: ctx.Precision,
 		z:    r,
-		pow:  decimal.WithPrecision(prec).Mul(r, r),
-		t:    Term{A: decimal.WithPrecision(prec), B: decimal.WithPrecision(prec)},
+		pow:  decimal.WithContext(ctx).Mul(r, r),
+		t:    Term{A: decimal.WithContext(ctx), B: decimal.WithContext(ctx)},
 	}
 
-	k.SetMantScale(1, -int(ki))                      // 10**k
-	k.Mul(k, Lentz(decimal.WithPrecision(prec), &g)) // 10**k * e**r
+	k.SetMantScale(1, -int(ki)) // 10**k
+	Lentz(z, &g)                // e**r
+	ctx.Mul(z, k, z)            // 10**k * e**r
 
-	k.Context.Precision -= t
-	decimal.ToNearestEven.Round(k, prec-t)
-	z.Context.Conditions |= k.Context.Conditions
-	return z.Copy(k)
+	ctx.Precision -= t + 3
+	return ctx.Round(z)
 }
 
 // expg is a Generator that computes exp(z).
@@ -133,7 +118,9 @@ type expg struct {
 	t    Term         // Term storage. Does not need to be manually set.
 }
 
-func (e *expg) mode() decimal.RoundingMode { return decimal.ToNearestEven }
+func (e *expg) ctx() decimal.Context {
+	return decimal.Context{Precision: e.prec}
+}
 
 func (e *expg) Next() bool { return true }
 

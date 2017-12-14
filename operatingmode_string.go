@@ -2,7 +2,7 @@
 
 package decimal
 
-import "fmt"
+import "strconv"
 
 const _OperatingMode_name = "GDAGo"
 
@@ -10,7 +10,7 @@ var _OperatingMode_index = [...]uint8{0, 3, 5}
 
 func (i OperatingMode) String() string {
 	if i >= OperatingMode(len(_OperatingMode_index)-1) {
-		return fmt.Sprintf("OperatingMode(%d)", i)
+		return "OperatingMode(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
 	return _OperatingMode_name[_OperatingMode_index[i]:_OperatingMode_index[i+1]]
 }
