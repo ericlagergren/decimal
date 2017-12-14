@@ -1,17 +1,17 @@
 package math
 
 import (
-	"fmt"
-
 	"github.com/ericlagergren/decimal"
 	"github.com/ericlagergren/decimal/misc"
 )
 
-// Pow sets z to x**y % m if m != nil and returns z.
-func Pow(z, x, y, m *decimal.Big) *decimal.Big {
+// TODO(eric): Pow(z, x, y, m *decimal.Big) *decimal.Big
+
+// Pow sets z to x**y and returns z.
+func Pow(z, x, y *decimal.Big) *decimal.Big {
 	// Pass x to the second call to CheckNaNs since the first argument cannot
 	// be nil.
-	if z.CheckNaNs(x, y) || z.CheckNaNs(x, m) {
+	if z.CheckNaNs(x, y) /*|| z.CheckNaNs(x, m)*/ {
 		return z
 	}
 
@@ -62,10 +62,8 @@ func Pow(z, x, y, m *decimal.Big) *decimal.Big {
 	}
 
 	if y.IsInt() {
-		fmt.Println("A")
 		return powInt(z, x, y)
 	}
-	fmt.Println("B")
 	return powDec(z, x, y)
 }
 
