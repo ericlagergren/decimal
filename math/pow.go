@@ -2,7 +2,6 @@ package math
 
 import (
 	"fmt"
-	"math/big"
 
 	"github.com/ericlagergren/decimal"
 	"github.com/ericlagergren/decimal/misc"
@@ -62,84 +61,76 @@ func Pow(z, x, y, m *decimal.Big) *decimal.Big {
 		return Sqrt(z, x)
 	}
 
-	if powOverflows(z, x, y) {
-		return z
-	}
-
-	return powToBig(z, x, y)
 	if y.IsInt() {
-		if v, ok := y.Uint64(); ok {
-			fmt.Println("A")
-			return powToCompact(z, x, v)
-		}
-		fmt.Println("B")
-		return powToInflated(z, x, y.Int(nil))
+		fmt.Println("A")
+		return powInt(z, x, y)
 	}
-	fmt.Println("C")
-	panic("k")
+	fmt.Println("B")
+	return powDec(z, x, y)
 }
 
-func powOverflows(z, x, y *decimal.Big) bool {
-	return false
-}
-
-func powToCompact(z, x *decimal.Big, y uint64) *decimal.Big {
+func powInt(z, x, y *decimal.Big) *decimal.Big {
 	prec := precision(z)
-	ctx := decimal.Context{Precision: prec + 2}
+	ctx := decimal.Context{Precision: prec + y.Precision() + 2}
 
-	x0 := new(decimal.Big).Copy(x)
-	z.SetUint64(1)
-	for y != 0 {
-		if y&1 != 0 {
-			ctx.Mul(z, z, x0)
-			if !z.IsFinite() || z.Sign() == 0 {
-				break
-			}
-		}
-		y >>= 1
-		ctx.Mul(x0, x0, x0)
-		if x0.IsNaN(0) {
-			z.Context.Conditions |= x0.Context.Conditions
-			return z.SetNaN(false)
-		}
-	}
-	ctx.Precision = prec
-	return ctx.Round(z)
-}
-
-func powToInflated(z, x *decimal.Big, y *big.Int) *decimal.Big {
-	prec := precision(z)
-	ctx := decimal.Context{Precision: prec + 2}
-
-	y0 := new(big.Int).Abs(y)
-	var x0 *decimal.Big
-	if y.Sign() < 0 {
+	var x0 decimal.Big
+	if y.Signbit() {
 		ctx.Precision++
-		x0 = ctx.Quo(new(decimal.Big), one, x)
+		ctx.Quo(&x0, one, x)
 	} else {
-		x0 = new(decimal.Big).Copy(x)
+		x0.Copy(x)
 	}
-
 	z.SetUint64(1)
-	for y0.Sign() != 0 {
-		if y0.Bit(0) != 0 {
-			ctx.Mul(z, z, x0)
-			if !z.IsFinite() || z.Sign() == 0 {
-				break
+	sign := x.Signbit()
+
+	if yy, ok := y.Uint64(); ok {
+		sign = sign && yy&1 == 1
+		for yy != 0 {
+			if yy&1 != 0 {
+				ctx.Mul(z, z, &x0)
+				if !z.IsFinite() || z.Sign() == 0 ||
+					z.Context.Conditions&decimal.Clamped != 0 {
+					z.Context.Conditions |= decimal.Underflow | decimal.Subnormal
+					sign = false
+					break
+				}
+			}
+			yy >>= 1
+			ctx.Mul(&x0, &x0, &x0)
+			if x0.IsNaN(0) {
+				z.Context.Conditions |= x0.Context.Conditions
+				return z.SetNaN(false)
 			}
 		}
-		y0.Rsh(y0, 1)
-		ctx.Mul(x0, x0, x0)
-		if x0.IsNaN(0) {
-			z.Context.Conditions |= x0.Context.Conditions
-			return z.SetNaN(false)
+	} else {
+		y0 := y.Int(nil)
+		sign = sign && y0.Bit(0) == 1
+		y0.Abs(y0)
+		for y0.Sign() != 0 {
+			if y0.Bit(0) != 0 {
+				ctx.Mul(z, z, &x0)
+				if !z.IsFinite() || z.Sign() == 0 ||
+					z.Context.Conditions&decimal.Clamped != 0 {
+					z.Context.Conditions |= decimal.Underflow | decimal.Subnormal
+					sign = false
+					break
+				}
+			}
+			y0.Rsh(y0, 1)
+			ctx.Mul(&x0, &x0, &x0)
+			if x0.IsNaN(0) {
+				z.Context.Conditions |= x0.Context.Conditions
+				return z.SetNaN(false)
+			}
 		}
 	}
+
+	misc.SetSignbit(z, sign)
 	ctx.Precision = prec
 	return ctx.Round(z)
 }
 
-func powToBig(z, x, y *decimal.Big) *decimal.Big {
+func powDec(z, x, y *decimal.Big) *decimal.Big {
 	if z == y {
 		y = new(decimal.Big).Copy(y)
 	}
@@ -147,11 +138,13 @@ func powToBig(z, x, y *decimal.Big) *decimal.Big {
 	if neg {
 		x = misc.CopyAbs(new(decimal.Big), x)
 	}
-	Log(z, x)
-	z.Mul(y, z)
-	Exp(z, z)
+
+	oc := z.Context
+	z.Context = decimal.Context{Precision: max(x.Precision(), precision(z)) + 4 + 19}
+	Exp(z, z.Mul(y, Log(z, x)))
 	if neg && z.IsFinite() {
 		misc.CopyNeg(z, z)
 	}
-	return z
+	z.Context = oc
+	return oc.Round(z)
 }

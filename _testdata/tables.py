@@ -217,7 +217,12 @@ def perform_op(op):
             x = rand_dec(nbits=64)
             y = rand_dec(nbits=64)
             #u = rand_dec(nbits=64)
+            # The error of Python's decimal power method is < 1 ULP + t, where
+            # t <= 0.1 ULP, but usually < 0.01 ULP.
+            decimal.getcontext().prec += 1
             r = decimal.getcontext().power(x, y, u)
+            decimal.getcontext().prec -= 1
+            r = +r
 
         # Unary
         elif op == "A":
