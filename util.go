@@ -5,7 +5,7 @@ import (
 
 	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/arith/checked"
-	"github.com/ericlagergren/decimal/internal/c"
+	cst "github.com/ericlagergren/decimal/internal/c"
 )
 
 func (z *Big) norm() *Big {
@@ -17,7 +17,7 @@ func (z *Big) norm() *Big {
 		z.precision = arith.BigLength(&z.unscaled)
 		return z
 	}
-	if v := z.unscaled.Uint64(); v != c.Inflated {
+	if v := z.unscaled.Uint64(); v != cst.Inflated {
 		z.compact = v
 		z.precision = arith.Length(v)
 	} else {
@@ -26,11 +26,11 @@ func (z *Big) norm() *Big {
 	return z
 }
 
-func (z *Big) fix() *Big {
+func (c Context) fix(z *Big) *Big {
 	adj := z.adjusted()
 
 	if adj > MaxScale {
-		prec := precision(z)
+		prec := precision(c)
 
 		if z.compact == 0 {
 			z.exp = MaxScale
@@ -38,10 +38,11 @@ func (z *Big) fix() *Big {
 			return z
 		}
 
-		switch m := z.Context.RoundingMode; m {
+		switch m := c.RoundingMode; m {
 		case ToNearestAway, ToNearestEven:
 			z.SetInf(z.Signbit())
 		case AwayFromZero:
+			// OK
 		case ToZero:
 			z.exp = MaxScale - prec + 1
 		case ToPositiveInf, ToNegativeInf:
@@ -56,11 +57,11 @@ func (z *Big) fix() *Big {
 	}
 
 	if adj < MinScale {
-		tiny := z.etiny()
+		tiny := c.etiny()
 
 		if z.compact == 0 {
 			if z.exp < tiny {
-				z.setTriple(0, z.form, tiny)
+				z.setZero(z.form, tiny)
 				z.Context.Conditions |= Clamped
 			}
 			return z
@@ -68,11 +69,10 @@ func (z *Big) fix() *Big {
 
 		z.Context.Conditions |= Subnormal
 		if z.exp < tiny {
-			shiftr(z, uint64(tiny-z.exp))
+			c.shiftr(z, uint64(tiny-z.exp))
 			z.Context.Conditions |= Underflow
 			z.exp = tiny
 			if z.compact == 0 {
-				z.compact = 0
 				z.Context.Conditions |= Clamped
 			}
 		}
@@ -93,20 +93,28 @@ func alias(z, x *big.Int) *big.Int {
 	return new(big.Int)
 }
 
-func precision(z *Big) (p int) {
-	p = z.Context.Precision
-	if p > 0 && p <= UnlimitedPrecision {
-		return p
+func (z *Big) validateContext(c Context) bool {
+	switch {
+	case c.Precision < 0:
+		z.setNaN(InvalidContext, qnan, invctxpltz)
+	case c.Precision > UnlimitedPrecision:
+		z.setNaN(InvalidContext, qnan, invctxpgtu)
+	case c.RoundingMode >= unnecessary:
+		z.setNaN(InvalidContext, qnan, invctxrmode)
+	case c.OperatingMode > Go:
+		z.setNaN(InvalidContext, qnan, invctxomode)
+	default:
+		return false
 	}
-	if p == 0 {
-		z.Context.Precision = DefaultPrecision
-	} else {
-		z.Context.Conditions |= InvalidContext
+	return true
+}
+
+func precision(c Context) (p int) {
+	if p := c.Precision; p != 0 {
+		return p
 	}
 	return DefaultPrecision
 }
-
-func mode(x *Big) OperatingMode { return x.Context.OperatingMode }
 
 // copybits can be useful when we want to allocate a big.Int without calling
 // new or big.Int.Set. For example:
@@ -189,34 +197,4 @@ func min(x, y int) int {
 		return x
 	}
 	return y
-}
-
-func oddMantissa(x *Big) bool {
-	if x.isCompact() {
-		return x.compact&1 == 1
-	}
-	return x.unscaled.Bit(0) == 1
-}
-
-func shiftr(z *Big, n uint64) bool {
-	// TODO(eric): return value from this function.
-	if n >= uint64(z.precision) {
-		z.compact = 0
-		return true
-	}
-
-	if z.compact == 0 {
-		return true
-	}
-	m := z.Context.RoundingMode
-	if z.isCompact() {
-		if y, ok := arith.Pow10(n); ok {
-			z.quo(m, z.compact, z.form, y, 0).fix()
-			return true
-		}
-		z.unscaled.SetUint64(z.compact)
-		z.compact = c.Inflated
-	}
-	z.quoBig(m, &z.unscaled, z.form, arith.BigPow10(n), 0).fix()
-	return true
 }

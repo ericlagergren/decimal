@@ -57,7 +57,7 @@ const (
 func (t Test) Test(tt *testing.T) {
 	for s := open(tt, string(t)); s.Next(); {
 		c := s.Case()
-		//fmt.Println(c.c.ShortString(2500))
+		//fmt.Println(c.c.ShortString(25))
 		c.execute(t)
 	}
 }

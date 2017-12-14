@@ -7,7 +7,6 @@ import (
 )
 
 func TestBig_Exp(t *testing.T) { test.Exp.Test(t) }
-
 func TestBig_Pow(t *testing.T) { test.Pow.Test(t) }
 func TestLog(t *testing.T)     { test.Log.Test(t) }
 func TestLog10(t *testing.T)   { test.Log10.Test(t) }

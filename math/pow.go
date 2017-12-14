@@ -1,11 +1,10 @@
 package math
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/ericlagergren/decimal"
-	"github.com/ericlagergren/decimal/internal/arith"
-	"github.com/ericlagergren/decimal/internal/c"
 	"github.com/ericlagergren/decimal/misc"
 )
 
@@ -67,135 +66,92 @@ func Pow(z, x, y, m *decimal.Big) *decimal.Big {
 		return z
 	}
 
+	return powToBig(z, x, y)
 	if y.IsInt() {
-		if y.IsInt() {
-			if v, ok := y.Uint64(); ok {
-				return powToCompact(z, x, v)
-			}
+		if v, ok := y.Uint64(); ok {
+			fmt.Println("A")
+			return powToCompact(z, x, v)
 		}
+		fmt.Println("B")
 		return powToInflated(z, x, y.Int(nil))
 	}
-	return powToBig(z, x, y)
+	fmt.Println("C")
+	panic("k")
 }
 
-const maxint = int(^uint(0) >> 1)
-
 func powOverflows(z, x, y *decimal.Big) bool {
-	absx := abs(x)
-
-	Θ := adjusted(y)
-	Z := lowerBoundZ(absx)
-	if Z == maxint {
-		z.Context.Conditions |= decimal.InsufficientStorage
-		return true
-	}
-
-	neg := x.Signbit() && y.IsInt() && y.Int(nil).Bit(0) != 0
-	if adjusted(absx) < 0 != y.Signbit() {
-		const Ω = 10 // arith.Length(decimal.MaxScale)
-		if Ω < Z+Θ {
-			z.SetMantScale(1, c.MaxScaleInf)
-			if neg {
-				misc.CopyNeg(z, z)
-			}
-			// decimal.Test(z)
-			return true
-		}
-	} else {
-		tiny := etiny(z)
-		if Ω := arith.Length(arith.Abs(int64(tiny))); Ω < Z+Θ {
-			z.SetMantScale(0, -(tiny - 1))
-			if neg {
-				misc.CopyNeg(z, z)
-			}
-			// decimal.Test(z)
-			return true
-		}
-	}
 	return false
 }
 
-func lowerBoundZ(x *decimal.Big) int {
-	t := adjusted(x)
-	if t > 0 {
-		// x >= 10 = floor(log10(floor(abs(log10(x)))))
-		return arith.Length(uint64(t)) - 1
-	}
-	if t < -1 {
-		// x < 1/10 = floor(log10(floor(abs(log10(x)))))
-		return arith.Length(uint64(-(t + 1))) - 1
-	}
-	var tmp decimal.Big
-	tmp.Sub(x, one)
-	if !tmp.IsFinite() {
-		return maxint
-	}
-	u := adjusted(&tmp)
-	if t == 0 {
-		return u - 2
-	}
-	return u - 1
-}
-
 func powToCompact(z, x *decimal.Big, y uint64) *decimal.Big {
-	x0 := decimal.WithContext(x.Context).Copy(x)
+	prec := precision(z)
+	ctx := decimal.Context{Precision: prec + 2}
+
+	x0 := new(decimal.Big).Copy(x)
 	z.SetUint64(1)
 	for y != 0 {
 		if y&1 != 0 {
-			z.Mul(z, x0)
+			ctx.Mul(z, z, x0)
 			if !z.IsFinite() || z.Sign() == 0 {
 				break
 			}
 		}
 		y >>= 1
-		x0.Mul(x0, x0)
+		ctx.Mul(x0, x0, x0)
 		if x0.IsNaN(0) {
 			z.Context.Conditions |= x0.Context.Conditions
 			return z.SetNaN(false)
 		}
 	}
-	return z
+	ctx.Precision = prec
+	return ctx.Round(z)
 }
 
 func powToInflated(z, x *decimal.Big, y *big.Int) *decimal.Big {
-	prec := precision(z) + arith.BigLength(y) + 2
+	prec := precision(z)
+	ctx := decimal.Context{Precision: prec + 2}
 
 	y0 := new(big.Int).Abs(y)
 	var x0 *decimal.Big
 	if y.Sign() < 0 {
-		prec++
-		x0 = decimal.WithPrecision(prec).Quo(one, x)
+		ctx.Precision++
+		x0 = ctx.Quo(new(decimal.Big), one, x)
 	} else {
-		x0 = decimal.WithPrecision(prec).Copy(x)
+		x0 = new(decimal.Big).Copy(x)
 	}
 
-	oldm := z.Context.RoundingMode
-	oldp := z.Context.Precision
-	z.Context.RoundingMode = decimal.ToNearestEven
-	z.Context.Precision = prec
 	z.SetUint64(1)
 	for y0.Sign() != 0 {
 		if y0.Bit(0) != 0 {
-			z.Mul(z, x0)
+			ctx.Mul(z, z, x0)
 			if !z.IsFinite() || z.Sign() == 0 {
 				break
 			}
 		}
 		y0.Rsh(y0, 1)
-		x0.Mul(x0, x0)
+		ctx.Mul(x0, x0, x0)
 		if x0.IsNaN(0) {
 			z.Context.Conditions |= x0.Context.Conditions
-			z.Context.RoundingMode = oldm
-			z.Context.Precision = oldp
 			return z.SetNaN(false)
 		}
 	}
-	z.Context.RoundingMode = oldm
-	z.Context.Precision = oldp
-	return decimal.ToNearestEven.Round(z, oldp)
+	ctx.Precision = prec
+	return ctx.Round(z)
 }
 
 func powToBig(z, x, y *decimal.Big) *decimal.Big {
-	z0 := decimal.WithPrecision(precision(z))
-	return Exp(z, z.Mul(y, Log(z0, x)))
+	if z == y {
+		y = new(decimal.Big).Copy(y)
+	}
+	neg := x.Signbit()
+	if neg {
+		x = misc.CopyAbs(new(decimal.Big), x)
+	}
+	Log(z, x)
+	z.Mul(y, z)
+	Exp(z, z)
+	if neg && z.IsFinite() {
+		misc.CopyNeg(z, z)
+	}
+	return z
 }

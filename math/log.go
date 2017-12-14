@@ -37,9 +37,8 @@ func Log(z, x *decimal.Big) *decimal.Big {
 				// ln 1 = 0
 				return z.SetMantScale(0, 0)
 			case 10:
-				prec := precision(z)
 				// Specialized function.
-				return round(ln10(z, prec+3), prec)
+				return ln10(z, precision(z))
 			}
 		}
 	}
@@ -88,25 +87,11 @@ func log(z, x *decimal.Big, ten bool) *decimal.Big {
 		return z.SetInf(t < 0)
 	}
 
-	/* TODO(eric): figure out how to ensure this is corectly rounded.
-	if f, exact := x.Float64(); exact && prec <= exactFloatPrec {
-		var res float64
-		if ten {
-			res = math.Log10(f)
-		} else {
-			res = math.Log(f)
-		}
-		return round(z.SetFloat64(res), prec)
-	}
-	*/
-
 	// Argument reduction:
 	// Given
-	//    ln(a) = ln(b) + ln(c)
-	// Where
-	//    a = b * c
+	//    ln(a) = ln(b) + ln(c), where a = b * c
 	// Given
-	//    x = m * 10**n
+	//    x = m * 10**n, where x ∈ ℝ
 	// Reduce x (as y) so that
 	//    1 <= y < 10
 	// And create p so that
@@ -115,10 +100,7 @@ func log(z, x *decimal.Big, ten bool) *decimal.Big {
 	//    log(y) + p*log(10)
 
 	const adj = 4
-	prec += adj
-	y := decimal.WithPrecision(prec).Copy(x).SetScale(x.Precision() - 1)
-	// Algorithm is for log(1+x)
-	y.Sub(y, one)
+	ctx := decimal.Context{Precision: prec + 3 + adj}
 
 	var p int64
 	switch {
@@ -133,7 +115,12 @@ func log(z, x *decimal.Big, ten bool) *decimal.Big {
 		p = int64(-x.Scale() + x.Precision() - 1)
 	}
 
-	lgp := prec + 2
+	// Rescale to 1 <= x <= 10
+	y := decimal.WithContext(ctx).Copy(x).SetScale(x.Precision() - 1)
+	// Continued fraction algorithm is for log(1+x)
+	y.Sub(y, one)
+
+	lgp := ctx.Precision + 2
 	g := lgen{
 		prec: lgp,
 		pow:  decimal.WithPrecision(lgp).Mul(y, y),
@@ -142,33 +129,32 @@ func log(z, x *decimal.Big, ten bool) *decimal.Big {
 		t:    Term{A: decimal.WithPrecision(lgp), B: decimal.WithPrecision(lgp)},
 	}
 
-	tmp := decimal.WithPrecision(prec)
-	y.Quo(y.Mul(y, two), Lentz(tmp, &g))
+	ctx.Quo(z, y.Mul(y, two), Lentz(z, &g))
 
 	if p != 0 || ten {
-		t := ln10(tmp, prec) // recycle tmp
+		t := ln10(y, ctx.Precision) // recycle y
 
 		// Avoid doing unnecessary work.
 		switch p {
 		default:
-			p := g.pow.SetMantScale(p, 0) // recycle g.pow
-			y.FMA(p, t, y)
+			p := g.z2.SetMantScale(p, 0) // recycle g.z2
+			ctx.FMA(z, p, t, z)
 		case 0:
 			// OK
 		case -1:
-			y.Sub(y, t) // (-1 * t) + y = -t + y = y - t
+			ctx.Sub(z, z, t) // (-1 * t) + z = -t + z = z - t
 		case 1:
-			y.Add(t, y) // (+1 * t) + y = t + y
+			ctx.Add(z, t, z) // (+1 * t) + z = t + z
 		}
 
 		// We're calculating log10(x):
 		//    log10(x) = log(x) / log(10)
 		if ten {
-			y.Quo(y, t)
+			ctx.Quo(z, z, t)
 		}
 	}
-	z.Context.Conditions |= tmp.Context.Conditions
-	return z.Copy(round(y, prec-adj))
+	ctx.Precision -= 3 + adj
+	return ctx.Round(z)
 }
 
 type lgen struct {
@@ -179,7 +165,7 @@ type lgen struct {
 	t    Term
 }
 
-func (l *lgen) mode() decimal.RoundingMode { return decimal.ToNearestEven }
+func (l *lgen) ctx() decimal.Context { return decimal.Context{Precision: l.prec} }
 
 func (l *lgen) Lentz() (f, Δ, C, D, eps *decimal.Big) {
 	f = decimal.WithPrecision(l.prec)

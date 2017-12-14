@@ -2,7 +2,7 @@
 
 package decimal
 
-import "fmt"
+import "strconv"
 
 const _format_name = "normalplainsci"
 
@@ -10,7 +10,7 @@ var _format_index = [...]uint8{0, 6, 11, 14}
 
 func (i format) String() string {
 	if i >= format(len(_format_index)-1) {
-		return fmt.Sprintf("format(%d)", i)
+		return "format(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
 	return _format_name[_format_index[i]:_format_index[i+1]]
 }

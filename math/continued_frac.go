@@ -45,10 +45,10 @@ type Lentzer interface {
 	Lentz() (f, Δ, C, D, eps *decimal.Big)
 }
 
-// specialRounder is a private interface our package Generators implement so
+// contexter is a private interface our package Generators implement so
 // we can properly round with a rounding mode that differ's from z's.
-type specialRounder interface {
-	mode() decimal.RoundingMode
+type contexter interface {
+	ctx() decimal.Context
 }
 
 // lentzer implements the Lentzer interface.
@@ -146,12 +146,17 @@ func Lentz(z *decimal.Big, g Generator) *decimal.Big {
 	C.Copy(f)
 	D.SetMantScale(0, 0)
 
+	ctx := z.Context
+	if c, ok := g.(contexter); ok {
+		ctx = c.ctx()
+	}
+
 	for g.Next() {
 		t = g.Term()
 
 		// Set D_j = b_j + a_j*D{_j-1}
 		// Reuse D for the multiplication.
-		D.FMA(t.A, D, t.B) // D.Add(t.B, D.Mul(t.A, D))
+		ctx.FMA(D, t.A, D, t.B) // D.Add(t.B, D.Mul(t.A, D))
 
 		// If D_j = 0, set D_j = tiny
 		if D.Sign() == 0 {
@@ -160,7 +165,7 @@ func Lentz(z *decimal.Big, g Generator) *decimal.Big {
 
 		// Set C_j = b_j + a_j/C{_j-1}
 		// Reuse C for the division.
-		C.Add(t.B, C.Quo(t.A, C))
+		ctx.Add(C, t.B, ctx.Quo(C, t.A, C))
 
 		// If C_j = 0, set C_j = tiny
 		if C.Sign() == 0 {
@@ -168,24 +173,21 @@ func Lentz(z *decimal.Big, g Generator) *decimal.Big {
 		}
 
 		// Set D_j = 1/D_j
-		D.Quo(one, D)
+		ctx.Quo(D, one, D)
 
 		// Set Δ_j = C_j*D_j
-		Δ.Mul(C, D)
+		ctx.Mul(Δ, C, D)
 
 		// Set f_j = f{_j-1}*Δ_j
-		f.Mul(f, Δ)
+		ctx.Mul(f, f, Δ)
 
 		// If |Δ_j - 1| < eps then exit
-		if Δ.Sub(Δ, one).CmpAbs(eps) < 0 {
+		if ctx.Sub(Δ, Δ, one).CmpAbs(eps) < 0 {
 			break
 		}
 	}
-	if sr, ok := g.(specialRounder); ok {
-		sr.mode().Round(f, precision(z))
-	}
 	z.Context.Conditions |= f.Context.Conditions
-	return z.Set(f)
+	return ctx.Set(z, f)
 }
 
 /*

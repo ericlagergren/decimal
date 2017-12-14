@@ -58,23 +58,23 @@ func (c Context) Err() error {
 
 // WithContext is shorthand to create a Big decimal from a Context.
 func WithContext(c Context) *Big {
-	x := new(Big)
-	x.Context = c
-	return x
+	z := new(Big)
+	z.Context = c
+	return z
 }
 
 // WithPrecision is shorthand to create a Big decimal with a given precision.
 func WithPrecision(p int) *Big {
-	x := new(Big)
+	z := new(Big)
 	switch {
-	case p > 0:
-		x.Context.Precision = p
+	case p > 0 && p <= UnlimitedPrecision:
+		z.Context.Precision = p
 	case p == 0:
-		x.Context.Precision = DefaultPrecision
+		z.Context.Precision = DefaultPrecision
 	default:
-		x.Context.Conditions |= InvalidContext
+		z.setNaN(InvalidContext, qnan, invctxpgtu)
 	}
-	return x
+	return z
 }
 
 // The following are called ContextXX instead of DecimalXX
@@ -131,35 +131,6 @@ const (
 
 	unnecessary // placeholder for x / y with UnlimitedPrecision.
 )
-
-// Round rounds z down to n digits of precision and returns z. The result is
-// undefined if z is not finite. No rounding will occur if n <= 0. The result of
-// Round will always be within the interval [⌊10**x⌋, z] where x = the precision
-// of z.
-func (m RoundingMode) Round(z *Big, n int) *Big {
-	if debug {
-		z.validate()
-	}
-
-	if n <= 0 || z.isSpecial() {
-		return z
-	}
-
-	zp := z.Precision()
-	if zp <= n {
-		return z.fix()
-	}
-
-	shift := zp - n
-	if shift > MaxScale {
-		return z.xflow(false, true)
-	}
-	z.exp += shift
-
-	z.Context.Conditions |= Rounded
-	shiftr(z, uint64(shift))
-	return z.fix()
-}
 
 //go:generate stringer -type RoundingMode
 
