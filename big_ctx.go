@@ -11,7 +11,7 @@ import (
 )
 
 // Add sets z to x + y and returns z.
-func (c Context) Add(z *Big, x, y *Big) *Big {
+func (c Context) Add(z, x, y *Big) *Big {
 	if debug {
 		x.validate()
 		y.validate()
@@ -236,7 +236,7 @@ func (c Context) FMA(z, x, y, u *Big) *Big {
 }
 
 // Mul sets z to x * y and returns z.
-func (c Context) Mul(z *Big, x, y *Big) *Big {
+func (c Context) Mul(z, x, y *Big) *Big {
 	if z.validateContext(c) {
 		return z
 	}
@@ -245,7 +245,7 @@ func (c Context) Mul(z *Big, x, y *Big) *Big {
 
 // mul is the implementation of Mul, but with a boolean to toggle rounding. This
 // is useful for FMA.
-func (c Context) mul(z *Big, x, y *Big, fma bool) *Big {
+func (c Context) mul(z, x, y *Big, fma bool) *Big {
 	if debug {
 		x.validate()
 		y.validate()
@@ -366,7 +366,7 @@ func (c Context) Quantize(z *Big, n int) *Big {
 }
 
 // Quo sets z to x / y and returns z.
-func (c Context) Quo(z *Big, x, y *Big) *Big {
+func (c Context) Quo(z, x, y *Big) *Big {
 	if debug {
 		x.validate()
 		y.validate()
@@ -539,7 +539,7 @@ func (z *Big) quoBig(m RoundingMode, x *big.Int, xneg form, y *big.Int, yneg for
 
 // QuoInt sets z to x / y with the remainder truncated. See QuoRem for more
 // details.
-func (c Context) QuoInt(z *Big, x, y *Big) *Big {
+func (c Context) QuoInt(z, x, y *Big) *Big {
 	if debug {
 		x.validate()
 		y.validate()
@@ -589,7 +589,7 @@ func (c Context) QuoInt(z *Big, x, y *Big) *Big {
 
 // QuoRem sets z to the quotient x / y and r to the remainder x % y, such that
 // x = z * y + r, and returns the pair (z, r).
-func (c Context) QuoRem(z *Big, x, y, r *Big) (*Big, *Big) {
+func (c Context) QuoRem(z, x, y, r *Big) (*Big, *Big) {
 	if debug {
 		x.validate()
 		y.validate()
@@ -751,7 +751,7 @@ func (m RoundingMode) quoremBig(
 }
 
 // Rem sets z to the remainder x % y. See QuoRem for more details.
-func (c Context) Rem(z *Big, x, y *Big) *Big {
+func (c Context) Rem(z, x, y *Big) *Big {
 	if debug {
 		x.validate()
 		y.validate()
@@ -898,7 +898,7 @@ func (c Context) Set(z, x *Big) *Big {
 }
 
 // Sub sets z to x - y and returns z.
-func (c Context) Sub(z *Big, x, y *Big) *Big {
+func (c Context) Sub(z, x, y *Big) *Big {
 	if debug {
 		x.validate()
 		y.validate()

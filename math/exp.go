@@ -72,6 +72,8 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 		return ctx.Round(z.SetMantScale(1, 0).Quantize(ctx.Precision - 1 - 3))
 	}
 
+	// (End of section from libmpdec.)
+
 	if x.IsInt() {
 		if v, ok := x.Uint64(); ok && v == 1 {
 			// e ** 1 = e

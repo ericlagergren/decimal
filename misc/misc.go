@@ -172,7 +172,7 @@ func ord(x *decimal.Big, abs bool) (r int) {
 
 func precision(z *decimal.Big) int {
 	p := z.Context.Precision
-	if p > 0 {
+	if p > 0 && p <= decimal.UnlimitedPrecision {
 		return p
 	}
 	if p == 0 {
@@ -246,4 +246,12 @@ func Shift(z, x *decimal.Big, shift int) *decimal.Big {
 		}
 	}
 	return z.SetBigMantScale(xb, 0)
+}
+
+// SetSignbit sets z to -z if sign is true, otherwise to +z.
+func SetSignbit(z *decimal.Big, sign bool) *decimal.Big {
+	if sign {
+		return z.CopySign(z, neg)
+	}
+	return z.CopySign(z, pos)
 }
