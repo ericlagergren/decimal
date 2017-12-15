@@ -78,11 +78,11 @@ var binary = map[Test]func(z, x, y *decimal.Big) *decimal.Big{
 	QuoInt: (*decimal.Big).QuoInt,
 	Rem:    (*decimal.Big).Rem,
 	Sub:    (*decimal.Big).Sub,
+	Pow:    math.Pow,
 }
 
 var ternary = map[Test]func(z, x, y, u *decimal.Big) *decimal.Big{
 	FMA: (*decimal.Big).FMA,
-	Pow: math.Pow,
 }
 
 func (c *scase) execute(name Test) {
