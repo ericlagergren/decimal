@@ -14,8 +14,8 @@ func Log10(z, x *decimal.Big) *decimal.Big {
 
 	// If x is a power of 10 the result is the exponent and exact.
 	tpow := false
-	if m, u := decimal.Raw(x); m != c.Inflated {
-		tpow = arith.PowOfTen(m)
+	if m, u := decimal.Raw(x); *m != c.Inflated {
+		tpow = arith.PowOfTen(*m)
 	} else {
 		tpow = arith.PowOfTenBig(u)
 	}

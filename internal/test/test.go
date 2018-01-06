@@ -13,6 +13,7 @@ import (
 
 	"github.com/ericlagergren/decimal"
 	"github.com/ericlagergren/decimal/math"
+	"github.com/ericlagergren/decimal/misc"
 	"github.com/ericlagergren/decimal/suite"
 )
 
@@ -29,46 +30,58 @@ func Helper(v interface{}) func() {
 type Test string
 
 const (
-	Abs     Test = "absolute-value"
-	Add     Test = "addition"
-	Class   Test = "class"
-	Cmp     Test = "comparison"
-	CTR     Test = "convert-to-rat"
-	CFS     Test = "convert-from-string"
-	CTS     Test = "convert-to-string"
-	Exp     Test = "exponential-function"
-	FMA     Test = "fused-multiply-add"
-	Log10   Test = "common-logarithm"
-	Logb    Test = "base-b-logarithm"
-	Log     Test = "natural-logarithm"
-	Mul     Test = "multiplication"
-	Neg     Test = "negation"
-	Pow     Test = "power"
-	Quant   Test = "quantization"
-	Quo     Test = "division"
-	QuoInt  Test = "integer-division"
-	Rem     Test = "remainder"
-	Sub     Test = "subtraction"
-	Sign    Test = "sign"
-	Signbit Test = "signbit"
-	Sqrt    Test = "square-root"
+	Abs        Test = "absolute-value"
+	Add        Test = "addition"
+	Class      Test = "class"
+	Cmp        Test = "comparison"
+	CTR        Test = "convert-to-rat"
+	CFS        Test = "convert-from-string"
+	CTS        Test = "convert-to-string"
+	Exp        Test = "exponential-function"
+	FMA        Test = "fused-multiply-add"
+	Log10      Test = "common-logarithm"
+	Logb       Test = "base-b-logarithm"
+	Log        Test = "natural-logarithm"
+	Mul        Test = "multiplication"
+	Neg        Test = "negation"
+	NextMinus  Test = "next-minus"
+	NextPlus   Test = "next-plus"
+	Pow        Test = "power"
+	Quant      Test = "quantization"
+	Quo        Test = "division"
+	QuoInt     Test = "integer-division"
+	Reduce     Test = "reduction"
+	Rem        Test = "remainder"
+	RoundToInt Test = "round-to-integral-exact"
+	Shift      Test = "shift"
+	Sign       Test = "sign"
+	Signbit    Test = "signbit"
+	Sub        Test = "subtraction"
+	Sqrt       Test = "square-root"
 )
 
 func (t Test) Test(tt *testing.T) {
 	for s := open(tt, string(t)); s.Next(); {
 		c := s.Case()
-		//fmt.Println(c.c.ShortString(2500))
+		//fmt.Println(c.c.ShortString(25000))
 		c.execute(t)
 	}
 }
 
+var nilary = map[Test]func(z *decimal.Big) *decimal.Big{
+	Reduce:     (*decimal.Big).Reduce,
+	RoundToInt: (*decimal.Big).RoundToInt,
+}
+
 var unary = map[Test]func(z, x *decimal.Big) *decimal.Big{
-	Abs:   (*decimal.Big).Abs,
-	Neg:   (*decimal.Big).Neg,
-	Exp:   math.Exp,
-	Log:   math.Log,
-	Log10: math.Log10,
-	Sqrt:  math.Sqrt,
+	Abs:       (*decimal.Big).Abs,
+	Neg:       (*decimal.Big).Neg,
+	Exp:       math.Exp,
+	Log:       math.Log,
+	Log10:     math.Log10,
+	NextMinus: misc.NextMinus,
+	NextPlus:  misc.NextPlus,
+	Sqrt:      math.Sqrt,
 }
 
 var binary = map[Test]func(z, x, y *decimal.Big) *decimal.Big{
@@ -86,7 +99,9 @@ var ternary = map[Test]func(z, x, y, u *decimal.Big) *decimal.Big{
 }
 
 func (c *scase) execute(name Test) {
-	if ufn, ok := unary[name]; ok {
+	if nfn, ok := nilary[name]; ok {
+		c.Check(nfn(c.x))
+	} else if ufn, ok := unary[name]; ok {
 		c.Check(ufn(c.z, c.x))
 	} else if bfn, ok := binary[name]; ok {
 		c.Check(bfn(c.z, c.x, c.y))
@@ -101,6 +116,9 @@ func (c *scase) execute(name Test) {
 			r, _, snan := c.Cmp()
 			c.Assert(rv, r)
 			c.Assert(snan, c.x.Context.Conditions&decimal.InvalidOperation != 0)
+		case Shift:
+			//v, _ := c.y.Int64()
+			//c.Check(misc.Shift(c.z, c.x, int(v)))
 		case Quant:
 			v, _ := c.y.Int64()
 			c.Check(c.x.Quantize(int(v)))
@@ -289,5 +307,8 @@ func equal(x, y *decimal.Big) bool {
 	if (x.Context.Conditions & ^decimal.DivisionUndefined) != y.Context.Conditions {
 		return false
 	}
-	return x.Cmp(y) == 0 && x.Scale() == y.Scale() && x.Precision() == y.Precision()
+	cmp := x.Cmp(y) == 0
+	scl := x.Scale() == y.Scale()
+	prec := x.Precision() == y.Precision()
+	return cmp && scl && prec
 }

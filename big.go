@@ -140,6 +140,7 @@ const (
 	invctxpgtu
 	invctxrmode
 	invctxomode
+	reduction
 )
 
 var payloads = [...]string{
@@ -167,6 +168,7 @@ var payloads = [...]string{
 	invctxpgtu:     "operation with a precision greater than MaxPrecision",
 	invctxrmode:    "operation with an invalid RoundingMode",
 	invctxomode:    "operation with an invalid OperatingMode",
+	reduction:      "reduction with NaN as an operand",
 }
 
 func (p Payload) String() string {
@@ -658,7 +660,7 @@ func (x *Big) Format(s fmt.State, c rune) {
 	case 'v':
 		// %v == %s
 		if !hash && !plus {
-			f.format(x, normal, 'e')
+			f.format(x, normal, e)
 			break
 		}
 
@@ -1031,8 +1033,83 @@ func (x *Big) Rat(z *big.Rat) *big.Rat {
 // Additionally, Raw is the only part of this package's API which is not
 // guaranteed to remain stable. This means the function could change or
 // disappear at any time, even across minor version numbers.
-func Raw(x *Big) (uint64, *big.Int) {
-	return x.compact, &x.unscaled
+func Raw(x *Big) (*uint64, *big.Int) {
+	return &x.compact, &x.unscaled
+}
+
+// Reduce reduces a finite z to its most simplest form.
+func (z *Big) Reduce() *Big {
+	if debug {
+		z.validate()
+	}
+
+	z.Context.round(z)
+
+	if z.isSpecial() {
+		// Same semantics as plus(z), i.e. z + 0.
+		z.checkNaNs(z, z, reduction)
+		return z
+	}
+
+	if z.compact == 0 {
+		z.exp = 0
+		z.precision = 1
+		return z
+	}
+
+	if z.compact == c.Inflated {
+		if z.unscaled.Bit(0) != 0 {
+			return z
+		}
+
+		var r big.Int
+		for z.precision >= 20 {
+			z.unscaled.QuoRem(&z.unscaled, c.OneMillionInt, &r)
+			if r.Sign() != 0 {
+				// TODO(eric): which is less expensive? Copying z.unscaled into
+				// a temporary or reconstructing if we can't divide by N?
+				z.unscaled.Mul(&z.unscaled, c.OneMillionInt)
+				z.unscaled.Add(&z.unscaled, &r)
+				break
+			}
+			z.exp += 6
+			z.precision -= 6
+
+			// Try to avoid reconstruction for odd numbers.
+			if z.unscaled.Bit(0) != 0 {
+				break
+			}
+		}
+
+		for z.precision >= 20 {
+			z.unscaled.QuoRem(&z.unscaled, c.TenInt, &r)
+			if r.Sign() != 0 {
+				z.unscaled.Mul(&z.unscaled, c.TenInt)
+				z.unscaled.Add(&z.unscaled, &r)
+				break
+			}
+			z.exp++
+			z.precision--
+			if z.unscaled.Bit(0) != 0 {
+				break
+			}
+		}
+
+		if z.precision >= 20 {
+			return z.norm()
+		}
+		z.compact = z.unscaled.Uint64()
+	}
+
+	for ; z.compact >= 10000 && z.compact%10000 == 0; z.precision -= 4 {
+		z.compact /= 10000
+		z.exp += 4
+	}
+	for ; z.compact%10 == 0; z.precision-- {
+		z.compact /= 10
+		z.exp++
+	}
+	return z
 }
 
 // Rem sets z to the remainder x % y. See QuoRem for more details.
@@ -1048,6 +1125,11 @@ func (z *Big) Round(n int) *Big {
 	ctx := z.Context
 	ctx.Precision = n
 	return ctx.Round(z)
+}
+
+// RoundToInt rounds z down to an integral value.
+func (z *Big) RoundToInt() *Big {
+	return z.Context.RoundToInt(z)
 }
 
 // Scale returns x's scale.
@@ -1084,6 +1166,12 @@ func (z *Big) setShared(x *Big) *Big {
 
 // SetBigMantScale sets z to the given value and scale.
 func (z *Big) SetBigMantScale(value *big.Int, scale int) *Big {
+	// Do this first in case value == z.unscaled. Don't want to clobber the sign.
+	z.form = finite
+	if value.Sign() < 0 {
+		z.form |= signbit
+	}
+
 	z.unscaled.Abs(value)
 	z.compact = c.Inflated
 	z.precision = arith.BigLength(value)
@@ -1094,10 +1182,6 @@ func (z *Big) SetBigMantScale(value *big.Int, scale int) *Big {
 		}
 	}
 
-	z.form = finite
-	if value.Sign() < 0 {
-		z.form |= signbit
-	}
 	z.exp = -scale
 	return z
 }
@@ -1201,21 +1285,21 @@ func (z *Big) SetFloat64(x float64) *Big {
 	z.form = finite | form(bits>>63)
 
 	if shift > 0 {
-		z.compact = c.Inflated
 		z.unscaled.SetUint64(uint64(shift))
 		z.unscaled.Exp(c.FiveInt, &z.unscaled, nil)
 		arith.MulUint64(&z.unscaled, &z.unscaled, mantissa)
 		z.exp = -shift
-	} else {
-		if s := uint(-shift); s < 64 {
-			z.compact = mantissa << s
-		} else {
-			z.compact = c.Inflated
-			z.unscaled.SetUint64(mantissa)
-			z.unscaled.Lsh(&z.unscaled, s)
-		}
+		return z.norm()
 	}
-	return z.norm()
+
+	if s := uint(-shift); s < 64 {
+		z.compact = mantissa << s
+	} else {
+		z.compact = c.Inflated
+		z.unscaled.SetUint64(mantissa)
+		z.unscaled.Lsh(&z.unscaled, s)
+	}
+	return z
 }
 
 // SetInf sets z to -Inf if signbit is set or +Inf is signbit is not set, and

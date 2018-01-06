@@ -9,10 +9,11 @@ import (
 const Inflated uint64 = math.MaxUint64
 
 var (
-	OneInt  = big.NewInt(1)
-	TwoInt  = big.NewInt(2)
-	FiveInt = big.NewInt(5)
-	TenInt  = big.NewInt(10)
+	OneInt        = big.NewInt(1)
+	TwoInt        = big.NewInt(2)
+	FiveInt       = big.NewInt(5)
+	TenInt        = big.NewInt(10)
+	OneMillionInt = big.NewInt(1000000)
 
 	TenFloat = big.NewFloat(10)
 

@@ -2,15 +2,26 @@
 package misc
 
 import (
+	"math/big"
+
 	"github.com/ericlagergren/decimal"
 	"github.com/ericlagergren/decimal/internal/arith"
-	"github.com/ericlagergren/decimal/internal/arith/checked"
 )
 
 var (
 	pos = decimal.New(+1, 0)
 	neg = decimal.New(-1, 0)
 )
+
+func etiny(z *decimal.Big) int { return decimal.MinScale - (precision(z) - 1) }
+func etop(z *decimal.Big) int  { return decimal.MaxScale - (precision(z) - 1) }
+
+func alias(z, x *decimal.Big) *decimal.Big {
+	if z != x {
+		return z
+	}
+	return decimal.WithContext(z.Context)
+}
 
 const (
 	// Radix is the base in which decimal arithmetic is effected.
@@ -151,6 +162,64 @@ func MinAbs(x ...*decimal.Big) *decimal.Big {
 	return m
 }
 
+// maxfor sets z to 999...N with the provided sign.
+func maxfor(z *big.Int, n, sign int) {
+	arith.Sub(z, arith.BigPow10(uint64(n)), 1)
+	if sign < 0 {
+		z.Neg(z)
+	}
+}
+
+// NextMinus sets z to the smallest representable number that's smaller than x
+// and returns z. If x is negative infinity the result will be negative infinity.
+// If the result is zero its sign will be negative and its scale will be MinScale.
+func NextMinus(z, x *decimal.Big) *decimal.Big {
+	if z.CheckNaNs(x, nil) {
+		return z
+	}
+
+	if x.IsInf(0) {
+		if x.IsInf(-1) {
+			return z.SetInf(true)
+		}
+		_, m := decimal.Raw(z)
+		maxfor(m, precision(z), +1)
+		return z.SetBigMantScale(m, -etop(z))
+	}
+
+	ctx := z.Context
+	ctx.RoundingMode = decimal.ToNegativeInf
+	ctx.Set(z, x)
+	ctx.Sub(z, x, new(decimal.Big).SetMantScale(1, -etiny(z)+1))
+	z.Context.Conditions &= ctx.Conditions
+	return z
+}
+
+// NextPlus sets z to the largest representable number that's larger than x and
+// returns z. If x is positive infinity the result will be positive infinity. If
+// the result is zero it will be positive and its scale will be MaxScale.
+func NextPlus(z, x *decimal.Big) *decimal.Big {
+	if z.CheckNaNs(x, nil) {
+		return z
+	}
+
+	if x.IsInf(0) {
+		if x.IsInf(+1) {
+			return z.SetInf(false)
+		}
+		_, m := decimal.Raw(z)
+		maxfor(m, precision(z), -1)
+		return z.SetBigMantScale(m, -etop(z))
+	}
+
+	ctx := z.Context
+	ctx.RoundingMode = decimal.ToPositiveInf
+	ctx.Set(z, x)
+	ctx.Add(z, x, new(decimal.Big).SetMantScale(1, -etiny(z)+1))
+	z.Context.Conditions &= ctx.Conditions
+	return z
+}
+
 func ord(x *decimal.Big, abs bool) (r int) {
 	// -2 == -qnan
 	// -1 == -snan
@@ -186,6 +255,7 @@ func precision(z *decimal.Big) int {
 // SameQuantum returns true if x and y have the same exponent (scale).
 func SameQuantum(x, y *decimal.Big) bool { return x.Scale() == y.Scale() }
 
+/*
 // Shift sets z to the digit-wise shifted mantissa of x. A positive shift value
 // indicates a shift to the right; a negative shift value indicates a shift to
 // the left. The shift value must of equal or lesser magnitude than z's
@@ -198,55 +268,54 @@ func Shift(z, x *decimal.Big, shift int) *decimal.Big {
 		if z.CheckNaNs(x, nil) {
 			return z
 		}
-		if x.IsInf(0) {
-			return z.SetInf(x.IsInf(-1)) // inf
-		}
-		return z.SetMantScale(0, 0) // zero
+		return z.SetInf(x.IsInf(-1)) // inf
 	}
 
-	if x.Scale() != 0 {
-		// "shift with a non-zero scale"
-		z.Context.Conditions |= decimal.InvalidOperation
-		return z.SetNaN(false)
+	if x.Sign() == 0 {
+		return z.SetMantScale(0, 0) // zero
 	}
 
 	if shift == 0 {
 		return z.Set(x) // no shift
 	}
 
-	zp := precision(z)
-	if zp == decimal.UnlimitedPrecision {
+	prec := precision(z)
+	if prec == decimal.UnlimitedPrecision {
 		return z.SetMantScale(0, 0) // undefined
 	}
 
-	if arith.Abs(int64(shift)) >= uint64(zp) {
-		return z.SetMantScale(0, 0) // zero-filled shift is too large
+	if shift < 0 && uint64(-shift) >= uint64(x.Precision()) {
+		z.SetMantScale(0, x.Scale()) // zero-filled shift is too large
+		if x.Signbit() {
+			SetSignbit(z, true)
+		}
+		return z
 	}
+
+	z.Set(x)
 
 	// TODO(eric): add an implementation that uses x.compact and falls back to
 	// x.unscaled instead of calling x.Int.
 
-	_, unsc := decimal.Raw(z)
-	xb := x.Int(unsc /* &z.unscaled */)
-	xp := arith.BigLength(xb)
-	if xp < zp {
-		// Rescale so xb has the required length.
-		checked.MulBigPow10(xb, xb, uint64(zp-xp))
+	_, zb := decimal.Raw(z)
+	if xc, xb := decimal.Raw(x); *xc != c.Inflated {
+		zb.SetUint64(*xc)
+	} else {
+		zb.Set(xb)
 	}
 
 	if shift < 0 {
-		xb.Quo(xb, arith.BigPow10(uint64(-shift))) // remove trailing N digits
+		zb.Quo(zb, arith.BigPow10(uint64(-shift))) // remove trailing N digits
 	} else {
-		if xp < zp {
-			xb.Rem(xb, arith.BigPow10(uint64(shift)))    // remove first N digits
-			xb.Mul(xb, arith.BigPow10(uint64(zp-shift))) // fill with zeros
-		} else {
-			xb.Rem(xb, arith.BigPow10(uint64(zp-shift)))
-			xb.Mul(xb, arith.BigPow10(uint64(shift)))
-		}
+		zb.Rem(zb, arith.BigPow10(uint64(prec-shift))) // remove first N digits
+		zb.Mul(zb, arith.BigPow10(uint64(shift)))      // fill with zeros
 	}
-	return z.SetBigMantScale(xb, 0)
+	if x.Signbit() {
+		zb.Neg(zb)
+	}
+	return z.SetBigMantScale(zb, x.Scale())
 }
+*/
 
 // SetSignbit sets z to -z if sign is true, otherwise to +z.
 func SetSignbit(z *decimal.Big, sign bool) *decimal.Big {

@@ -21,12 +21,8 @@ func (c Context) Add(z, x, y *Big) *Big {
 	}
 
 	if x.IsFinite() && y.IsFinite() {
-		neg := c.add(z, x, x.Signbit(), y, y.Signbit())
-		z.form = finite
-		if neg {
-			z.form |= signbit
-		}
-		return c.round(z.norm())
+		z.form = finite | c.add(z, x, x.form, y, y.form)
+		return c.round(z)
 	}
 
 	// NaN + NaN
@@ -51,7 +47,7 @@ func (c Context) Add(z, x, y *Big) *Big {
 	return z.Set(y)
 }
 
-func (c Context) add(z *Big, x *Big, xn bool, y *Big, yn bool) (neg bool) {
+func (c Context) add(z *Big, x *Big, xn form, y *Big, yn form) (sign form) {
 	hi, lo := x, y
 	hineg, loneg := xn, yn
 	if hi.exp < lo.exp {
@@ -59,31 +55,31 @@ func (c Context) add(z *Big, x *Big, xn bool, y *Big, yn bool) (neg bool) {
 		hineg, loneg = loneg, hineg
 	}
 
-	if neg, ok := c.tryTinyAdd(z, hi, hineg, lo, loneg); ok {
-		return neg
+	if sign, ok := c.tryTinyAdd(z, hi, hineg, lo, loneg); ok {
+		return sign
 	}
 
 	if hi.isCompact() {
 		if lo.isCompact() {
-			neg = c.addCompact(z, hi.compact, hineg, lo.compact, loneg, uint64(hi.exp-lo.exp))
+			sign = c.addCompact(z, hi.compact, hineg, lo.compact, loneg, uint64(hi.exp-lo.exp))
 		} else {
-			neg = c.addMixed(z, &lo.unscaled, loneg, lo.exp, hi.compact, hineg, hi.exp)
+			sign = c.addMixed(z, &lo.unscaled, loneg, lo.exp, hi.compact, hineg, hi.exp)
 		}
 	} else if lo.isCompact() {
-		neg = c.addMixed(z, &hi.unscaled, hineg, hi.exp, lo.compact, loneg, lo.exp)
+		sign = c.addMixed(z, &hi.unscaled, hineg, hi.exp, lo.compact, loneg, lo.exp)
 	} else {
-		neg = c.addBig(z, &hi.unscaled, hineg, &lo.unscaled, loneg, uint64(hi.exp-lo.exp))
+		sign = c.addBig(z, &hi.unscaled, hineg, &lo.unscaled, loneg, uint64(hi.exp-lo.exp))
 	}
 	z.exp = lo.exp
-	return neg
+	return sign
 }
 
 // tryTinyAdd returns true if hi + lo requires a huge shift that will produce
 // the same results as a smaller shift. E.g., 3 + 0e+9999999999999999 with a
 // precision of 5 doesn't need to be shifted by a large number.
-func (c Context) tryTinyAdd(z *Big, hi *Big, hineg bool, lo *Big, loneg bool) (neg, ok bool) {
+func (c Context) tryTinyAdd(z *Big, hi *Big, hineg form, lo *Big, loneg form) (sign form, ok bool) {
 	if hi.compact == 0 {
-		return false, false
+		return 0, false
 	}
 
 	exp := hi.exp - 1
@@ -92,7 +88,7 @@ func (c Context) tryTinyAdd(z *Big, hi *Big, hineg bool, lo *Big, loneg bool) (n
 	}
 
 	if lo.adjusted() >= exp {
-		return false, false
+		return 0, false
 	}
 
 	var tiny uint64
@@ -103,118 +99,123 @@ func (c Context) tryTinyAdd(z *Big, hi *Big, hineg bool, lo *Big, loneg bool) (n
 
 	if hi.isCompact() {
 		shift := uint64(hi.exp - exp)
-		neg = c.addCompact(z, hi.compact, hineg, tiny, tinyneg, shift)
+		sign = c.addCompact(z, hi.compact, hineg, tiny, tinyneg, shift)
 	} else {
-		neg = c.addMixed(z, &hi.unscaled, hineg, hi.exp, tiny, tinyneg, exp)
+		sign = c.addMixed(z, &hi.unscaled, hineg, hi.exp, tiny, tinyneg, exp)
 	}
 	z.exp = exp
-	return neg, true
+	return sign, true
 }
 
-func (c Context) addCompact(z *Big, hi uint64, hineg bool, lo uint64, loneg bool, shift uint64) bool {
-	neg := hineg
+func (c Context) addCompact(z *Big, hi uint64, hineg form, lo uint64, loneg form, shift uint64) (sign form) {
+	sign = hineg
 	if hi, ok := checked.MulPow10(hi, shift); ok {
 		// Try regular addition and fall back to 128-bit addition.
 		if loneg == hineg {
 			if z.compact, ok = checked.Add(hi, lo); !ok {
-				arith.Add128(&z.unscaled, hi, lo)
+				z.precision = arith.BigLength(arith.Add128(&z.unscaled, hi, lo))
 				z.compact = cst.Inflated
+			} else {
+				z.precision = arith.Length(z.compact)
 			}
-		} else {
-			if z.compact, ok = checked.Sub(hi, lo); !ok {
-				neg = !neg
-				arith.Sub128(&z.unscaled, lo, hi)
-				z.compact = cst.Inflated
-			}
+			return sign
 		}
+
+		if z.compact, ok = checked.Sub(hi, lo); !ok {
+			sign ^= signbit
+			z.compact = lo - hi
+		}
+
 		// "Otherwise, the sign of a zero result is 0 unless either both
 		// operands were negative or the signs of the operands were different
 		// and the rounding is round-floor."
-		return (z.compact == 0 && c.RoundingMode == ToNegativeInf && neg) || neg
+		if z.compact == 0 {
+			z.precision = 1
+			if (hineg&loneg == signbit) ||
+				(hineg^loneg == signbit && c.RoundingMode == ToNegativeInf) {
+				return signbit
+			}
+			return 0
+		}
+		z.precision = arith.Length(z.compact)
+		return sign
 	}
 
 	{
 		hi := z.unscaled.SetUint64(hi)
 		hi = checked.MulBigPow10(hi, hi, shift)
 		if hineg == loneg {
-			arith.Add(&z.unscaled, hi, lo)
+			z.precision = arith.BigLength(arith.Add(&z.unscaled, hi, lo))
+			z.compact = cst.Inflated
 		} else {
-			// lo had to be promoted to a big.Int, so by definition it'll be
-			// larger than hi. Therefore, we do not need to negate neg, nor do
-			// we need to check to see if the result == 0.
 			arith.Sub(&z.unscaled, hi, lo)
+			z.norm()
 		}
+		// hi had to be promoted to a big.Int, so by definition it'll be larger
+		// than lo. Therefore, we do not need to negate neg in the above else
+		// case, nor do we need to check to see if the result == 0.
 	}
-	z.compact = cst.Inflated
-	return neg
+	return sign
 }
 
-func (c Context) addMixed(z *Big, x *big.Int, xneg bool, xs int, y uint64, yn bool, ys int) bool {
-	switch {
-	case xs < ys:
+func (c Context) addMixed(z *Big, x *big.Int, xneg form, xs int, y uint64, yn form, ys int) (sign form) {
+	if xs < ys {
 		shift := uint64(ys - xs)
-		if y0, ok := checked.MulPow10(y, shift); ok {
-			y = y0
-			break
+		y0, ok := checked.MulPow10(y, shift)
+		if !ok {
+			yb := alias(&z.unscaled, x).SetUint64(y)
+			yb = checked.MulBigPow10(yb, yb, shift)
+			return c.addBig(z, x, xneg, yb, yn, 0)
 		}
-
-		// See comment in addCompact.
-		yb := alias(&z.unscaled, x).SetUint64(y)
-		yb = checked.MulBigPow10(yb, yb, shift)
-
-		neg := xneg
-		if xneg == yn {
-			z.unscaled.Add(x, yb)
-		} else {
-			if x.Cmp(yb) >= 0 {
-				z.unscaled.Sub(x, yb)
-			} else {
-				neg = !neg
-				z.unscaled.Sub(yb, x)
-			}
-		}
-		if z.unscaled.Sign() == 0 {
-			z.compact = 0
-		} else {
-			z.compact = cst.Inflated
-		}
-		return (z.compact == 0 && c.RoundingMode == ToNegativeInf && neg) || neg
-	case xs > ys:
+		y = y0
+	} else if xs > ys {
 		x = checked.MulBigPow10(&z.unscaled, x, uint64(xs-ys))
 	}
 
 	if xneg == yn {
 		arith.Add(&z.unscaled, x, y)
+		z.precision = arith.BigLength(&z.unscaled)
+		z.compact = cst.Inflated
 	} else {
 		// x > y
 		arith.Sub(&z.unscaled, x, y)
+		z.norm()
 	}
-
-	z.compact = cst.Inflated
 	return xneg
 }
 
-func (c Context) addBig(z *Big, hi *big.Int, hineg bool, lo *big.Int, loneg bool, shift uint64) bool {
+func (c Context) addBig(z *Big, hi *big.Int, hineg form, lo *big.Int, loneg form, shift uint64) (sign form) {
 	if shift != 0 {
 		hi = checked.MulBigPow10(alias(&z.unscaled, lo), hi, shift)
 	}
-	neg := hineg
+
 	if hineg == loneg {
 		z.unscaled.Add(hi, lo)
-	} else {
-		if hi.Cmp(lo) >= 0 {
-			z.unscaled.Sub(hi, lo)
-		} else {
-			neg = !neg
-			z.unscaled.Sub(lo, hi)
-		}
+		z.compact = cst.Inflated
+		z.precision = arith.BigLength(&z.unscaled)
+		return hineg
 	}
+
+	sign = hineg
+	if hi.Cmp(lo) >= 0 {
+		z.unscaled.Sub(hi, lo)
+	} else {
+		sign ^= signbit
+		z.unscaled.Sub(lo, hi)
+	}
+
 	if z.unscaled.Sign() == 0 {
 		z.compact = 0
-	} else {
-		z.compact = cst.Inflated
+		z.precision = 1
+		if (hineg&loneg == signbit) ||
+			(hineg^loneg == signbit && c.RoundingMode == ToNegativeInf) {
+			return signbit
+		}
+		return 0
 	}
-	return z.compact != 0 && neg
+
+	z.norm()
+	return sign
 }
 
 // FMA sets z to (x * y) + u without any intermediate rounding.
@@ -228,7 +229,7 @@ func (c Context) FMA(z, x, y, u *Big) *Big {
 	if z == u {
 		z0 = WithContext(c)
 	}
-	c.mul(z0, x, y, true)
+	c.mul(z0, x, y)
 	if z0.Context.Conditions&InvalidOperation != 0 {
 		return z.setShared(z0)
 	}
@@ -240,12 +241,11 @@ func (c Context) Mul(z, x, y *Big) *Big {
 	if z.validateContext(c) {
 		return z
 	}
-	return c.fix(c.mul(z, x, y, false))
+	return c.round(c.mul(z, x, y))
 }
 
-// mul is the implementation of Mul, but with a boolean to toggle rounding. This
-// is useful for FMA.
-func (c Context) mul(z, x, y *Big, fma bool) *Big {
+// mul is the implementation of Mul.
+func (c Context) mul(z, x, y *Big) *Big {
 	if debug {
 		x.validate()
 		y.validate()
@@ -254,35 +254,28 @@ func (c Context) mul(z, x, y *Big, fma bool) *Big {
 	sign := x.form&signbit ^ y.form&signbit
 
 	if x.IsFinite() && y.IsFinite() {
+		z.form = finite | sign
+		z.exp = x.exp + y.exp
+
 		// Multiplication is simple, so inline it.
 		if x.isCompact() {
 			if y.isCompact() {
 				if prod, ok := checked.Mul(x.compact, y.compact); ok {
 					z.compact = prod
-				} else {
-					// Overflow: use 128 bit multiplication.
-					arith.Mul128(&z.unscaled, x.compact, y.compact)
-					z.compact = cst.Inflated
+					z.precision = arith.Length(z.compact)
+					return z
 				}
+				// Overflow: use 128 bit multiplication.
+				arith.Mul128(&z.unscaled, x.compact, y.compact)
 			} else { // y.isInflated
 				arith.MulUint64(&z.unscaled, &y.unscaled, x.compact)
-				z.compact = cst.Inflated
 			}
 		} else if y.isCompact() { // x.isInflated
 			arith.MulUint64(&z.unscaled, &x.unscaled, y.compact)
-			z.compact = cst.Inflated
 		} else {
 			z.unscaled.Mul(&x.unscaled, &y.unscaled)
-			z.compact = cst.Inflated
 		}
-
-		z.form = finite | sign
-		z.exp = x.exp + y.exp
-		z.norm()
-		if !fma {
-			c.round(z)
-		}
-		return z
+		return z.norm()
 	}
 
 	// NaN * NaN
@@ -725,28 +718,19 @@ func (m RoundingMode) quoremBig(
 	y *big.Int, yneg form,
 ) (*Big, *Big) {
 	if z0 == nil {
-		r := z1.unscaled.Rem(x, y)
-		z1.compact = cst.Inflated
+		z1.unscaled.Rem(x, y)
 		z1.form = xneg
-		z1.precision = arith.BigLength(r)
 		return z0, z1.norm()
 	}
 
-	var q, r *big.Int
 	if z1 != nil {
-		q, r = z0.unscaled.QuoRem(x, y, &z1.unscaled)
-		z1.compact = cst.Inflated
+		z0.unscaled.QuoRem(x, y, &z1.unscaled)
 		z1.form = xneg
-		z1.precision = arith.BigLength(r)
 		z1.norm()
 	} else {
-		q, _ = z0.unscaled.QuoRem(x, y, new(big.Int))
+		z0.unscaled.QuoRem(x, y, new(big.Int))
 	}
-	if z0 != nil {
-		z0.compact = cst.Inflated
-		z0.form = xneg ^ yneg
-		z0.precision = arith.BigLength(q)
-	}
+	z0.form = xneg ^ yneg
 	return z0.norm(), z1
 }
 
@@ -824,6 +808,7 @@ func (c Context) Round(z *Big) *Big {
 	z.exp += shift
 
 	z.Context.Conditions |= Rounded
+
 	c.shiftr(z, uint64(shift))
 
 	// Test to see if we accidentally increased precision because of rounding.
@@ -869,32 +854,41 @@ func (c Context) shiftr(z *Big, n uint64) bool {
 	}
 
 	if z.compact == 0 {
-		return true
+		return false
 	}
 
 	m := c.RoundingMode
 	if z.isCompact() {
 		if y, ok := arith.Pow10(n); ok {
 			z.quo(m, z.compact, z.form, y, 0)
-			return true
+			return false
 		}
 		z.unscaled.SetUint64(z.compact)
 		z.compact = cst.Inflated
 	}
 	z.quoBig(m, &z.unscaled, z.form, arith.BigPow10(n), 0)
-	return true
+	return false
 }
 
 func (c Context) round(z *Big) *Big {
 	if c.OperatingMode == GDA {
 		return c.Round(z)
 	}
-	return z
+	return c.fix(z)
+}
+
+// RoundToInt rounds z down to an integral value.
+func (c Context) RoundToInt(z *Big) *Big {
+	if z.isSpecial() || z.exp >= 0 {
+		return z
+	}
+	c.Precision = z.precision
+	return c.Quantize(z, 0)
 }
 
 // Set sets z to x and returns z. The result might be rounded, even if z == x.
 func (c Context) Set(z, x *Big) *Big {
-	return c.Round(z.Copy(x))
+	return c.round(z.Copy(x))
 }
 
 // Sub sets z to x - y and returns z.
@@ -908,12 +902,8 @@ func (c Context) Sub(z, x, y *Big) *Big {
 	}
 
 	if x.IsFinite() && y.IsFinite() {
-		neg := c.add(z, x, x.Signbit(), y, !y.Signbit())
-		z.form = finite
-		if neg {
-			z.form |= signbit
-		}
-		return c.round(z.norm())
+		z.form = finite | c.add(z, x, x.form, y, y.form^signbit)
+		return c.round(z)
 	}
 
 	// NaN - NaN

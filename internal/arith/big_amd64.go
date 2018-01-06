@@ -79,12 +79,11 @@ func Add128(z *big.Int, x, y uint64) *big.Int {
 // Sub128 sets z to x - y and returns z.
 func Sub128(z *big.Int, x, y uint64) *big.Int {
 	ww := uint128{Word(x), Word(y)}
-	var neg bool
-	if ww[0] >= ww[1] {
-		ww[1], ww[0] = subWW(ww[0], ww[1])
-	} else {
-		neg = true
+	neg := ww[0] < ww[1]
+	if neg {
 		ww[1], ww[0] = subWW(ww[1], ww[0])
+	} else {
+		ww[1], ww[0] = subWW(ww[0], ww[1])
 	}
 	z.SetBits(ww[:])
 	if neg {

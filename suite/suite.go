@@ -7,9 +7,8 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"math/bits"
 	"strings"
-
-	"github.com/ericlagergren/decimal/internal/arith"
 )
 
 // ParseCases returns a slice of test cases in .fptest form read from r.
@@ -168,7 +167,7 @@ func (c Condition) String() string {
 	}
 
 	// Each condition is one bit, so this saves some allocations.
-	a := make([]string, 0, arith.OnesCount32(uint32(c)))
+	a := make([]string, 0, bits.OnesCount32(uint32(c)))
 	for i := Condition(1); c != 0; i <<= 1 {
 		if c&i == 0 {
 			continue
@@ -295,6 +294,9 @@ const (
 	Log10
 	Pow
 	IntDiv
+	Normalize
+	RoundToInt
+	Shift
 )
 
 const maxOpLen = 6
@@ -350,6 +352,9 @@ var valToOp = map[string]Op{
 	"log10":   Log10,
 	"pow":     Pow,
 	"//":      IntDiv,
+	"norm":    Normalize,
+	"rtie":    RoundToInt,
+	"shift":   Shift,
 }
 
 //go:generate stringer -type=Op

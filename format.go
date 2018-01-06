@@ -23,8 +23,8 @@ func roundString(b []byte, mode RoundingMode, pos bool, prec int) []byte {
 		return b
 	}
 
-	// Trim zeros until prec. This is useful when we can round exactly by
-	// simply chopping zeros off the end of the number.
+	// Trim zeros until prec. This is useful when we can round exactly by simply
+	// chopping zeros off the end of the number.
 	if allZeros(b[prec:]) {
 		return b[:prec]
 	}

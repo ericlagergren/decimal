@@ -9,20 +9,15 @@ import (
 )
 
 func (z *Big) norm() *Big {
-	if !z.isInflated() {
-		z.precision = arith.Length(z.compact)
-		return z
+	if arith.IsUint64(&z.unscaled) {
+		if v := z.unscaled.Uint64(); v != cst.Inflated {
+			z.compact = v
+			z.precision = arith.Length(v)
+			return z
+		}
 	}
-	if !arith.IsUint64(&z.unscaled) {
-		z.precision = arith.BigLength(&z.unscaled)
-		return z
-	}
-	if v := z.unscaled.Uint64(); v != cst.Inflated {
-		z.compact = v
-		z.precision = arith.Length(v)
-	} else {
-		z.precision = arith.BigLength(&z.unscaled)
-	}
+	z.precision = arith.BigLength(&z.unscaled)
+	z.compact = cst.Inflated
 	return z
 }
 
@@ -69,7 +64,9 @@ func (c Context) fix(z *Big) *Big {
 
 		z.Context.Conditions |= Subnormal
 		if z.exp < tiny {
-			c.shiftr(z, uint64(tiny-z.exp))
+			if c.shiftr(z, uint64(tiny-z.exp)) {
+				z.compact = 1
+			}
 			z.Context.Conditions |= Underflow
 			z.exp = tiny
 			if z.compact == 0 {

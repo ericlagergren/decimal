@@ -1,3 +1,7 @@
+### Note: not all operations necessarily have identical names. For example,
+`plus` is implemented via `Set`. The operations are spread throughout the
+different packages.
+
 ## Arithmetic operations
 
 - [x] abs
@@ -14,17 +18,18 @@
 - [x] max-magnitude
 - [x] min
 - [x] min-magnitude
-- [x] minus // Neg
+- [x] minus # Neg
 - [x] multiply
-- [ ] next-minus
+- [x] next-minus
+- [x] next-plus
 - [ ] next-toward
-- [x] plus // Set
-- [ ] power
+- [x] plus # Set
+- [x] power
 - [x] quantize
-- [ ] reduce
+- [x] reduce
 - [x] remainder
 - [ ] remainder-near
-- [ ] round-to-integral-exact
+- [x] round-to-integral-exact
 - [ ] round-to-integral-value
 - [x] square-root
 - [x] subtract

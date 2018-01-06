@@ -1,38 +1,10 @@
 #!/usr/bin/env python3
 
+from decimal import *
 import gzip
-import decimal
 import random
 import sys
 import math
-from functools import wraps
-import errno
-import os
-import signal
-
-
-class TimeoutError(Exception):
-    pass
-
-
-def timeout(seconds=10, error_message=os.strerror(errno.ETIME)):
-    def decorator(func):
-        def _handle_timeout(signum, frame):
-            raise TimeoutError(error_message)
-
-        def wrapper(*args, **kwargs):
-            signal.signal(signal.SIGALRM, _handle_timeout)
-            signal.alarm(seconds)
-            try:
-                result = func(*args, **kwargs)
-            finally:
-                signal.alarm(0)
-            return result
-
-        return wraps(func)(wrapper)
-
-    return decorator
-
 
 ops = {
     "*": "multiplication",
@@ -49,6 +21,8 @@ ops = {
     "?": "class",
     "V": "square-root",
     "%": "remainder",
+    "Nu": "next-plus",
+    "Nd": "next-minus",
 
     # Custom
     "rat": "convert-to-rat",
@@ -59,17 +33,20 @@ ops = {
     "log10": "common-logarithm",
     "pow": "power",
     "//": "integer-division",
+    "norm": "reduction",
+    "rtie": "round-to-integral-exact",
+    "shift": "shift",
 }
 
 modes = {
-    "=0": decimal.ROUND_HALF_EVEN,
-    "=^": decimal.ROUND_HALF_UP,
-    "0": decimal.ROUND_DOWN,
-    "<": decimal.ROUND_FLOOR,
-    ">": decimal.ROUND_CEILING,
-    # decimal.ROUND_HALF_DOWN,
-    "^": decimal.ROUND_UP,
-    # decimal.ROUND_05UP,
+    "=0": ROUND_HALF_EVEN,
+    "=^": ROUND_HALF_UP,
+    "0": ROUND_DOWN,
+    "<": ROUND_FLOOR,
+    ">": ROUND_CEILING,
+    # ROUND_HALF_DOWN,
+    "^": ROUND_UP,
+    # ROUND_05UP,
 }
 
 
@@ -101,10 +78,10 @@ def make_dec(nbits=5000):
             l[random.randint(0, len(l) - 1)] = '.'
         fs = "".join(l)
 
-    return decimal.Decimal(fs)
+    return Decimal(fs)
 
 
-DEC_TEN = decimal.Decimal(10)
+DEC_TEN = Decimal(10)
 
 
 def rand_dec(quant=None, nbits=None):
@@ -112,7 +89,7 @@ def rand_dec(quant=None, nbits=None):
         quant = False
     if nbits is None:
         nbits = 5000
-    with decimal.localcontext() as ctx:
+    with localcontext() as ctx:
         ctx.clear_traps()
 
         if quant:
@@ -140,7 +117,7 @@ def rand_dec(quant=None, nbits=None):
 def conv(x):
     if x is None:
         return None
-    if isinstance(x, decimal.Decimal):
+    if isinstance(x, Decimal):
         if x.is_infinite():
             return '-Inf' if x.is_signed() else 'Inf'
         else:
@@ -169,7 +146,6 @@ def write_line(out, prec, op, mode, r, x, y=None, u=None, flags=None):
     out.write(str)
 
 
-@timeout()
 def perform_op(op):
     r = None
     x = None
@@ -212,22 +188,26 @@ def perform_op(op):
             r = x.quantize(y)
             y = -y.as_tuple().exponent
         elif op == "pow":
-            decimal.getcontext().prec += 11
-            decimal.getcontext().prec //= 10
+            getcontext().prec += 11
+            getcontext().prec //= 10
             x = rand_dec(nbits=64)
             y = rand_dec(nbits=64)
             #u = rand_dec(nbits=64)
             # The error of Python's decimal power method is < 1 ULP + t, where
             # t <= 0.1 ULP, but usually < 0.01 ULP.
-            decimal.getcontext().prec += 1
-            r = decimal.getcontext().power(x, y, u)
-            decimal.getcontext().prec -= 1
+            getcontext().prec += 1
+            r = getcontext().power(x, y, u)
+            getcontext().prec -= 1
             r = +r
+        elif op == "shift":
+            x = rand_dec()
+            y = Decimal(random.randint(-getcontext().prec, getcontext().prec))
+            r = x.shift(y)
 
         # Unary
         elif op == "A":
             x = rand_dec()
-            r = decimal.getcontext().abs(x)
+            r = getcontext().abs(x)
         elif op == "cfd":
             x = rand_dec()
             r = str(x)
@@ -237,9 +217,9 @@ def perform_op(op):
                 try:
                     x, y = x.as_integer_ratio()
                     if y == 1:
-                        r = +decimal.Decimal(x)
+                        r = +Decimal(x)
                     else:
-                        r = decimal.Decimal(x) / decimal.Decimal(y)
+                        r = Decimal(x) / Decimal(y)
                     break
                 except Exception:  # ValueError if nan, etc.
                     x = rand_dec()
@@ -258,23 +238,23 @@ def perform_op(op):
             x = rand_dec()
             r = -x
         elif op == "exp":
-            decimal.getcontext().prec += 11
-            decimal.getcontext().prec //= 10
+            getcontext().prec += 11
+            getcontext().prec //= 10
             x = rand_dec(nbits=128)
             r = x.exp()
         elif op == "log":
-            decimal.getcontext().prec += 11
-            decimal.getcontext().prec //= 10
+            getcontext().prec += 11
+            getcontext().prec //= 10
             x = rand_dec(nbits=128)
             r = x.ln()
         elif op == "L":
-            decimal.getcontext().prec += 11
-            decimal.getcontext().prec //= 10
+            getcontext().prec += 11
+            getcontext().prec //= 10
             x = rand_dec(nbits=128)
             r = x.logb()
         elif op == "log10":
-            decimal.getcontext().prec += 11
-            decimal.getcontext().prec //= 10
+            getcontext().prec += 11
+            getcontext().prec //= 10
             x = rand_dec(nbits=128)
             r = x.log10()
         elif op == "?":
@@ -283,6 +263,18 @@ def perform_op(op):
         elif op == "V":
             x = rand_dec()
             r = x.sqrt()
+        elif op == "norm":
+            x = rand_dec()
+            r = x.normalize()
+        elif op == "rtie":
+            x = rand_dec()
+            r = x.to_integral_exact()
+        elif op == "Nu":
+            x = rand_dec()
+            r = x.next_plus()
+        elif op == "Nd":
+            x = rand_dec()
+            r = x.next_minus()
 
         # Ternary
         elif op == "*-":
@@ -299,15 +291,15 @@ def perform_op(op):
 
 
 traps = {
-    decimal.Clamped: "c",
-    decimal.DivisionByZero: "z",
-    decimal.Inexact: "x",
-    decimal.InvalidOperation: "i",
-    decimal.Overflow: "o",
-    decimal.Rounded: "r",
-    decimal.Subnormal: "s",
-    decimal.Underflow: "u",
-    decimal.FloatOperation: "***",
+    Clamped: "c",
+    DivisionByZero: "z",
+    Inexact: "x",
+    InvalidOperation: "i",
+    Overflow: "o",
+    Rounded: "r",
+    Subnormal: "s",
+    Underflow: "u",
+    FloatOperation: "***",
 }
 
 
@@ -315,7 +307,7 @@ def rand_traps():
     t = {}
     s = ""
     for key, val in traps.items():
-        b = key != decimal.FloatOperation and rand_bool()
+        b = key != FloatOperation and rand_bool()
         if b:
             s += val
         t[key] = int(b)
@@ -333,9 +325,9 @@ def make_tables(items):
                 mode = random.choice(list(modes.keys()))
                 # t, ts = rand_traps()
 
-                ctx = decimal.getcontext()
-                ctx.Emax = decimal.MAX_EMAX
-                ctx.Emin = decimal.MIN_EMIN
+                ctx = getcontext()
+                ctx.Emax = MAX_EMAX
+                ctx.Emin = MIN_EMIN
                 ctx.rounding = modes[mode]
                 ctx.prec = random.randint(1, 5000)
                 ctx.clear_traps()
@@ -345,7 +337,7 @@ def make_tables(items):
 
                 conds = ""
                 for key, value in ctx.flags.items():
-                    if value == 1 and key != decimal.FloatOperation:
+                    if value == 1 and key != FloatOperation:
                         conds += traps[key]
                 write_line(f, ctx.prec, op, mode, r, x, y, u, conds)
 

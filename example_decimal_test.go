@@ -54,7 +54,7 @@ func ExampleBig_Round() {
 	fmt.Println(c.Round(5))
 	fmt.Println(d.Round(1))
 	// Output:
-	// 1.2e+3
+	// 1.2E+3
 	// 54
 	// 60
 	// 0.002
