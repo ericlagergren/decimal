@@ -95,6 +95,9 @@ func ParseCase(data []byte) (c Case, err error) {
 			| 'log10'   # Common logarithm
 			| 'pow'     # Power
             | '//'      # Int Div
+			| 'norm'    # Normalize (reduce)
+			| 'rtie'    # RoundToInt (exact)
+			| 'shift'   # Shift
         ) >mark %set_op; 
         mode = (
               '>'  # ToPositiveInf

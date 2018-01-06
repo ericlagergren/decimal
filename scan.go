@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"unicode"
 
+	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/c"
 )
 
@@ -345,20 +346,29 @@ Loop:
 		}
 	}
 
+	// We can't use length to determine the precision since it'd require we
+	// count (and subtract) any leading zeros, but that's too much overhead for
+	// the general case (i.e., no leading zeros).
+
 	// We can tentatively fit into a uint64 if we didn't fill the buffer.
 	if i < len(small) {
 		z.compact, err = strconv.ParseUint(string(small[:i]), 10, 64)
-		if err != nil {
-			err = err.(*strconv.NumError).Err
-			if err == strconv.ErrSyntax {
-				return err
+		if err == nil {
+			if scale != noScale {
+				z.exp = -int(length - scale)
 			}
-			// else strconv.ErrRange
+			z.precision = arith.Length(z.compact)
+			return nil
 		}
+		err = err.(*strconv.NumError).Err
+		if err == strconv.ErrSyntax {
+			return err
+		}
+		// else err == strconv.ErrRange
 	}
 
-	// Either we filled the buffer or we hit the edge case where len(s) == 19
-	// but it's too large to fit into an int64.
+	// Either we filled the buffer or we hit the edge case where len(s) == 20
+	// but it's too large to fit into a uint64.
 	if i >= len(small) || (err == strconv.ErrRange && i == len(small)-1) {
 		err = nil
 		fs := fakeState{
@@ -371,9 +381,18 @@ Loop:
 			return err
 		}
 
-		z.compact = c.Inflated
-		if z.unscaled.Sign() == 0 {
+		// Technically we could have all zeros...
+		if z.unscaled.Sign() != 0 {
+			if m := z.unscaled.Uint64(); z.unscaled.IsUint64() && m != c.Inflated {
+				z.compact = m
+				z.precision = arith.Length(m)
+			} else {
+				z.compact = c.Inflated
+				z.precision = arith.BigLength(&z.unscaled)
+			}
+		} else {
 			z.compact = 0
+			z.precision = 1
 		}
 
 		if scale == noScale {
@@ -385,17 +404,6 @@ Loop:
 	if scale != noScale {
 		z.exp = -int(length - scale)
 	}
-
-	// Ordinarily we'd set the precision here, but if we have numbers with
-	// leading zeros we'll over-estimate the length.
-	// z.precision = int(length)
-
-	// Ideally we'd handle this manually, _but_ we run into an issue where
-	// leading zeros cause our mantissa to appear to be larger than the cutoff
-	// of 20 digits. In reality, when we convert the string to an integer the
-	// leading zeros are ignored. But the bookkeeping to skip the leading zeros
-	// is too much effort and has a non-negligible overhead.
-	z.norm()
 	return err
 }
 

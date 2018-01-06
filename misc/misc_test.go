@@ -1,10 +1,17 @@
-package misc
+package misc_test
 
 import (
 	"testing"
 
 	"github.com/ericlagergren/decimal"
+	"github.com/ericlagergren/decimal/internal/test"
+	"github.com/ericlagergren/decimal/misc"
 )
+
+func TestBig_NextMinus(t *testing.T) { test.NextMinus.Test(t) }
+func TestBig_NextPlus(t *testing.T)  { test.NextPlus.Test(t) }
+
+//func TestBig_Shift(t *testing.T)     { test.Shift.Test(t) }
 
 func TestCmpTotal(t *testing.T) {
 	for i, test := range [...]struct {
@@ -27,39 +34,9 @@ func TestCmpTotal(t *testing.T) {
 		y.Context.OperatingMode = decimal.GDA
 		y.SetString(test.y)
 
-		if r := CmpTotal(x, y); r != test.r {
+		if r := misc.CmpTotal(x, y); r != test.r {
 			t.Fatalf("#%d: CmpTotal(%q, %q): got %d, wanted %d",
 				i, x, y, r, test.r)
-		}
-	}
-}
-
-func TestShift(t *testing.T) {
-	for i, test := range [...]struct {
-		prec  int
-		x     string
-		shift int
-		r     string
-	}{
-		0: {9, "34", 8, "400000000"},
-		1: {9, "12", 9, "0"},
-		2: {9, "123456789", -2, "1234567"},
-		3: {9, "123456789", 0, "123456789"},
-		4: {9, "123456789", +2, "345678900"},
-	} {
-		z := new(decimal.Big)
-		z.Context.Precision = test.prec
-		z.Context.OperatingMode = decimal.GDA
-
-		x, _ := new(decimal.Big).SetString(test.x)
-		r, _ := new(decimal.Big).SetString(test.r)
-
-		Shift(z, x, test.shift)
-		if z.Cmp(r) != 0 {
-			t.Fatalf(`#%d: Shift(%q, %d)
-wanted %q:
-got    %q:
-`, i, x, test.shift, r, z)
 		}
 	}
 }

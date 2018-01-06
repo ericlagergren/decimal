@@ -12,23 +12,25 @@ import (
 	"github.com/ericlagergren/decimal/internal/test"
 )
 
-func TestBig_Abs(t *testing.T)       { test.Abs.Test(t) }
-func TestBig_Add(t *testing.T)       { test.Add.Test(t) }
-func TestBig_Class(t *testing.T)     { test.Class.Test(t) }
-func TestBig_Cmp(t *testing.T)       { test.Cmp.Test(t) }
-func TestBig_FMA(t *testing.T)       { test.FMA.Test(t) }
-func TestBig_Mul(t *testing.T)       { test.Mul.Test(t) }
-func TestBig_Neg(t *testing.T)       { test.Neg.Test(t) }
-func TestBig_Quantize(t *testing.T)  { test.Quant.Test(t) }
-func TestBig_Quo(t *testing.T)       { test.Quo.Test(t) }
-func TestBig_QuoInt(t *testing.T)    { test.QuoInt.Test(t) }
-func TestBig_Rat(t *testing.T)       { test.CTR.Test(t) }
-func TestBig_Rem(t *testing.T)       { test.Rem.Test(t) }
-func TestBig_SetString(t *testing.T) { test.CTS.Test(t) /* Same as CFS */ }
-func TestBig_Sign(t *testing.T)      { test.Sign.Test(t) }
-func TestBig_SignBit(t *testing.T)   { test.Signbit.Test(t) }
-func TestBig_String(t *testing.T)    { test.CTS.Test(t) }
-func TestBig_Sub(t *testing.T)       { test.Sub.Test(t) }
+func TestBig_Abs(t *testing.T)        { test.Abs.Test(t) }
+func TestBig_Add(t *testing.T)        { test.Add.Test(t) }
+func TestBig_Class(t *testing.T)      { test.Class.Test(t) }
+func TestBig_Cmp(t *testing.T)        { test.Cmp.Test(t) }
+func TestBig_FMA(t *testing.T)        { test.FMA.Test(t) }
+func TestBig_Mul(t *testing.T)        { test.Mul.Test(t) }
+func TestBig_Neg(t *testing.T)        { test.Neg.Test(t) }
+func TestBig_Quantize(t *testing.T)   { test.Quant.Test(t) }
+func TestBig_Quo(t *testing.T)        { test.Quo.Test(t) }
+func TestBig_QuoInt(t *testing.T)     { test.QuoInt.Test(t) }
+func TestBig_Rat(t *testing.T)        { test.CTR.Test(t) }
+func TestBig_Reduce(t *testing.T)     { test.Reduce.Test(t) }
+func TestBig_Rem(t *testing.T)        { test.Rem.Test(t) }
+func TestBig_RoundToInt(t *testing.T) { test.RoundToInt.Test(t) }
+func TestBig_SetString(t *testing.T)  { test.CTS.Test(t) /* Same as CFS */ }
+func TestBig_Sign(t *testing.T)       { test.Sign.Test(t) }
+func TestBig_SignBit(t *testing.T)    { test.Signbit.Test(t) }
+func TestBig_String(t *testing.T)     { test.CTS.Test(t) }
+func TestBig_Sub(t *testing.T)        { test.Sub.Test(t) }
 
 func TestBig_Float(t *testing.T) {
 	for i, test := range [...]string{

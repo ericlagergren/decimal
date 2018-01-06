@@ -33,7 +33,7 @@ _test*
 old.*
 *.test
 *.out
-algos/
+literature/
 j/
 *.txt
 !_testdata/
@@ -42,3 +42,4 @@ benchmarks/decbench
 *.xml
 *.class
 *.gz
+internal/nat/

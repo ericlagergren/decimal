@@ -5,7 +5,6 @@ import (
 	"math/big"
 
 	"github.com/ericlagergren/decimal/internal/arith"
-	"github.com/ericlagergren/decimal/internal/c"
 )
 
 // Add returns x + y and a bool indicating whether the addition was successful.
@@ -49,17 +48,13 @@ func Sub(x, y uint64) (diff uint64, ok bool) {
 // MulPow10 computes x * 10**n and a bool indicating whether the multiplcation
 // was successful.
 func MulPow10(x uint64, n uint64) (p uint64, ok bool) {
-	switch x {
-	case 0:
-		return x, true
-	case c.Inflated:
-		return 0, false
-	default:
-		if p, ok = arith.Pow10(n); !ok {
-			return 0, false
-		}
-		return Mul(x, p)
+	if x == 0 {
+		return 0, true
 	}
+	if p, ok = arith.Pow10(n); !ok {
+		return 0, false
+	}
+	return Mul(x, p)
 }
 
 // MulBigPow10 sets z to x * 10**n and returns z.

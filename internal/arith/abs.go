@@ -1,8 +1,6 @@
 package arith
 
-import (
-	"math/big"
-)
+import "math/big"
 
 func Abs(x int64) uint64 {
 	mask := -int64(uint64(x) >> 63)

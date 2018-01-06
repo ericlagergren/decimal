@@ -68,6 +68,10 @@ func TestBigLength(t *testing.T) {
 		{i: new(big.Int).SetUint64(100000000000000000), l: 18},
 		{i: new(big.Int).SetUint64(1000000000000000000), l: 19},
 		{i: new(big.Int).SetUint64(10000000000000000000), l: 20},
+		{i: BigPow10(25), l: 26},
+		{i: BigPow10(50), l: 51},
+		{i: BigPow10(150), l: 151},
+		{i: BigPow10(2500), l: 2501},
 	}
 	for i, v := range tests {
 		if l := BigLength(v.i); l != v.l {
@@ -104,26 +108,27 @@ func TestBigLength(t *testing.T) {
 	}
 }
 
-func randSize(bits uint) *big.Int {
-	b := bits % 8
-	if b == 0 {
-		b = 8
-	}
-	bytes := make([]byte, (bits+7)/8)
-	if _, err := io.ReadFull(rand.Reader, bytes); err != nil {
+var lengths = func() []*big.Int {
+	const (
+		N  = 1000
+		S  = 64 * 3 // 1 << 18
+		T  = ((N * S) + 7) / 8
+		Sb = 8
+	)
+
+	var buf [T + 1]byte
+	if _, err := io.ReadFull(rand.Reader, buf[:]); err != nil {
 		panic(err)
 	}
-	bytes[0] &= uint8(int(1<<b) - 1)
-	bytes[0] |= 3 << (b - 2)
-	return new(big.Int).SetBytes(bytes)
-}
 
-var lengths = func() []*big.Int {
-	var n [150000]*big.Int
-	for i := range n {
-		n[i] = randSize(128 * 64)
+	var a [N]*big.Int
+	for j := 0; j < T; j += (S + 7) / 8 {
+		chunk := buf[j : j+((S+7)/8)]
+		chunk[0] &= uint8(int(1<<Sb) - 1)
+		chunk[0] |= 3 << (Sb - 2)
+		a[j/((S+7)/8)] = new(big.Int).SetBytes(chunk)
 	}
-	return n[:]
+	return a[:]
 }()
 
 var gl int
@@ -138,7 +143,7 @@ func BenchmarkBigLength(b *testing.B) {
 	gl = ll
 }
 
-func BenchmarkLogarithm(b *testing.B) {
+func BenchmarkLogarithmCmp(b *testing.B) {
 	var ll int
 	for i := 0; i < b.N; i++ {
 		for _, x := range lengths {
@@ -152,7 +157,7 @@ func BenchmarkLogarithmNoCmp(b *testing.B) {
 	var ll int
 	for i := 0; i < b.N; i++ {
 		for _, x := range lengths {
-			ll = logLengthNoCmp(x)
+			ll = logLengthNoCmp(x, x.BitLen())
 		}
 	}
 	gl = ll
