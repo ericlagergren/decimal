@@ -24,11 +24,11 @@ func (z *Big) norm() *Big {
 func (c Context) fix(z *Big) *Big {
 	adj := z.adjusted()
 
-	if adj > MaxScale {
+	if adj > c.maxScale() {
 		prec := precision(c)
 
 		if z.compact == 0 {
-			z.exp = MaxScale
+			z.exp = c.maxScale()
 			z.Context.Conditions |= Clamped
 			return z
 		}
@@ -39,10 +39,10 @@ func (c Context) fix(z *Big) *Big {
 		case AwayFromZero:
 			// OK
 		case ToZero:
-			z.exp = MaxScale - prec + 1
+			z.exp = c.maxScale() - prec + 1
 		case ToPositiveInf, ToNegativeInf:
 			if m == ToPositiveInf == z.Signbit() {
-				z.exp = MaxScale - prec + 1
+				z.exp = c.maxScale() - prec + 1
 			} else {
 				z.SetInf(false)
 			}
@@ -51,7 +51,7 @@ func (c Context) fix(z *Big) *Big {
 		return z
 	}
 
-	if adj < MinScale {
+	if adj < c.minScale() {
 		tiny := c.etiny()
 
 		if z.compact == 0 {
@@ -100,6 +100,10 @@ func (z *Big) validateContext(c Context) bool {
 		z.setNaN(InvalidContext, qnan, invctxrmode)
 	case c.OperatingMode > Go:
 		z.setNaN(InvalidContext, qnan, invctxomode)
+	case c.MaxScale > MaxScale:
+		z.setNaN(InvalidContext, qnan, invctxsgtu)
+	case c.MinScale < MinScale:
+		z.setNaN(InvalidContext, qnan, invctxsltu)
 	default:
 		return false
 	}

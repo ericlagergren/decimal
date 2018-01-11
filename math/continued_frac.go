@@ -30,25 +30,94 @@ type Generator interface {
 	Term() Term
 }
 
+// Contexter allows Generators to provide a different Context than z's. It's
+// intended to be analogous to the relationship between, for example,
+// Context.Mul and Big.Mul.
+type Contexter interface {
+	Context() decimal.Context
+}
+
+// Okay, I _am_ sorry about the name of this interface. It's stupid.
+
+// Walliser is analogous to Lentzer, except it's for the Wallis function.
+type Walliser interface {
+	// Wallis provides the backing storage for a Generator passed to the Wallis
+	// function. See the Lentzer interface for more information.
+	Wallis() (a, a1, b, b1, p, eps *decimal.Big)
+}
+
+type walliser struct{ prec int }
+
+func (w walliser) Wallis() (a, a1, b, b1, p, eps *decimal.Big) {
+	a = decimal.WithPrecision(w.prec)
+	a1 = decimal.WithPrecision(w.prec)
+	b = decimal.WithPrecision(w.prec)
+	b1 = decimal.WithPrecision(w.prec)
+	p = decimal.WithPrecision(w.prec)
+	eps = decimal.New(1, w.prec)
+	return a, a1, b, b1, p, eps
+}
+
+// Wallis sets z to the result of the continued fraction provided by the
+// Generator and returns z. The fraction is evaluated in a top-down manner,
+// using the recurrence algorithm discovered by John Wallis. For more information
+// on continued fraction representations, see the Lentz function.
+func Wallis(z *decimal.Big, g Generator) *decimal.Big {
+	if !g.Next() {
+		return z
+	}
+
+	ws, ok := g.(Walliser)
+	if !ok {
+		ws = walliser{prec: precision(z) + 5}
+	}
+	a, a_1, b, b_1, p, eps := ws.Wallis()
+
+	t := g.Term()
+
+	a_1.SetUint64(1)
+	a.Copy(t.B)
+	b.SetUint64(1)
+
+	ctx := z.Context
+	if c, ok := g.(Contexter); ok {
+		ctx = c.Context()
+	}
+
+	for g.Next() && p.IsFinite() {
+		t = g.Term()
+
+		z.Copy(a)
+		ctx.FMA(a, a, t.B, ctx.Mul(a_1, a_1, t.A))
+		a_1.Copy(z)
+
+		z.Copy(b)
+		ctx.FMA(b, b, t.B, ctx.Mul(b_1, b_1, t.A))
+		b_1.Copy(z)
+
+		ctx.Quo(z, a, b)
+		if ctx.Sub(p, z, p).CmpAbs(eps) < 0 {
+			break
+		}
+		p.Copy(z)
+	}
+	return z
+}
+
 // Lentzer, if implemented, allows Generators to provide their own backing
 // storage for the Lentz function.
 type Lentzer interface {
-	// Lentz provides the backing storage for a Generator.
+	// Lentz provides the backing storage for a Generator passed to the Lentz
+	// function.
 	//
-	// f, Δ, C, and D should have large enough precision to provide a correct
-	// result. (See note for the Lentz function.)
+	// In Contexter isn't implemented, f, Δ, C, and D should have large enough
+	// precision to provide a correct result, (See note for the Lentz function.)
 	//
 	// eps should be a sufficiently small decimal, likely 1e-15 or smaller.
 	//
 	// For more information, refer to "Numerical Recipes in C: The Art of
 	// Scientific Computing" (ISBN 0-521-43105-5), pg 171.
 	Lentz() (f, Δ, C, D, eps *decimal.Big)
-}
-
-// contexter is a private interface our package Generators implement so
-// we can properly round with a rounding mode that differ's from z's.
-type contexter interface {
-	ctx() decimal.Context
 }
 
 // lentzer implements the Lentzer interface.
@@ -116,7 +185,6 @@ func Lentz(z *decimal.Big, g Generator) *decimal.Big {
 	// 		Set ∆_j = C_j*D_j.
 	// 		Set f_j = f{_j-1}∆j.
 	// 		If |∆_j - 1| < eps then exit.
-	//
 
 	if !g.Next() {
 		return z
@@ -133,7 +201,7 @@ func Lentz(z *decimal.Big, g Generator) *decimal.Big {
 	// tiny should be less than typical values of eps.
 	tiny := tiny
 	if eps.Scale() > tiny.Scale() {
-		tiny = decimal.New(10, min(eps.Scale()*2, decimal.MaxScale))
+		tiny = decimal.New(10, min(eps.Scale()*2, maxscl(z)))
 	}
 
 	t := g.Term()
@@ -144,14 +212,14 @@ func Lentz(z *decimal.Big, g Generator) *decimal.Big {
 		f.Copy(tiny)
 	}
 	C.Copy(f)
-	D.SetMantScale(0, 0)
+	D.SetUint64(0)
 
 	ctx := z.Context
-	if c, ok := g.(contexter); ok {
-		ctx = c.ctx()
+	if c, ok := g.(Contexter); ok {
+		ctx = c.Context()
 	}
 
-	for g.Next() {
+	for g.Next() && f.IsFinite() {
 		t = g.Term()
 
 		// Set D_j = b_j + a_j*D{_j-1}

@@ -4,11 +4,8 @@ import (
 	"testing"
 
 	"github.com/ericlagergren/decimal"
-	"github.com/ericlagergren/decimal/internal/test"
 	"github.com/ericlagergren/decimal/math"
 )
-
-func TestSqrt(t *testing.T) { test.Sqrt.Test(t) }
 
 func TestDecimal_Hypot(t *testing.T) {
 	pi := math.Pi(decimal.WithPrecision(100))
@@ -32,7 +29,7 @@ func TestDecimal_Hypot(t *testing.T) {
 		q, _ := new(decimal.Big).SetString(v.q)
 		a, _ := new(decimal.Big).SetString(v.a)
 		if math.Hypot(z, p, q).Cmp(a) != 0 {
-			t.Errorf(`#%d:
+			t.Fatalf(`#%d:
 wanted: %q
 got:    %q
 `, i, a, z)

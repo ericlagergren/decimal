@@ -81,6 +81,9 @@ func powInt(z, x, y *decimal.Big) *decimal.Big {
 	z.SetUint64(1)
 	sign := x.Signbit()
 
+	// TODO(eric): the Uint64 branch only covers unsigned integers. Set it up
+	// to handle signed as well.
+
 	if yy, ok := y.Uint64(); ok {
 		sign = sign && yy&1 == 1
 		for yy != 0 {
@@ -138,11 +141,30 @@ func powDec(z, x, y *decimal.Big) *decimal.Big {
 	}
 
 	oc := z.Context
-	z.Context = decimal.Context{Precision: max(x.Precision(), precision(z)) + 4 + 19}
+	z.Context = decimal.Context{
+		Precision: max(x.Precision(), precision(z)) + 4 + 19,
+	}
 	Exp(z, z.Mul(y, Log(z, x)))
 	if neg && z.IsFinite() {
 		misc.CopyNeg(z, z)
 	}
 	z.Context = oc
 	return oc.Round(z)
+}
+
+// fastPowUint sets z to x ** y. It clobbers both z and x.
+func fastPowUint(ctx decimal.Context, z, x *decimal.Big, y uint64) {
+	z.SetUint64(1)
+	for y != 0 {
+		if y&1 != 0 {
+			ctx.Mul(z, z, x)
+			if !z.IsFinite() || z.Sign() == 0 ||
+				z.Context.Conditions&decimal.Clamped != 0 {
+				z.Context.Conditions |= decimal.Underflow | decimal.Subnormal
+				break
+			}
+		}
+		y >>= 1
+		ctx.Mul(x, x, x)
+	}
 }

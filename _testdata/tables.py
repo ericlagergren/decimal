@@ -238,9 +238,9 @@ def perform_op(op):
             x = rand_dec()
             r = -x
         elif op == "exp":
-            getcontext().prec += 11
-            getcontext().prec //= 10
-            x = rand_dec(nbits=128)
+            if getcontext().prec >= 10:
+                getcontext().prec //= 10
+            x = rand_dec(nbits=100)
             r = x.exp()
         elif op == "log":
             getcontext().prec += 11

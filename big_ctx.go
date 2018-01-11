@@ -83,7 +83,7 @@ func (c Context) tryTinyAdd(z *Big, hi *Big, hineg form, lo *Big, loneg form) (s
 	}
 
 	exp := hi.exp - 1
-	if hp, zp := hi.precision, precision(c); hp <= zp {
+	if hp, zp := hi.Precision(), precision(c); hp <= zp {
 		exp += hp - zp - 1
 	}
 
@@ -233,7 +233,8 @@ func (c Context) FMA(z, x, y, u *Big) *Big {
 	if z0.Context.Conditions&InvalidOperation != 0 {
 		return z.setShared(z0)
 	}
-	return z.setShared(c.Add(z0, z0, u))
+	c.Add(z0, z0, u)
+	return z.setShared(z0)
 }
 
 // Mul sets z to x * y and returns z.
@@ -317,12 +318,12 @@ func (c Context) Quantize(z *Big, n int) *Big {
 		return z
 	}
 
-	if n > MaxScale || n < c.etiny() {
+	if n > c.maxScale() || n < c.etiny() {
 		return z.setNaN(InvalidOperation, qnan, quantminmax)
 	}
 
 	shift := z.exp - n
-	if z.precision+shift > precision(c) {
+	if z.Precision()+shift > precision(c) {
 		return z.setNaN(InvalidOperation, qnan, quantprec)
 	}
 
@@ -406,19 +407,19 @@ func (c Context) Quo(z, x, y *Big) *Big {
 	}
 
 	m := c.RoundingMode
-	yp := y.precision
+	yp := y.Precision()
 	zp := precision(c)
 	if zp == UnlimitedPrecision {
 		m = unnecessary
-		zp = x.precision + int(math.Ceil(10*float64(yp)/3))
+		zp = x.Precision() + int(math.Ceil(10*float64(yp)/3))
 	}
 
 	if x.isCompact() && y.isCompact() {
-		if cmpNorm(x.compact, x.precision, y.compact, yp) {
+		if cmpNorm(x.compact, x.Precision(), y.compact, yp) {
 			yp--
 		}
 
-		shift := zp + yp - x.precision
+		shift := zp + yp - x.Precision()
 		z.exp = (x.exp - y.exp) - shift
 		if shift > 0 {
 			if sx, ok := checked.MulPow10(x.compact, uint64(shift)); ok {
@@ -448,11 +449,11 @@ func (c Context) Quo(z, x, y *Big) *Big {
 		yb = new(big.Int).SetUint64(y.compact)
 	}
 
-	if cmpNormBig(&z.unscaled, xb, x.precision, yb, yp) {
+	if cmpNormBig(&z.unscaled, xb, x.Precision(), yb, yp) {
 		yp--
 	}
 
-	shift := zp + yp - x.precision
+	shift := zp + yp - x.Precision()
 	z.exp = (x.exp - y.exp) - shift
 	if shift > 0 {
 		tmp := alias(&z.unscaled, yb)
@@ -797,13 +798,13 @@ func (c Context) Round(z *Big) *Big {
 		return z
 	}
 
-	if z.precision <= n {
+	if z.Precision() <= n {
 		return c.fix(z)
 	}
 
-	shift := z.precision - n
-	if shift > MaxScale {
-		return z.xflow(false, true)
+	shift := z.Precision() - n
+	if shift > c.maxScale() {
+		return z.xflow(c.minScale(), false, true)
 	}
 	z.exp += shift
 
@@ -837,7 +838,7 @@ func (c Context) Round(z *Big) *Big {
 	//   }
 	//
 	// But that might have too much overhead for the general case division.
-	if z.precision != n {
+	if z.Precision() != n {
 		c.shiftr(z, 1)
 		z.exp++
 	}
@@ -845,12 +846,10 @@ func (c Context) Round(z *Big) *Big {
 }
 
 func (c Context) shiftr(z *Big, n uint64) bool {
-	// TODO(eric): return value from this function.
-
-	if n >= uint64(z.precision) {
+	if zp := uint64(z.Precision()); n >= zp {
 		z.compact = 0
 		z.precision = 1
-		return true
+		return n == zp
 	}
 
 	if z.compact == 0 {
@@ -882,13 +881,22 @@ func (c Context) RoundToInt(z *Big) *Big {
 	if z.isSpecial() || z.exp >= 0 {
 		return z
 	}
-	c.Precision = z.precision
+	c.Precision = z.Precision()
 	return c.Quantize(z, 0)
 }
 
 // Set sets z to x and returns z. The result might be rounded, even if z == x.
 func (c Context) Set(z, x *Big) *Big {
 	return c.round(z.Copy(x))
+}
+
+// SetString sets z to the value of s, returning z and a bool indicating success.
+// See Big.SetString for valid formats.
+func (c Context) SetString(z *Big, s string) (*Big, bool) {
+	if _, ok := z.SetString(s); !ok {
+		return nil, false
+	}
+	return c.fix(z), true
 }
 
 // Sub sets z to x - y and returns z.

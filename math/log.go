@@ -82,7 +82,7 @@ func log(z, x *decimal.Big, ten bool) *decimal.Big {
 	}
 	t *= 2
 
-	if arith.Length(arith.Abs(t))-1 > decimal.MaxScale {
+	if arith.Length(arith.Abs(t))-1 > maxscl(z) {
 		z.Context.Conditions |= decimal.Overflow | decimal.Inexact | decimal.Rounded
 		return z.SetInf(t < 0)
 	}
@@ -129,6 +129,10 @@ func log(z, x *decimal.Big, ten bool) *decimal.Big {
 		t:    Term{A: decimal.WithPrecision(lgp), B: decimal.WithPrecision(lgp)},
 	}
 
+	// TODO(eric): Similar to the comment inside Exp, this library only provides
+	// better performance at ~750 digits of precision. Consider using Newton's
+	// method or another algorithm for lower precision ranges.
+
 	ctx.Quo(z, y.Mul(y, two), Lentz(z, &g))
 
 	if p != 0 || ten {
@@ -165,7 +169,9 @@ type lgen struct {
 	t    Term
 }
 
-func (l *lgen) ctx() decimal.Context { return decimal.Context{Precision: l.prec} }
+func (l *lgen) Context() decimal.Context {
+	return decimal.Context{Precision: l.prec}
+}
 
 func (l *lgen) Lentz() (f, Δ, C, D, eps *decimal.Big) {
 	f = decimal.WithPrecision(l.prec)

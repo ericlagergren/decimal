@@ -1,6 +1,9 @@
 package math
 
-import "github.com/ericlagergren/decimal"
+import (
+	"github.com/ericlagergren/decimal"
+	"github.com/ericlagergren/decimal/internal/arith"
+)
 
 // Exp sets z to e ** x and returns z.
 func Exp(z, x *decimal.Big) *decimal.Big {
@@ -14,55 +17,30 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 			return z.SetInf(false)
 		}
 		// e ** -Inf = 0
-		return z.SetMantScale(0, 0)
+		return z.SetUint64(0)
 	}
 
 	if x.Sign() == 0 {
 		// e ** 0 = 1
-		return z.SetMantScale(1, 0)
+		return z.SetUint64(1)
 	}
 
-	// The algorithm behind this section is taken from libmpdec, which uses an
-	// algorithm from Hull & Abraham, Variable Precision Exponential Function,
-	// ACM Transactions on Mathematical Software, Vol. 12, No. 2, June 1986.
-	// The comment explaining the algorithm in its original format:
-	/*
-	 * We are calculating e^x = e^(r*10^t) = (e^r)^(10^t), where abs(r) < 1 and t >=
-	 * 0.
-	 *
-	 * If t > 0, we have:
-	 *
-	 *   (1) 0.1 <= r < 1, so e^0.1 <= e^r. If t > MAX_T, overflow occurs:
-	 *
-	 *     MAX-EMAX+1 < log10(e^(0.1*10*t)) <= log10(e^(r*10^t)) <
-	 * adjexp(e^(r*10^t))+1
-	 *
-	 *   (2) -1 < r <= -0.1, so e^r <= e^-0.1. If t > MAX_T, underflow occurs:
-	 *
-	 *     adjexp(e^(r*10^t)) <= log10(e^(r*10^t)) <= log10(e^(-0.1*10^t)) <
-	 * MIN-ETINY
-	 */
-	t := x.Precision() + -x.Scale()
-	if t < 0 {
-		t = 0
+	k := x.Precision() + -x.Scale()
+	if k < 0 {
+		k = 0
 	}
 	const expMax = 19
-	if t > expMax {
+	if k > expMax {
+		z.Context.Conditions |= decimal.Inexact | decimal.Rounded
 		if x.Signbit() {
-			z.Context.Conditions |= decimal.Subnormal |
-				decimal.Underflow |
-				decimal.Clamped |
-				decimal.Inexact |
-				decimal.Rounded
+			z.Context.Conditions |= decimal.Subnormal | decimal.Underflow | decimal.Clamped
 			return z.SetMantScale(0, -etiny(z))
 		}
-		z.Context.Conditions |= decimal.Overflow | decimal.Inexact | decimal.Rounded
+		z.Context.Conditions |= decimal.Overflow
 		return z.SetInf(false)
 	}
-	t += 2
 
 	ctx := decimal.Context{Precision: precision(z) + 3}
-
 	tmp := alias(z, x) // scratch space
 
 	// |x| <= 9 * 10 ** -(prec + 1)
@@ -71,8 +49,7 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 		z.Context.Conditions |= decimal.Rounded | decimal.Inexact
 		return ctx.Round(z.SetMantScale(1, 0).Quantize(ctx.Precision - 1 - 3))
 	}
-
-	// (End of section from libmpdec.)
+	ctx.Precision += k + 2
 
 	if x.IsInt() {
 		if v, ok := x.Uint64(); ok && v == 1 {
@@ -82,32 +59,34 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 	}
 
 	// Argument reduction:
-	//    exp(x) = 10**k * e**r where x = r + k*log(10)
+	//    exp(x) = e**r ** 10**k where x = r * 10**k
 
-	ctx.Precision += t
-	k := log10e(decimal.WithContext(ctx))
-	ki, ok := ctx.Mul(k, k, x).Quantize(0).Int64()
-	if !ok || ki > decimal.MaxScale {
-		// Given log10(e) ~= 0.43, if we can't compute 10 ** (log10(e) * x), how
-		// can we possibly compute e**x?
-		z.Context.Conditions |= decimal.Overflow | decimal.Inexact | decimal.Rounded
-		return z.SetInf(false)
-	}
-
-	r := ctx.Sub(tmp, x, ctx.Mul(k, k, ln10(tmp, ctx.Precision)))
-
+	r := z.Copy(x).SetScale(x.Scale() + k)
 	g := expg{
 		prec: ctx.Precision,
 		z:    r,
-		pow:  decimal.WithContext(ctx).Mul(r, r),
+		pow:  ctx.Mul(new(decimal.Big), r, r),
 		t:    Term{A: decimal.WithContext(ctx), B: decimal.WithContext(ctx)},
 	}
 
-	k.SetMantScale(1, -int(ki)) // 10**k
-	Lentz(z, &g)                // e**r
-	ctx.Mul(z, k, z)            // 10**k * e**r
+	// TODO(eric): This library provides better performance than other libraries
+	// at ~300 digits of precision (compared to libmpdec). Perhaps we should
+	// consider using an alternate algorithm for low precision ranges. libmpdec
+	// uses Horner's method.
 
-	ctx.Precision -= t + 3
+	m := z
+	if k != 0 {
+		m = decimal.WithContext(ctx)
+	}
+
+	Wallis(m, &g)
+
+	if k != 0 {
+		k, _ := arith.Pow10(uint64(k))
+		fastPowUint(ctx, z, m, k)
+	}
+
+	ctx.Precision -= k + 3 + 2
 	return ctx.Round(z)
 }
 
@@ -116,23 +95,24 @@ type expg struct {
 	prec int          // Precision
 	z    *decimal.Big // Input value
 	pow  *decimal.Big // z*z
-	m    int64        // Term number
+	m    uint64       // Term number
 	t    Term         // Term storage. Does not need to be manually set.
 }
 
-func (e *expg) ctx() decimal.Context {
+func (e *expg) Context() decimal.Context {
 	return decimal.Context{Precision: e.prec}
 }
 
 func (e *expg) Next() bool { return true }
 
-func (e *expg) Lentz() (f, Δ, C, D, eps *decimal.Big) {
-	f = decimal.WithPrecision(e.prec)
-	Δ = decimal.WithPrecision(e.prec)
-	C = decimal.WithPrecision(e.prec)
-	D = decimal.WithPrecision(e.prec)
+func (e *expg) Wallis() (a, a1, b, b1, p, eps *decimal.Big) {
+	a = decimal.WithPrecision(e.prec)
+	a1 = decimal.WithPrecision(e.prec)
+	b = decimal.WithPrecision(e.prec)
+	b1 = decimal.WithPrecision(e.prec)
+	p = decimal.WithPrecision(e.prec)
 	eps = decimal.New(1, e.prec)
-	return
+	return a, a1, b, b1, p, eps
 }
 
 func (e *expg) Term() Term {
@@ -182,8 +162,8 @@ func (e *expg) Term() Term {
 	switch e.m {
 	// [0, 1]
 	case 0:
-		e.t.A.SetMantScale(0, 0)
-		e.t.B.SetMantScale(1, 0)
+		e.t.A.SetUint64(0)
+		e.t.B.SetUint64(1)
 	// [2z, 2-z]
 	case 1:
 		e.t.A.Mul(two, e.z)
@@ -191,18 +171,18 @@ func (e *expg) Term() Term {
 	// [z^2/6, 1]
 	case 2:
 		e.t.A.Quo(e.pow, six)
-		e.t.B.SetMantScale(1, 0)
+		e.t.B.SetUint64(1)
 	// [(1/(16((m-1)^2)-4))(z^2), 1]
 	default:
 		// maxM is the largest m value we can use to compute 4(2m - 3)(2m - 1)
-		// using integers.
-		const maxM = 759250125
+		// using unsigned integers.
+		const maxM = 1518500252
 
 		// 4(2m - 3)(2m - 1) ≡ 16(m - 1)^2 - 4
 		if e.m <= maxM {
-			e.t.A.SetMantScale(16*((e.m-1)*(e.m-1))-4, 0)
+			e.t.A.SetUint64(16*((e.m-1)*(e.m-1)) - 4)
 		} else {
-			e.t.A.SetMantScale(e.m-1, 0)
+			e.t.A.SetUint64(e.m - 1)
 
 			// (m-1)^2
 			e.t.A.Mul(e.t.A, e.t.A)
@@ -224,4 +204,4 @@ func (e *expg) Term() Term {
 	return e.t
 }
 
-var _ Lentzer = (*expg)(nil)
+var _ Walliser = (*expg)(nil)

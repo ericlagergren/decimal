@@ -6,6 +6,7 @@ import (
 
 	"github.com/ericlagergren/decimal"
 	"github.com/ericlagergren/decimal/internal/arith"
+	"github.com/ericlagergren/decimal/internal/c"
 )
 
 var (
@@ -13,15 +14,22 @@ var (
 	neg = decimal.New(-1, 0)
 )
 
-func etiny(z *decimal.Big) int { return decimal.MinScale - (precision(z) - 1) }
-func etop(z *decimal.Big) int  { return decimal.MaxScale - (precision(z) - 1) }
-
-func alias(z, x *decimal.Big) *decimal.Big {
-	if z != x {
-		return z
+func maxscl(x *decimal.Big) int {
+	if x.Context.MaxScale != 0 {
+		return x.Context.MaxScale
 	}
-	return decimal.WithContext(z.Context)
+	return decimal.MaxScale
 }
+
+func minscl(x *decimal.Big) int {
+	if x.Context.MinScale != 0 {
+		return x.Context.MinScale
+	}
+	return decimal.MinScale
+}
+
+func etiny(z *decimal.Big) int { return minscl(z) - (precision(z) - 1) }
+func etop(z *decimal.Big) int  { return maxscl(z) - (precision(z) - 1) }
 
 const (
 	// Radix is the base in which decimal arithmetic is effected.
@@ -112,6 +120,15 @@ func CopyNeg(z, x *decimal.Big) *decimal.Big {
 		return z.CopySign(x, pos)
 	}
 	return z.CopySign(x, neg)
+}
+
+// Mantissa returns the mantissa of x. If the mantissa cannot fit into a uint64
+// or x is not finite, the bool will be false. This may be used to convert a
+// decimal representing a monetary to its most basic unit (e.g., $123.45 to 12345
+// cents.)
+func Mantissa(x *decimal.Big) (uint64, bool) {
+	mp, _ := decimal.Raw(x)
+	return *mp, x.IsFinite() && *mp != c.Inflated
 }
 
 // Max returns the greater of the provided values. The result is undefined if no
