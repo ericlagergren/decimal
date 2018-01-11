@@ -11,7 +11,7 @@ import (
 func Pow(z, x, y *decimal.Big) *decimal.Big {
 	// Pass x to the second call to CheckNaNs since the first argument cannot
 	// be nil.
-	if z.CheckNaNs(x, y) /*|| z.CheckNaNs(x, m)*/ {
+	if z.CheckNaNs(x, y) {
 		return z
 	}
 

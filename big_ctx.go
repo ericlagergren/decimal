@@ -634,7 +634,7 @@ func (c Context) QuoRem(z, x, y, r *Big) (*Big, *Big) {
 	// x / ±Inf
 	z.Context.Conditions |= Clamped
 	z.setZero(sign, c.etiny())
-	r.setZero(x.form&signbit /* ??? */, 0)
+	r.setZero(x.form&signbit, 0)
 	return z, r
 }
 
