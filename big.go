@@ -50,12 +50,12 @@ type Big struct {
 	//   number × 10**exp = number ×  10**-scale
 	exp int
 
+	// precision is the current precision.
+	precision int
+
 	// form indicates whether a decimal is a finite number, an infinity, or a
 	// NaN value and whether it's signed or not.
 	form form
-
-	// precision is the current precision.
-	precision int
 }
 
 // form indicates whether a decimal is a finite number, an infinity, or a nan
@@ -678,8 +678,8 @@ func (x *Big) Format(s fmt.State, c rune) {
 			unscaled  big.Int
 			compact   uint64
 			exp       int
-			form      form
 			precision int
+			form      form
 		}
 		specs := ""
 		if dash {
@@ -1513,8 +1513,8 @@ func (x *Big) validate() {
 				unscaled  big.Int
 				compact   uint64
 				exp       int
-				form      form
 				precision int
+				form      form
 			}
 			fmt.Printf("%#v\n", (*Big)(x))
 			panic(err)

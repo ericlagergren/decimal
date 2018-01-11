@@ -19,9 +19,13 @@ const (
 
 // Context is a per-decimal contextual object that governs specific operations.
 type Context struct {
-	// OperatingMode which dictates how the decimal operates under certain
-	// conditions. See OperatingMode for more information.
-	OperatingMode OperatingMode
+	// MaxScale overrides the MaxScale constant so long as it's in the range
+	// (0, MaxScale].
+	MaxScale int
+
+	// MinScale overrides the MaxScale constant so long as it's in the range
+	// [MinScale, 0)
+	MinScale int
 
 	// Precision is the Context's precision; that is, the maximum number of
 	// significant digits that may result from any arithmetic operation.
@@ -47,13 +51,9 @@ type Context struct {
 	// RoundingMode determines how a decimal is rounded.
 	RoundingMode RoundingMode
 
-	// MaxScale overrides the MaxScale constant so long as it's in the range
-	// (0, MaxScale].
-	MaxScale int
-
-	// MinScale overrides the MaxScale constant so long as it's in the range
-	// [MinScale, 0)
-	MinScale int
+	// OperatingMode which dictates how the decimal operates under certain
+	// conditions. See OperatingMode for more information.
+	OperatingMode OperatingMode
 }
 
 func (c Context) maxScale() int {
