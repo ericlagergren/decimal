@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/bits"
 	"strconv"
 	"unicode"
 
@@ -63,9 +64,6 @@ func (z *Big) scan(r io.ByteScanner) error {
 		case strconv.ErrSyntax:
 			z.form = qnan
 			z.Context.Conditions |= ConversionSyntax
-		// Can only overflow
-		case Overflow:
-			z.xflow(true, neg)
 		}
 		return nil
 	}
@@ -74,9 +72,9 @@ func (z *Big) scan(r io.ByteScanner) error {
 	if err := z.scanExponent(r); err != nil && err != io.EOF {
 		switch err {
 		case Underflow:
-			z.xflow(false, neg)
+			z.xflow(MinScale, false, neg)
 		case Overflow:
-			z.xflow(true, neg)
+			z.xflow(MinScale, true, neg)
 		case strconv.ErrSyntax:
 			z.form = qnan
 			z.Context.Conditions |= ConversionSyntax
@@ -407,52 +405,52 @@ Loop:
 	return err
 }
 
-func (z *Big) scanExponent(r io.ByteScanner) error {
-	ch, err := r.ReadByte()
-	if err != nil {
-		return err
-	}
-	switch ch {
-	case 'e', 'E':
-		// OK
-	default:
-		return strconv.ErrSyntax
-	}
+func (z *Big) scanExponent(r io.ByteScanner) (err error) {
+	// TODO(eric): there's actually an issue here if somebody has leading zeros
+	// in their exponent. But, I don't really think I want to support that.
 
-	var buf [20]byte // max length of a signed 64-bit int, including sign.
+	// N is the max length of a signed N-bit int, including sign plus a leading
+	// 'e' or 'E'.
+	const N = ((((bits.UintSize + 1) * 1233) >> 12) + 1) + (64 / bits.UintSize)
+
+	var buf [N]byte
 	var i int
 	for ; i < len(buf); i++ {
-		ch, err := r.ReadByte()
-		if err != nil {
+		if buf[i], err = r.ReadByte(); err != nil {
 			if err == io.EOF {
+				if i == 0 {
+					return nil
+				}
 				break
 			}
 			return err
 		}
-		buf[i] = ch
 	}
 
-	if _, err := r.ReadByte(); err != io.EOF {
-		// TODO(eric): not _always_ over/underflow e.g. if the next character
-		// isn't numeric.
+	if buf[0] != 'e' && buf[0] != 'E' {
+		return strconv.ErrSyntax
+	}
+
+	if ch, err := r.ReadByte(); err != io.EOF {
+		if ch < '0' || ch > '9' {
+			return err
+		}
 		if buf[0] == '-' {
 			return Underflow
 		}
 		return Overflow
 	}
 
-	exp, err := strconv.Atoi(string(buf[:i]))
+	exp, err := strconv.Atoi(string(buf[1:i]))
 	if err != nil {
-		err = err.(*strconv.NumError).Err
-		if err == strconv.ErrRange {
-			// exp is set to the max int if it overflowed 32 bits, negative if
-			// it underflowed.
-			if exp > 0 {
-				return Underflow
-			}
-			return Overflow
+		if err = err.(*strconv.NumError).Err; err != strconv.ErrRange {
+			return err
 		}
-		return err
+		// Atoi sets exp < 0 on underflow.
+		if exp < 0 {
+			return Underflow
+		}
+		return Overflow
 	}
 
 	z.exp += exp

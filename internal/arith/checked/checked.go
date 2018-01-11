@@ -10,7 +10,7 @@ import (
 // Add returns x + y and a bool indicating whether the addition was successful.
 func Add(x, y uint64) (sum uint64, ok bool) {
 	sum = x + y
-	return sum, sum > x
+	return sum, sum >= x
 }
 
 // Mul returns x * y and a bool indicating whether the multiplication was

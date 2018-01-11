@@ -46,6 +46,28 @@ type Context struct {
 
 	// RoundingMode determines how a decimal is rounded.
 	RoundingMode RoundingMode
+
+	// MaxScale overrides the MaxScale constant so long as it's in the range
+	// (0, MaxScale].
+	MaxScale int
+
+	// MinScale overrides the MaxScale constant so long as it's in the range
+	// [MinScale, 0)
+	MinScale int
+}
+
+func (c Context) maxScale() int {
+	if c.MaxScale != 0 {
+		return c.MaxScale
+	}
+	return MaxScale
+}
+
+func (c Context) minScale() int {
+	if c.MinScale != 0 {
+		return c.MinScale
+	}
+	return MinScale
 }
 
 // Err returns non-nil if there are any trapped exceptional conditions.
@@ -90,6 +112,8 @@ var (
 		RoundingMode:  ToNearestEven,
 		OperatingMode: GDA,
 		Traps:         ^(Inexact | Rounded | Subnormal),
+		MaxScale:      96,
+		MinScale:      -95,
 	}
 
 	// Context64 is the IEEE 754R Decimal64 format.
@@ -98,6 +122,8 @@ var (
 		RoundingMode:  ToNearestEven,
 		OperatingMode: GDA,
 		Traps:         ^(Inexact | Rounded | Subnormal),
+		MaxScale:      384,
+		MinScale:      -383,
 	}
 
 	// Context128 is the IEEE 754R Decimal128 format.
@@ -106,6 +132,8 @@ var (
 		RoundingMode:  ToNearestEven,
 		OperatingMode: GDA,
 		Traps:         ^(Inexact | Rounded | Subnormal),
+		MaxScale:      6144,
+		MinScale:      -6143,
 	}
 
 	// ContextUnlimited provides unlimited-precision decimals.
@@ -114,6 +142,8 @@ var (
 		RoundingMode:  ToNearestEven,
 		OperatingMode: GDA,
 		Traps:         ^(Inexact | Rounded | Subnormal),
+		MaxScale:      MaxScale,
+		MinScale:      MinScale,
 	}
 )
 

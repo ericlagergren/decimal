@@ -40,7 +40,21 @@ func precision(z *decimal.Big) (p int) {
 	return decimal.DefaultPrecision
 }
 
-func etiny(x *decimal.Big) int    { return decimal.MinScale - (precision(x) - 1) }
+func maxscl(x *decimal.Big) int {
+	if x.Context.MaxScale != 0 {
+		return x.Context.MaxScale
+	}
+	return decimal.MaxScale
+}
+
+func minscl(x *decimal.Big) int {
+	if x.Context.MinScale != 0 {
+		return x.Context.MinScale
+	}
+	return decimal.MinScale
+}
+
+func etiny(z *decimal.Big) int    { return minscl(z) - (precision(z) - 1) }
 func adjusted(x *decimal.Big) int { return (-x.Scale() + x.Precision()) - 1 }
 
 func min(x, y int) int {

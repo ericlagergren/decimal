@@ -11,13 +11,19 @@ func Hypot(z, p, q *decimal.Big) *decimal.Big {
 	if z.CheckNaNs(p, q) {
 		return z
 	}
-	prec := precision(z) + 1
-	p0 := decimal.WithPrecision(prec).Mul(p, p)
-	q0 := p0
-	if p.Cmp(q) != 0 {
-		q0 = decimal.WithPrecision(prec).Mul(q, q)
+
+	ctx := decimal.Context{Precision: precision(z) + 1}
+
+	var p0 decimal.Big
+	ctx.Mul(&p0, p, p)
+
+	if p == q {
+		return Sqrt(z, ctx.Add(z, &p0, &p0))
 	}
-	return Sqrt(z, decimal.WithPrecision(prec).Add(p0, q0))
+
+	var q0 decimal.Big
+	ctx.Mul(&q0, q, q)
+	return Sqrt(z, ctx.Add(z, &p0, &q0))
 }
 
 // Sqrt sets z to the square root of x and returns z.
@@ -42,10 +48,11 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 	}
 
 	prec := precision(z)
+	ctx := decimal.Context{Precision: prec}
 
 	// Fast path #1: use math.Sqrt if our decimal is small enough.
 	if f, exact := x.Float64(); exact && prec <= 15 {
-		return z.SetFloat64(math.Sqrt(f))
+		return ctx.Round(z.SetFloat64(math.Sqrt(f)))
 	}
 
 	// Source for the following algorithm:
@@ -61,9 +68,8 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 		// to normalize f, adjusting its scale is the quickest. However, it then
 		// requires us to increment approx's scale by e/2 instead of simply
 		// setting it to e/2.
-		f   = new(decimal.Big).Copy(x).SetScale(xprec)
-		e   = -x.Scale() + xprec
-		ctx = decimal.Context{Precision: prec}
+		f = new(decimal.Big).Copy(x).SetScale(xprec)
+		e = -x.Scale() + xprec
 
 		tmp decimal.Big // scratch space
 	)

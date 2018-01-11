@@ -140,6 +140,8 @@ const (
 	invctxpgtu
 	invctxrmode
 	invctxomode
+	invctxsltu
+	invctxsgtu
 	reduction
 )
 
@@ -168,6 +170,8 @@ var payloads = [...]string{
 	invctxpgtu:     "operation with a precision greater than MaxPrecision",
 	invctxrmode:    "operation with an invalid RoundingMode",
 	invctxomode:    "operation with an invalid OperatingMode",
+	invctxsltu:     "operation with a scale lesser than MinScale",
+	invctxsgtu:     "operation with a scale greater than MaxScale",
 	reduction:      "reduction with NaN as an operand",
 }
 
@@ -225,10 +229,13 @@ func (z *Big) checkNaNs(x, y *Big, op Payload) bool {
 	return true
 }
 
-func (z *Big) xflow(over, neg bool) *Big {
+func (z *Big) xflow(exp int, over, neg bool) *Big {
 	// over == overflow
 	// neg == intermediate result < 0
 	if over {
+		// TODO(eric): actually choose the largest finite number in the current
+		// precision. This is legacy now.
+		//
 		// NOTE(eric): in some situations, the decimal library tells us to set
 		// z to "the largest finite number that can be represented in the
 		// current precision..." Use signed Infinity instead.
@@ -244,12 +251,11 @@ func (z *Big) xflow(over, neg bool) *Big {
 		return z
 	}
 
-	z.exp = MinScale
-	z.compact = 0
-	z.form = finite
+	var sign form
 	if neg {
-		z.form |= signbit
+		sign = signbit
 	}
+	z.setZero(sign, exp)
 	z.Context.Conditions |= Underflow | Inexact | Rounded | Subnormal
 	return z
 }
@@ -260,7 +266,7 @@ func (x *Big) isCompact() bool  { return x.compact != c.Inflated }
 func (x *Big) isInflated() bool { return !x.isCompact() }
 func (x *Big) isSpecial() bool  { return x.form&(inf|nan) != 0 }
 
-func (x *Big) adjusted() int { return (x.exp + x.precision) - 1 }
+func (x *Big) adjusted() int { return (x.exp + x.Precision()) - 1 }
 func (c Context) etiny() int { return MinScale - (precision(c) - 1) }
 
 // Abs sets z to the absolute value of x and returns z.
@@ -458,7 +464,7 @@ func (z *Big) Copy(x *Big) *Big {
 // copyAbs sets z to a copy of |x| and returns z.
 func (z *Big) copyAbs(x *Big) *Big {
 	if z != x {
-		z.precision = x.precision
+		z.precision = x.Precision()
 		z.exp = x.exp
 		z.compact = x.compact
 		if x.IsFinite() && x.isInflated() {
@@ -605,7 +611,7 @@ func (x *Big) Format(s fmt.State, c rune) {
 	// empty buffer.
 	tmpbuf := lpZero || lpSpace
 	if tmpbuf {
-		f.w = buf.New(x.precision)
+		f.w = buf.New(x.Precision())
 	} else {
 		f.w = stateWrapper{s}
 	}
@@ -645,11 +651,11 @@ func (x *Big) Format(s fmt.State, c rune) {
 		// %f's precision means "number of digits after the radix"
 		if x.exp < 0 {
 			f.prec -= x.exp
-			if trail := x.precision + x.exp; trail >= f.prec {
+			if trail := x.Precision() + x.exp; trail >= f.prec {
 				f.prec += trail
 			}
 		} else {
-			f.prec += x.precision
+			f.prec += x.Precision()
 		}
 		f.format(x, plain, noE)
 	case 'g':
@@ -814,12 +820,12 @@ func (x *Big) IsFinite() bool { return x.form & ^signbit == 0 }
 
 // IsNormal returns true if x is normal.
 func (x *Big) IsNormal() bool {
-	return x.IsFinite() && x.adjusted() >= MinScale
+	return x.IsFinite() && x.adjusted() >= x.Context.minScale()
 }
 
 // IsSubnormal returns true if x is subnormal.
 func (x *Big) IsSubnormal() bool {
-	return x.IsFinite() && x.adjusted() < MinScale
+	return x.IsFinite() && x.adjusted() < x.Context.minScale()
 }
 
 // IsInf returns true if x is an infinity according to sign.
@@ -854,7 +860,7 @@ func (x *Big) IsInt() bool {
 		return true
 	}
 
-	xp := x.precision
+	xp := x.Precision()
 	exp := x.exp
 
 	// 0.001
@@ -892,7 +898,7 @@ func (x *Big) MarshalText() ([]byte, error) {
 	}
 
 	var (
-		b = buf.New(x.precision)
+		b = buf.New(x.Precision())
 		f = formatter{w: b, prec: noPrec, width: noWidth}
 		e = sciE[x.Context.OperatingMode]
 	)
@@ -947,11 +953,12 @@ func (x *Big) Payload() Payload {
 // digits in the unscaled form of x. x == 0 has a precision of 1. The result is
 // undefined if x is not finite.
 func (x *Big) Precision() int {
-	if debug {
-		x.validate()
-	}
+	// Cannot call validate since validate calls this method.
 	if !x.IsFinite() {
 		return 0
+	}
+	if x.precision == 0 {
+		return 1
 	}
 	return x.precision
 }
@@ -1155,7 +1162,7 @@ func (z *Big) setShared(x *Big) *Big {
 	}
 
 	if z != x {
-		z.precision = x.precision
+		z.precision = x.Precision()
 		z.compact = x.compact
 		z.form = x.form
 		z.exp = x.exp
@@ -1294,10 +1301,12 @@ func (z *Big) SetFloat64(x float64) *Big {
 
 	if s := uint(-shift); s < 64 {
 		z.compact = mantissa << s
+		z.precision = arith.Length(z.compact)
 	} else {
 		z.compact = c.Inflated
 		z.unscaled.SetUint64(mantissa)
 		z.unscaled.Lsh(&z.unscaled, s)
+		z.norm()
 	}
 	return z
 }
@@ -1368,8 +1377,8 @@ func (z *Big) SetScale(scale int) *Big {
 // SetString.
 var Regexp = regexp.MustCompile(`(?i)(([+-]?(\d+\.\d*|\.?\d+)([eE][+-]?\d+)?)|(inf(infinity)?))|([+-]?([sq]?nan\d*))`)
 
-// SetString sets z to the value of s, returning z and a bool indicating
-// success. s must be a string in one of the following formats:
+// SetString sets z to the value of s, returning z and a bool indicating success.
+// s must be a string in one of the following formats:
 //
 // 	1.234
 // 	1234
@@ -1409,7 +1418,7 @@ func (z *Big) setZero(sign form, exp int) *Big {
 	return z
 }
 
-// SetUint64 is shorthand for SetMantScale(x, 0).
+// SetUint64 is shorthand for SetMantScale(x, 0) for an unsigned integer.
 func (z *Big) SetUint64(x uint64) *Big {
 	z.compact = x
 	z.precision = arith.Length(x)
@@ -1468,7 +1477,7 @@ func (x *Big) Signbit() bool {
 // OperatingMode.
 func (x *Big) String() string {
 	var (
-		b = buf.New(x.precision)
+		b = buf.New(x.Precision())
 		f = formatter{w: b, prec: noPrec, width: noWidth}
 		e = sciE[x.Context.OperatingMode]
 	)
@@ -1525,8 +1534,8 @@ func (x *Big) validate() {
 			}
 		}
 		if x.isCompact() {
-			if bl, xp := arith.Length(x.compact), x.precision; bl != xp {
-				panic(fmt.Sprintf("BigLength (%d) != x.Precision (%d)", bl, xp))
+			if bl, xp := arith.Length(x.compact), x.Precision(); bl != xp {
+				panic(fmt.Sprintf("BigLength (%d) != x.Precision() (%d)", bl, xp))
 			}
 		}
 	case snan, ssnan, qnan, sqnan, pinf, ninf:
