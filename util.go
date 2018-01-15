@@ -140,7 +140,7 @@ func cmpNorm(x uint64, xs int, y uint64, ys int) (ok bool) {
 	// xs, ys > 0, so no overflow
 	if diff := xs - ys; diff != 0 {
 		if diff < 0 {
-			x, goodx = checked.MulPow10(x, -uint64(diff))
+			x, goodx = checked.MulPow10(x, uint64(-diff))
 		} else {
 			y, goody = checked.MulPow10(y, uint64(diff))
 		}

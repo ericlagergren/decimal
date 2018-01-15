@@ -3,8 +3,8 @@ package arith
 import "math/big"
 
 func Abs(x int64) uint64 {
-	mask := -int64(uint64(x) >> 63)
-	return uint64((x + mask) ^ mask)
+	m := x >> 63
+	return uint64((x ^ m) - m)
 }
 
 func Cmp(x, y uint64) int {
