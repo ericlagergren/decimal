@@ -25,7 +25,8 @@ func ilog10(x uint64) int {
 	// Where x >= 10
 
 	// From https://graphics.stanford.edu/~seander/bithacks.html#IntegerLog10
-	t := int(((64 - bits.LeadingZeros64(x) + 1) * 1233) >> 12)
+	//t := int(((64 - bits.LeadingZeros64(x) + 1) * 1233) >> 12)
+	t := int((bits.Len64(x) * 1233) >> 12)
 	if v, ok := Pow10(uint64(t)); !ok || x < v {
 		return t
 	}

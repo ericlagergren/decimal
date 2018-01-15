@@ -28,7 +28,7 @@ func Mul(x, y uint64) (prod uint64, ok bool) {
 	ylo := y & halfmax
 
 	low := xlo * ylo
-	if xhi == 0 && yhi == 0 {
+	if xhi|yhi == 0 {
 		return low, true
 	}
 
