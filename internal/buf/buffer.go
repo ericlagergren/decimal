@@ -5,9 +5,7 @@ import (
 	"unsafe"
 )
 
-type B struct {
-	buf []byte
-}
+type B struct{ buf []byte }
 
 func New(size int) *B { return &B{buf: make([]byte, 0, size)} }
 

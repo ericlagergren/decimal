@@ -261,13 +261,19 @@ func (c Context) mul(z, x, y *Big) *Big {
 		// Multiplication is simple, so inline it.
 		if x.isCompact() {
 			if y.isCompact() {
-				if prod, ok := checked.Mul(x.compact, y.compact); ok {
-					z.compact = prod
-					z.precision = arith.Length(z.compact)
+				z1, z0 := arith.Mul(x.compact, y.compact)
+				if z1 == 0 {
+					z.compact = z0
+					z.precision = arith.Length(z0)
 					return z
 				}
-				// Overflow: use 128 bit multiplication.
-				arith.Mul128(&z.unscaled, x.compact, y.compact)
+				// NOTE(eric): this is here instead of in internal/arith because
+				// I'm still unsure of how to structure the API.
+				if !arith.Is32Bit {
+					z.unscaled.SetBits([]big.Word{big.Word(z0), big.Word(z1)})
+				} else {
+					arith.Mul128(&z.unscaled, x.compact, y.compact)
+				}
 			} else { // y.isInflated
 				arith.MulUint64(&z.unscaled, &y.unscaled, x.compact)
 			}
@@ -896,7 +902,7 @@ func (c Context) SetString(z *Big, s string) (*Big, bool) {
 	if _, ok := z.SetString(s); !ok {
 		return nil, false
 	}
-	return c.fix(z), true
+	return c.Round(z), true
 }
 
 // Sub sets z to x - y and returns z.
