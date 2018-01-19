@@ -142,33 +142,3 @@ func BenchmarkBigLength(b *testing.B) {
 	}
 	gl = ll
 }
-
-func BenchmarkLogarithmCmp(b *testing.B) {
-	var ll int
-	for i := 0; i < b.N; i++ {
-		for _, x := range lengths {
-			ll = logLength(x, x.BitLen())
-		}
-	}
-	gl = ll
-}
-
-func BenchmarkLogarithmNoCmp(b *testing.B) {
-	var ll int
-	for i := 0; i < b.N; i++ {
-		for _, x := range lengths {
-			ll = logLengthNoCmp(x, x.BitLen())
-		}
-	}
-	gl = ll
-}
-
-func BenchmarkLogarithmIterative(b *testing.B) {
-	var ll int
-	for i := 0; i < b.N; i++ {
-		for _, x := range lengths {
-			ll = logLengthIter(x)
-		}
-	}
-	gl = ll
-}

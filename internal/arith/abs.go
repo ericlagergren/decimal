@@ -1,6 +1,8 @@
 package arith
 
-import "math/big"
+import (
+	"math/big"
+)
 
 func Abs(x int64) uint64 {
 	m := x >> 63
@@ -21,16 +23,15 @@ func Cmp(x, y uint64) int {
 func AbsCmp128(x, y, shift uint64) int {
 	// x is unchanged so its high bits are always 0.
 	const xh = 0
-	yh, yl := mulWW(Word(y), big.Word(shift))
+	yh, yl := Mul(y, shift)
 	if xh != yh {
 		if xh > yh {
 			return +1
 		}
 		return -1
 	}
-	xl := Word(x)
-	if xl != yl {
-		if xl > yl {
+	if x != yl {
+		if x > yl {
 			return +1
 		}
 		return -1

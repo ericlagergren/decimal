@@ -13,61 +13,53 @@ import (
 
 const pi = "3.141592653589793238462643383279502884197169399375105820974944592307816406286208998628034825342117067982148086513282306647093844609550582231725359408128481117450284102701938521105559644622948954930381964428810975665933446128475648233786783165271201909145648566923460348610454326648213394"
 
-func adjustPrecision(prec int32) int32 {
-	return int32(math.Ceil(float64(prec) * 1.1))
-}
+func adjustPrecision(prec int) int { return int(math.Ceil(float64(prec) * 1.1)) }
 
-type testFunc func(prec int32) string
+type testFunc func(prec int) string
 
 func TestPiBenchmarks(t *testing.T) {
 	for _, test := range [...]struct {
 		name string
 		fn   testFunc
 	}{
-		{"dec-Go", func(prec int32) string {
+		{"dec-Go", func(prec int) string {
 			return calcPiGo(prec).String()
 		}},
-		{"dec-GDA", func(prec int32) string {
+		{"dec-GDA", func(prec int) string {
 			return calcPiGDA(prec).String()
 		}},
-		{"apd", func(prec int32) string {
+		{"apd", func(prec int) string {
 			return calcPi_apd(uint32(prec)).String()
 		}},
-		{"shopSpring", func(prec int32) string {
-			return calcPi_shopSpring(prec).String()
+		{"shopSpring", func(prec int) string {
+			return calcPi_shopSpring(int32(prec)).String()
 		}},
-		{"inf", func(prec int32) string {
+		{"inf", func(prec int) string {
 			return calcPi_inf(prec).String()
 		}},
 	} {
-		for _, prec := range [...]int32{9, 19, 38, 100} {
+		var ctx decimal.Context
+		for _, prec := range [...]int{9, 19, 38, 100} {
+			ctx.Precision = prec
+
 			str := test.fn(prec)
 			name := test.name
 
-			x := new(decimal.Big)
-			x.Context.Precision = int(prec)
-			if _, ok := x.SetString(str); !ok {
+			var x decimal.Big
+			if _, ok := ctx.SetString(&x, str); !ok {
 				t.Fatalf("%s (%d): bad input: %q", name, prec, str)
 			}
 
-			act := new(decimal.Big)
-			act.SetString(pi)
-			act.Round(int(prec))
-			if act.Cmp(x) != 0 {
+			var act decimal.Big
+			ctx.SetString(&act, pi)
+			if act.Cmp(&x) != 0 {
 				t.Fatalf(`%s (%d): bad output:
 want: %q
 got : %q
-`, name, prec, act, x)
+`, name, prec, &act, &x)
 			}
 		}
 	}
-}
-
-func newd(c int64, m int32, p int, mode decimal.OperatingMode) *decimal.Big {
-	d := decimal.New(c, int(m))
-	d.Context.Precision = p
-	d.Context.OperatingMode = mode
-	return d
 }
 
 var (
@@ -83,7 +75,7 @@ var (
 	infThirtyTwo   = inf.NewDec(32, 0)
 )
 
-func calcPi_inf(prec int32) *inf.Dec {
+func calcPi_inf(prec int) *inf.Dec {
 	var (
 		lasts = inf.NewDec(0, 0)
 		t     = inf.NewDec(3, 0)
@@ -93,9 +85,8 @@ func calcPi_inf(prec int32) *inf.Dec {
 		d     = inf.NewDec(0, 0)
 		da    = inf.NewDec(24, 0)
 
-		op = prec - 1 // -1 because inf's precision == digits after radix
+		work = adjustPrecision(prec)
 	)
-	prec = adjustPrecision(prec)
 
 	for s.Cmp(lasts) != 0 {
 		lasts.Set(s)
@@ -104,10 +95,11 @@ func calcPi_inf(prec int32) *inf.Dec {
 		d.Add(d, da)
 		da.Add(da, infThirtyTwo)
 		t.Mul(t, n)
-		t.QuoRound(t, d, inf.Scale(prec), inf.RoundHalfUp)
+		t.QuoRound(t, d, inf.Scale(work), inf.RoundHalfUp)
 		s.Add(s, t)
 	}
-	return s.Round(s, inf.Scale(op), inf.RoundHalfUp)
+	// -1 because inf's precision == digits after radix
+	return s.Round(s, inf.Scale(prec-1), inf.RoundHalfUp)
 }
 
 func calcPi_shopSpring(prec int32) ssdec.Decimal {
@@ -120,9 +112,8 @@ func calcPi_shopSpring(prec int32) ssdec.Decimal {
 		d     = ssdec.New(0, 0)
 		da    = ssdec.New(24, 0)
 
-		op = prec - 1 // -1 because shopSpring's prec == digits after radix
+		work = int32(adjustPrecision(int(prec)))
 	)
-	prec = adjustPrecision(prec)
 
 	for s.Cmp(lasts) != 0 {
 		lasts = s
@@ -131,10 +122,11 @@ func calcPi_shopSpring(prec int32) ssdec.Decimal {
 		d = d.Add(da)
 		da = da.Add(ssdecThirtyTwo)
 		t = t.Mul(n)
-		t = t.DivRound(d, prec)
+		t = t.DivRound(d, work)
 		s = s.Add(t)
 	}
-	return s.Round(op)
+	// -1 because shopSpring's prec == digits after radix
+	return s.Round(prec - 1)
 }
 
 func calcPi_dnum() dnum.Dnum {
@@ -147,6 +139,7 @@ func calcPi_dnum() dnum.Dnum {
 		d     = dnum.NewDnum(false, 0, 0)
 		da    = dnum.NewDnum(false, 24, 0)
 	)
+
 	for dnum.Cmp(s, lasts) != 0 {
 		lasts = s
 		n = dnum.Add(n, na)
@@ -170,6 +163,7 @@ func calcPi_float() float64 {
 		d     = 0.0
 		da    = 24.0
 	)
+
 	for s != lasts {
 		lasts = s
 		n += na
@@ -182,59 +176,71 @@ func calcPi_float() float64 {
 	return s
 }
 
-func calcPiGo(p int32) *decimal.Big {
-	op := int(p)
-	prec := int(adjustPrecision(p))
+func calcPiGo(prec int) *decimal.Big {
 	var (
-		lasts = newd(0, 0, prec, decimal.Go)
-		t     = newd(3, 0, prec, decimal.Go)
-		s     = newd(3, 0, prec, decimal.Go)
-		n     = newd(1, 0, prec, decimal.Go)
-		na    = newd(0, 0, prec, decimal.Go)
-		d     = newd(0, 0, prec, decimal.Go)
-		da    = newd(24, 0, prec, decimal.Go)
+		ctx = decimal.Context{
+			Precision:     adjustPrecision(prec),
+			OperatingMode: decimal.Go,
+		}
+
+		lasts = new(decimal.Big)
+		t     = decimal.New(3, 0)
+		s     = decimal.New(3, 0)
+		n     = decimal.New(1, 0)
+		na    = new(decimal.Big)
+		d     = new(decimal.Big)
+		da    = decimal.New(24, 0)
+		eps   = decimal.New(1, prec)
 	)
-	for s.Round(prec).Cmp(lasts) != 0 {
-		lasts.Set(s)
-		n.Add(n, na)
-		na.Add(na, eight)
-		d.Add(d, da)
-		da.Add(da, thirtyTwo)
-		t.Mul(t, n)
-		t.Quo(t, d)
-		s.Add(s, t)
+
+	for {
+		ctx.Set(lasts, s)
+		ctx.Add(n, n, na)
+		ctx.Add(na, na, eight)
+		ctx.Add(d, d, da)
+		ctx.Add(da, da, thirtyTwo)
+		ctx.Mul(t, t, n)
+		ctx.Quo(t, t, d)
+		ctx.Add(s, s, t)
+		if ctx.Sub(lasts, s, lasts).CmpAbs(eps) < 0 {
+			return s.Round(prec)
+		}
 	}
-	return s.Round(op)
 }
 
-func calcPiGDA(p int32) *decimal.Big {
-	op := int(p)
-	prec := int(adjustPrecision(p))
+func calcPiGDA(prec int) *decimal.Big {
 	var (
-		lasts = newd(0, 0, prec, decimal.GDA)
-		t     = newd(3, 0, prec, decimal.GDA)
-		s     = newd(3, 0, prec, decimal.GDA)
-		n     = newd(1, 0, prec, decimal.GDA)
-		na    = newd(0, 0, prec, decimal.GDA)
-		d     = newd(0, 0, prec, decimal.GDA)
-		da    = newd(24, 0, prec, decimal.GDA)
+		ctx = decimal.Context{
+			Precision:     adjustPrecision(prec),
+			OperatingMode: decimal.GDA,
+		}
+
+		lasts = new(decimal.Big)
+		t     = decimal.New(3, 0)
+		s     = decimal.New(3, 0)
+		n     = decimal.New(1, 0)
+		na    = new(decimal.Big)
+		d     = new(decimal.Big)
+		da    = decimal.New(24, 0)
 	)
+
 	for s.Cmp(lasts) != 0 {
-		lasts.Set(s)
-		n.Add(n, na)
-		na.Add(na, eight)
-		d.Add(d, da)
-		da.Add(da, thirtyTwo)
-		t.Mul(t, n)
-		t.Quo(t, d)
-		s.Add(s, t)
+		ctx.Set(lasts, s)
+		ctx.Add(n, n, na)
+		ctx.Add(na, na, eight)
+		ctx.Add(d, d, da)
+		ctx.Add(da, da, thirtyTwo)
+		ctx.Mul(t, t, n)
+		ctx.Quo(t, t, d)
+		ctx.Add(s, s, t)
 	}
-	return s.Round(op)
+	return s.Round(prec)
+
 }
 
 func calcPi_apd(prec uint32) *apd.Decimal {
 	var (
-		c     = apd.BaseContext.WithPrecision(uint32(adjustPrecision(int32(prec))))
+		ctx   = apd.BaseContext.WithPrecision(uint32(adjustPrecision(int(prec))))
 		lasts = apd.New(0, 0)
 		t     = apd.New(3, 0)
 		s     = apd.New(3, 0)
@@ -243,18 +249,19 @@ func calcPi_apd(prec uint32) *apd.Decimal {
 		d     = apd.New(0, 0)
 		da    = apd.New(24, 0)
 	)
+
 	for s.Cmp(lasts) != 0 {
 		lasts.Set(s)
-		c.Add(n, n, na)
-		c.Add(na, na, apdEight)
-		c.Add(d, d, da)
-		c.Add(da, da, apdThirtyTwo)
-		c.Mul(t, t, n)
-		c.Quo(t, t, d)
-		c.Add(s, s, t)
+		ctx.Add(n, n, na)
+		ctx.Add(na, na, apdEight)
+		ctx.Add(d, d, da)
+		ctx.Add(da, da, apdThirtyTwo)
+		ctx.Mul(t, t, n)
+		ctx.Quo(t, t, d)
+		ctx.Add(s, s, t)
 	}
-	c.Precision = prec
-	c.Round(s, s)
+	ctx.Precision = prec
+	ctx.Round(s, s)
 	return s
 }
 
@@ -269,7 +276,7 @@ var (
 
 const rounds = 10000
 
-func benchPiGo(b *testing.B, prec int32) {
+func benchPiGo(b *testing.B, prec int) {
 	var ls *decimal.Big
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < rounds; j++ {
@@ -279,7 +286,7 @@ func benchPiGo(b *testing.B, prec int32) {
 	gs = ls
 }
 
-func benchPiGDA(b *testing.B, prec int32) {
+func benchPiGDA(b *testing.B, prec int) {
 	var ls *decimal.Big
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < rounds; j++ {
@@ -319,7 +326,7 @@ func benchPi_shopspring(b *testing.B, prec int32) {
 	ssdecgs = ls
 }
 
-func benchPi_inf(b *testing.B, prec int32) {
+func benchPi_inf(b *testing.B, prec int) {
 	var ls *inf.Dec
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < rounds; j++ {

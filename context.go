@@ -24,7 +24,7 @@ type Context struct {
 	MaxScale int
 
 	// MinScale overrides the MaxScale constant so long as it's in the range
-	// [MinScale, 0)
+	// [MinScale, 0).
 	MinScale int
 
 	// Precision is the Context's precision; that is, the maximum number of
