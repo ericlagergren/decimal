@@ -136,7 +136,7 @@ var (
 		MinScale:      -6143,
 	}
 
-	// ContextUnlimited provides unlimited-precision decimals.
+	// ContextUnlimited provides unlimited precision decimals.
 	ContextUnlimited = Context{
 		Precision:     UnlimitedPrecision,
 		RoundingMode:  ToNearestEven,

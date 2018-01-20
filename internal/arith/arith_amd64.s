@@ -6,8 +6,8 @@
 // of Go 1.9, the compiler won't inline non-leaf functions. This may change in
 // the future.
 
-// func Mul(x, y uint64) (z1, z0 uint64)
-TEXT ·Mul(SB),NOSPLIT,$0
+// func Mul128(x, y uint64) (z1, z0 uint64)
+TEXT ·Mul128(SB),NOSPLIT,$0
 	MOVQ x+0(FP), AX
 	MULQ y+8(FP)
 	MOVQ DX, z1+16(FP)

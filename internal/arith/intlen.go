@@ -12,13 +12,14 @@ func IsUint64(x *big.Int) bool {
 }
 
 // Length returns the number of digits in x.
-func Length(x uint64) (r int) {
-	if x >= 10 {
-		// From https://graphics.stanford.edu/~seander/bithacks.html#IntegerLog10
-		r = int((bits.Len64(x) * 1233) >> 12)
-		if v, ok := Pow10(uint64(r)); !ok || x < v {
-			return r
-		}
+func Length(x uint64) int {
+	if x < 10 {
+		return 1
+	}
+	// From https://graphics.stanford.edu/~seander/bithacks.html#IntegerLog10
+	r := int((bits.Len64(x) * 1233) >> 12)
+	if p, _ := Pow10(uint64(r)); x < p {
+		return r
 	}
 	return r + 1
 }
