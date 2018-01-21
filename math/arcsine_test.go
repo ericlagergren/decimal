@@ -33,7 +33,7 @@ import (
 	"github.com/ericlagergren/decimal"
 )
 
-func TestArcsin(t *testing.T) {
+func TestAsin(t *testing.T) {
 	type args struct {
 		z     *decimal.Big
 		value *decimal.Big
@@ -52,15 +52,15 @@ func TestArcsin(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Arcsin(tt.args.z, tt.args.value)
+			got, err := Asin(tt.args.z, tt.args.value)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Arcsin() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Asin() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			diff := decimal.WithPrecision(tt.args.z.Context.Precision).Sub(tt.want, got)
 			errorBounds := decimal.New(1, tt.args.z.Context.Precision)
 			if errorBounds.CmpAbs(diff) <= 0 {
-				t.Errorf("Arcsin(%v) = %v\nwant %v\ndiff: %v\n", tt.args.value, got, tt.want, diff)
+				t.Errorf("Asin(%v) = %v\nwant %v\ndiff: %v\n", tt.args.value, got, tt.want, diff)
 
 			}
 		})

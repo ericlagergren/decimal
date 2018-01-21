@@ -34,9 +34,9 @@ import (
 	"github.com/ericlagergren/decimal"
 )
 
-var arctanMax = uint64((stdMath.MaxUint64 - 1) / 2)
+var AtanMax = uint64((stdMath.MaxUint64 - 1) / 2)
 
-func prepareArctanInput(precision int, xValue *decimal.Big) (*decimal.Big, *decimal.Big, *decimal.Big, int, int) {
+func prepareAtanInput(precision int, xValue *decimal.Big) (*decimal.Big, *decimal.Big, *decimal.Big, int, int) {
 	calculatingPrecision := precision + defaultExtraPrecision
 	x := decimal.WithPrecision(calculatingPrecision).Copy(xValue)
 
@@ -63,7 +63,7 @@ func prepareArctanInput(precision int, xValue *decimal.Big) (*decimal.Big, *deci
 	// we'll repeat this up to a point
 	// we have compeating operations at some
 	// point the sqrt causes a problem
-	// note (http://fredrikj.net/blog/2014/12/faster-high-precision-arctangents/)
+	// note (http://fredrikj.net/blog/2014/12/faster-high-precision-Atangents/)
 	// suggests that r= 8 times is a good value for
 	// precision with 1000s of digits to millions
 	// however it was easy to determine there is a
@@ -100,13 +100,13 @@ func prepareArctanInput(precision int, xValue *decimal.Big) (*decimal.Big, *deci
 	return x, xSquared, xSqPlus1, segment, halfed
 }
 
-func getArctanA(x *decimal.Big) func(n uint64) *decimal.Big {
+func getAtanA(x *decimal.Big) func(n uint64) *decimal.Big {
 	return func(n uint64) *decimal.Big {
 		return x
 	}
 }
 
-func getArctanP(precision int, xSq *decimal.Big) func(n uint64) *decimal.Big {
+func getAtanP(precision int, xSq *decimal.Big) func(n uint64) *decimal.Big {
 	return func(n uint64) *decimal.Big {
 		if n == 0 {
 			return one
@@ -119,19 +119,19 @@ func getArctanP(precision int, xSq *decimal.Big) func(n uint64) *decimal.Big {
 	}
 }
 
-func getArctanB() func(n uint64) *decimal.Big {
+func getAtanB() func(n uint64) *decimal.Big {
 	return func(n uint64) *decimal.Big {
 		return one
 	}
 }
 
-func getArctanQ(precision int, xSqPlus1 *decimal.Big) func(n uint64) *decimal.Big {
+func getAtanQ(precision int, xSqPlus1 *decimal.Big) func(n uint64) *decimal.Big {
 	return func(n uint64) *decimal.Big {
 		//b(n) = (2n+1) for n >= 0
 		//most of the time n will be a small number so
 		// use the fastest method to calculate (2n+1)
 		var c2NPlus1 *decimal.Big
-		if n < arctanMax {
+		if n < AtanMax {
 			c2NPlus1 = new(decimal.Big).SetUint64((n << 1) + 1)
 		}
 		c2N := decimal.WithPrecision(precision).SetUint64(n)
@@ -141,15 +141,15 @@ func getArctanQ(precision int, xSqPlus1 *decimal.Big) func(n uint64) *decimal.Bi
 	}
 }
 
-//Arctan returns the Arctangent value in radians.
+//Atan returns the Atangent value in radians.
 // Input range : all real numbers
-// Output range: -pi/2 <= Arctan() <= pi/2
+// Output range: -pi/2 <= Atan() <= pi/2
 // Notes:
-//  	Arctan(-Inf) -> -pi/2
-//		Arctan(Inf)  ->  pi/2
-//      Arctan(NaN)  ->   NaN
-//		Arctan(nil)  -> error
-func Arctan(z *decimal.Big, value *decimal.Big) (*decimal.Big, error) {
+//  	Atan(-Inf) -> -pi/2
+//		Atan(Inf)  ->  pi/2
+//      Atan(NaN)  ->   NaN
+//		Atan(nil)  -> error
+func Atan(z *decimal.Big, value *decimal.Big) (*decimal.Big, error) {
 	calculatingPrecision := z.Context.Precision + defaultExtraPrecision
 
 	if value == nil {
@@ -171,12 +171,12 @@ func Arctan(z *decimal.Big, value *decimal.Big) (*decimal.Big, error) {
 		return decimal.WithPrecision(z.Context.Precision).SetNaN(value.Signbit()), nil
 	}
 
-	y, ySq, ySqPlus1, segment, halfed := prepareArctanInput(calculatingPrecision, value)
+	y, ySq, ySqPlus1, segment, halfed := prepareAtanInput(calculatingPrecision, value)
 	result, err := BinarySplitDynamicCalculate(calculatingPrecision,
-		getArctanA(y), getArctanP(calculatingPrecision, ySq), getArctanB(), getArctanQ(calculatingPrecision, ySqPlus1))
+		getAtanA(y), getAtanP(calculatingPrecision, ySq), getAtanB(), getAtanQ(calculatingPrecision, ySqPlus1))
 
 	if err != nil {
-		return nil, fmt.Errorf("could not calculate Arctan(%v), there was an error %v", value, err)
+		return nil, fmt.Errorf("could not calculate Atan(%v), there was an error %v", value, err)
 	}
 
 	//undo the double angle part

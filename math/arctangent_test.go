@@ -33,7 +33,7 @@ import (
 	"github.com/ericlagergren/decimal"
 )
 
-func TestArctan(t *testing.T) {
+func TestAtan(t *testing.T) {
 	type args struct {
 		z     *decimal.Big
 		theta *decimal.Big
@@ -59,22 +59,22 @@ func TestArctan(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Arctan(tt.args.z, tt.args.theta)
+			got, err := Atan(tt.args.z, tt.args.theta)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Arctan() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Atan() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			diff := decimal.WithPrecision(tt.args.z.Context.Precision).Sub(tt.want, got)
 			errorBounds := decimal.New(1, tt.args.z.Context.Precision)
 			if errorBounds.CmpAbs(diff) <= 0 {
-				t.Errorf("Arctan(%v) = %v\nwant %v\ndiff: %v\n", tt.args.theta, got, tt.want, diff)
+				t.Errorf("Atan(%v) = %v\nwant %v\ndiff: %v\n", tt.args.theta, got, tt.want, diff)
 
 			}
 		})
 	}
 }
 
-func BenchmarkArctan(b *testing.B) {
+func BenchmarkAtan(b *testing.B) {
 	precision := 30
 	four := decimal.New(4, 0)
 	piOver4 := Pi(decimal.WithPrecision(precision))
@@ -83,7 +83,7 @@ func BenchmarkArctan(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		Arctan(result, piOver4)
+		Atan(result, piOver4)
 	}
 }
 
