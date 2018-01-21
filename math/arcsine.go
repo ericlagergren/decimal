@@ -33,18 +33,18 @@ import (
 	"github.com/ericlagergren/decimal"
 )
 
-//Asin returns the Asine value in radians.
+//Asin returns the arcsine value in radians.
 // Input range : -1 <= value <= 1
 // Output range: -pi/2 <= Asin() <= pi/2
 // Notes:
-//  	Asin(-1)  -> -pi/2
+//		Asin(-1)  -> -pi/2
 //		Asin(1)   ->  pi/2
-//      Asin(NaN) ->   NaN
+//		Asin(NaN) ->   NaN
 //		Asin(nil) -> error
-// 		|value| > 1 -> error
+//		|value| > 1 -> error
 func Asin(z *decimal.Big, value *decimal.Big) (*decimal.Big, error) {
 	// here we'll use the half-angle formula
-	// Asin(x) = 2arctan(x/(1+sqrt(1-x*x)))
+	// Asin(x) = 2atan(x/(1+sqrt(1-x*x)))
 	calculatingPrecision := z.Context.Precision + defaultExtraPrecision
 
 	if value == nil {
@@ -72,7 +72,7 @@ func Asin(z *decimal.Big, value *decimal.Big) (*decimal.Big, error) {
 
 	xsq := decimal.WithPrecision(calculatingPrecision).Mul(value, value)
 	x := xsq.Quo(value, xsq.Add(Sqrt(xsq, xsq.Sub(one, xsq)), one))
-	result, err := Arctan(decimal.WithPrecision(calculatingPrecision), x)
+	result, err := Atan(decimal.WithPrecision(calculatingPrecision), x)
 	if err != nil {
 		return nil, fmt.Errorf("could not calculate Asin(%v), there was an error %v", value, err)
 	}

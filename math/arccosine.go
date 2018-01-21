@@ -33,15 +33,15 @@ import (
 	"github.com/ericlagergren/decimal"
 )
 
-//Acos returns the Acosine value in radians.
+//Acos returns the arccosine value in radians.
 // Input range : -1 <= value <= 1
 // Output range: 0 <= Acos() <= pi
 // Notes:
-//  	Acos(-1)  ->    pi
+//		Acos(-1)  ->    pi
 //		Acos(1)   ->     0
-//      Acos(NaN) ->   NaN
+//		Acos(NaN) ->   NaN
 //		Acos(nil) -> error
-// 		|value| > 1 -> error
+//		|value| > 1 -> error
 func Acos(z *decimal.Big, value *decimal.Big) (*decimal.Big, error) {
 	// here we'll use the half-angle formula
 	// Acos(x) = pi/2 - arcsin(x)
@@ -66,7 +66,7 @@ func Acos(z *decimal.Big, value *decimal.Big) (*decimal.Big, error) {
 		return zero, nil
 	}
 
-	result, err := Arcsin(decimal.WithPrecision(calculatingPrecision), value)
+	result, err := Asin(decimal.WithPrecision(calculatingPrecision), value)
 	if err != nil {
 		return nil, fmt.Errorf("could not calculate Acos(%v), there was an error %v", value, err)
 	}
