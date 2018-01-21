@@ -5,6 +5,7 @@ import (
 	"io"
 	"math"
 	"math/big"
+	mrand "math/rand"
 	"testing"
 )
 
@@ -35,9 +36,9 @@ func TestLength(t *testing.T) {
 		{i: 1000000000000000000, l: 19},
 		{i: 10000000000000000000, l: 20},
 	}
-	for i, v := range tests {
+	for _, v := range tests {
 		if l := Length(v.i); l != v.l {
-			t.Fatalf("#%d: wanted %d, got %d", i, v.l, l)
+			t.Fatalf("#%d: wanted %d, got %d", v.i, v.l, l)
 		}
 	}
 }
@@ -131,44 +132,29 @@ var lengths = func() []*big.Int {
 	return a[:]
 }()
 
+var rnd = mrand.New(mrand.NewSource(0))
+
+var smallLengths = func() (a [5000]uint64) {
+	for i := range a {
+		a[i] = rnd.Uint64()
+	}
+	return a
+}()
+
 var gl int
+
+func BenchmarkLength(b *testing.B) {
+	var ll int
+	for i := 0; i < b.N; i++ {
+		ll = Length(smallLengths[i%len(smallLengths)])
+	}
+	gl = ll
+}
 
 func BenchmarkBigLength(b *testing.B) {
 	var ll int
 	for i := 0; i < b.N; i++ {
-		for _, x := range lengths {
-			ll = BigLength(x)
-		}
-	}
-	gl = ll
-}
-
-func BenchmarkLogarithmCmp(b *testing.B) {
-	var ll int
-	for i := 0; i < b.N; i++ {
-		for _, x := range lengths {
-			ll = logLength(x, x.BitLen())
-		}
-	}
-	gl = ll
-}
-
-func BenchmarkLogarithmNoCmp(b *testing.B) {
-	var ll int
-	for i := 0; i < b.N; i++ {
-		for _, x := range lengths {
-			ll = logLengthNoCmp(x, x.BitLen())
-		}
-	}
-	gl = ll
-}
-
-func BenchmarkLogarithmIterative(b *testing.B) {
-	var ll int
-	for i := 0; i < b.N; i++ {
-		for _, x := range lengths {
-			ll = logLengthIter(x)
-		}
+		ll = BigLength(lengths[i%len(lengths)])
 	}
 	gl = ll
 }
