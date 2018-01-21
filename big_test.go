@@ -3,6 +3,7 @@ package decimal_test
 import (
 	"math"
 	"math/big"
+	"math/rand"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,10 +33,38 @@ func TestBig_SignBit(t *testing.T)    { test.Signbit.Test(t) }
 func TestBig_String(t *testing.T)     { test.CTS.Test(t) }
 func TestBig_Sub(t *testing.T)        { test.Sub.Test(t) }
 
+var rnd = rand.New(rand.NewSource(0))
+
+func rndn(min, max int) int {
+	return rnd.Intn(max-min) + min
+}
+
+func randDec() string {
+	b := make([]byte, rndn(5, 50))
+	for i := range b {
+		b[i] = '0' + byte(rndn(0, 10))
+	}
+	if rnd.Intn(10) != 0 {
+		b[rndn(2, len(b))] = '.'
+	}
+	if b[0] == '0' {
+		if b[1] == '0' && b[2] != '.' {
+			b = b[1:]
+		}
+		b[0] = '-'
+	}
+	return string(b)
+}
+
+var randDecs = func() (a [5000]string) {
+	for i := range a {
+		a[i] = randDec()
+	}
+	return a
+}()
+
 func TestBig_Float(t *testing.T) {
-	for i, test := range [...]string{
-		"42", "3.14156", "23423141234", ".44444", "1e+1222", "12e-444", "0",
-	} {
+	for i, test := range randDecs {
 		flt, ok := new(big.Float).SetString(test)
 		if !ok {
 			t.Fatal("!ok")
@@ -49,11 +78,7 @@ func TestBig_Float(t *testing.T) {
 }
 
 func TestBig_Int(t *testing.T) {
-	for i, test := range [...]string{
-		"1.234", "4.567", "11111111111111111111111111111111111.2",
-		"1234234.2321", "121111111111", "44444444.241", "1241.1",
-		"4", "5123", "1.2345123134123414123123213", "0.11", ".1",
-	} {
+	for i, test := range randDecs {
 		a, ok := new(decimal.Big).SetString(test)
 		if !ok {
 			t.Fatalf("#%d: !ok", i)
@@ -65,20 +90,18 @@ func TestBig_Int(t *testing.T) {
 		case x == 0:
 			iv = "0"
 		}
-		n := a.Int(nil)
-		if n.String() != iv {
-			t.Fatalf("#%d: wanted %q, got %q", i, iv, n.String())
+		b, ok := new(big.Int).SetString(iv, 10)
+		if !ok {
+			t.Fatal("!ok")
+		}
+		if n := a.Int(nil); n.Cmp(b) != 0 {
+			t.Fatalf("#%d: wanted %q, got %q", i, b, n)
 		}
 	}
 }
 
 func TestBig_Int64(t *testing.T) {
-	for i, test := range [...]string{
-		"1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
-		"100", "200", "300", "400", "500", "600", "700", "800", "900",
-		"1000", "2000", "4000", "5000", "6000", "7000", "8000", "9000",
-		"1000000", "2000000", "-12", "-500", "-13123213", "12.000000",
-	} {
+	for i, test := range randDecs {
 		a, ok := new(decimal.Big).SetString(test)
 		if !ok {
 			t.Fatalf("#%d: !ok", i)
@@ -91,47 +114,59 @@ func TestBig_Int64(t *testing.T) {
 			iv = "0"
 		}
 		n, ok := a.Int64()
-		if !ok {
-			t.Fatal("!ok")
+		gv, err := strconv.ParseInt(iv, 10, 64)
+		if (err == nil) != ok {
+			t.Fatalf("#%d: wanted %t, got %t", i, err == nil, ok)
 		}
-		if ns := strconv.FormatInt(n, 10); ns != iv {
+		if ok && (n != gv) {
+			t.Fatalf("#%d: wanted %d, got %d", i, gv, n)
+		}
+	}
+}
+
+func TestBig_Uint64(t *testing.T) {
+	for i, test := range randDecs {
+		a, ok := new(decimal.Big).SetString(test)
+		if !ok {
+			t.Fatalf("#%d: !ok", i)
+		}
+		iv := test
+		switch x := strings.IndexByte(test, '.'); {
+		case x > 0:
+			iv = test[:x]
+		case x == 0:
+			iv = "0"
+		}
+		n, ok := a.Uint64()
+		if _, err := strconv.ParseUint(iv, 10, 64); (err == nil) != ok {
+			t.Fatalf("#%d: wanted %t, got %t", i, err == nil, ok)
+		}
+		if !ok {
+			continue
+		}
+		if ns := strconv.FormatUint(n, 10); ns != iv {
 			t.Fatalf("#%d: wanted %q, got %q", i, iv, ns)
 		}
 	}
 }
 
 func TestBig_IsInt(t *testing.T) {
-	for i, test := range [...]string{
-		"1.087581170583171279366331325163992810993060588169144153517806339238748036659594606503711549623097075801903290898984816913699837852618679612062658508694865627080580343806827457751585727929883451128788810220782555198023845932678964045544369555311671308165766927777574386318610481491980102511680466744045522904137471213980283536704254600843996379022514957521",
-		"0 int",
-		"-0 int",
-		"1 int",
-		"-1 int",
-		"0.0120",
-		"444.000 int",
-		"10.000 int",
-		"1.0001e+33333 int",
-		"0.5",
-		"0.011",
-		"1.23",
-		"1.23e1",
-		"1.23e2 int",
-		"0.000000001e+8",
-		"0.000000001e+9 int",
-		"1.2345e200 int",
-		"Inf",
-		"+Inf",
-		"-Inf",
-		"-inf",
-	} {
-		s := strings.TrimSuffix(test, " int")
-		x, ok := new(decimal.Big).SetString(s)
+	allZeros := func(s string) bool {
+		for _, c := range s {
+			if c != '0' {
+				return false
+			}
+		}
+		return true
+	}
+	for i, test := range randDecs {
+		x, ok := new(decimal.Big).SetString(test)
 		if !ok {
 			t.Fatal("TestBig_IsInt !ok")
 		}
-		want := s != test
-		if got := x.IsInt(); got != want {
-			t.Fatalf("#%d: (%q).IsInt() == %t", i, s, got)
+		j := strings.IndexByte(test, '.')
+		if got := x.IsInt(); got != (j < 0 || allZeros(test[j+1:])) {
+			t.Fatalf("#%d: (%q).IsInt() == %t", i, test, got)
 		}
 	}
 }
