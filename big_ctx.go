@@ -110,13 +110,14 @@ func (c Context) tryTinyAdd(z *Big, hi *Big, hineg form, lo *Big, loneg form) (s
 func (c Context) addCompact(z *Big, hi uint64, hineg form, lo uint64, loneg form, shift uint64) (sign form) {
 	sign = hineg
 	if hi, ok := checked.MulPow10(hi, shift); ok {
-		// Try regular addition and fall back to 128-bit addition.
 		if loneg == hineg {
-			if z.compact, ok = checked.Add(hi, lo); !ok {
-				z.precision = arith.BigLength(arith.Add128(&z.unscaled, hi, lo))
-				z.compact = cst.Inflated
-			} else {
+			if z1, z0 := arith.Add128(hi, lo); z1 == 0 {
+				z.compact = z0
 				z.precision = arith.Length(z.compact)
+			} else {
+				arith.Set128(&z.unscaled, z1, z0)
+				z.precision = 20
+				z.compact = cst.Inflated
 			}
 			return sign
 		}
@@ -261,13 +262,13 @@ func (c Context) mul(z, x, y *Big) *Big {
 		// Multiplication is simple, so inline it.
 		if x.isCompact() {
 			if y.isCompact() {
-				if prod, ok := checked.Mul(x.compact, y.compact); ok {
-					z.compact = prod
-					z.precision = arith.Length(z.compact)
+				z1, z0 := arith.Mul128(x.compact, y.compact)
+				if z1 == 0 {
+					z.compact = z0
+					z.precision = arith.Length(z0)
 					return z
 				}
-				// Overflow: use 128 bit multiplication.
-				arith.Mul128(&z.unscaled, x.compact, y.compact)
+				arith.Set128(&z.unscaled, z1, z0)
 			} else { // y.isInflated
 				arith.MulUint64(&z.unscaled, &y.unscaled, x.compact)
 			}
@@ -896,7 +897,7 @@ func (c Context) SetString(z *Big, s string) (*Big, bool) {
 	if _, ok := z.SetString(s); !ok {
 		return nil, false
 	}
-	return c.fix(z), true
+	return c.Round(z), true
 }
 
 // Sub sets z to x - y and returns z.

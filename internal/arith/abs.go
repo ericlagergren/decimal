@@ -19,23 +19,11 @@ func Cmp(x, y uint64) int {
 
 // AbsCmp128 compares |x| and |y|*shift in 128 bits.
 func AbsCmp128(x, y, shift uint64) int {
-	// x is unchanged so its high bits are always 0.
-	const xh = 0
-	yh, yl := mulWW(Word(y), big.Word(shift))
-	if xh != yh {
-		if xh > yh {
-			return +1
-		}
-		return -1
+	y1, y0 := Mul128(y, shift)
+	if y1 != 0 {
+		return +1
 	}
-	xl := Word(x)
-	if xl != yl {
-		if xl > yl {
-			return +1
-		}
-		return -1
-	}
-	return 0
+	return Cmp(x, y0)
 }
 
 func CmpBits(x, y []big.Word) (r int) {

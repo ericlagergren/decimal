@@ -13,48 +13,26 @@ func Add(x, y uint64) (sum uint64, ok bool) {
 	return sum, sum >= x
 }
 
-// Mul returns x * y and a bool indicating whether the multiplication was
-// successful.
-func Mul(x, y uint64) (prod uint64, ok bool) {
-	// Multiplication routine is from https://stackoverflow.com/a/26320664/2967113
-	const (
-		halfbits = 64 / 2
-		halfmax  = 1<<halfbits - 1
-	)
-
-	xhi := x >> halfbits
-	xlo := x & halfmax
-	yhi := y >> halfbits
-	ylo := y & halfmax
-
-	low := xlo * ylo
-	if xhi|yhi == 0 {
-		return low, true
-	}
-
-	m0 := xlo * yhi
-	m1 := xhi * ylo
-	prod = low + (m0+m1)<<halfbits
-	ovf := (xhi != 0 && yhi != 0) || prod < low || m0>>halfbits != 0 || m1>>halfbits != 0
-	return prod, !ovf
-}
-
 // Sub returns x - y and a bool indicating whether the subtraction was successful.
 func Sub(x, y uint64) (diff uint64, ok bool) {
 	diff = x - y
 	return diff, x >= y
 }
 
+func Mul(x, y uint64) (prod uint64, ok bool) {
+	hi, lo := arith.Mul128(x, y)
+	return lo, hi == 0
+}
+
 // MulPow10 computes x * 10**n and a bool indicating whether the multiplcation
 // was successful.
-func MulPow10(x uint64, n uint64) (p uint64, ok bool) {
-	if x == 0 {
-		return 0, true
+func MulPow10(x uint64, n uint64) (uint64, bool) {
+	p, ok := arith.Pow10(n)
+	if !ok {
+		return 0, x == 0
 	}
-	if p, ok = arith.Pow10(n); !ok {
-		return 0, false
-	}
-	return Mul(x, p)
+	z1, z0 := arith.Mul128(x, p)
+	return z0, z1 == 0
 }
 
 // MulBigPow10 sets z to x * 10**n and returns z.

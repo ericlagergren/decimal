@@ -299,8 +299,6 @@ const (
 	Shift
 )
 
-const maxOpLen = 6
-
 var valToOp = map[string]Op{
 	"+":      Add,
 	"-":      Sub,
