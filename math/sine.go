@@ -34,10 +34,7 @@ import (
 	"github.com/ericlagergren/decimal"
 )
 
-var (
-	sine4NMaxN        = uint64((stdMath.Sqrt(4.0*float64(stdMath.MaxUint64)+1.0) + 1.0) / 4.0)
-	sinePrecisionList = make(map[int]int)
-)
+var sine4NMaxN = uint64((stdMath.Sqrt(4.0*float64(stdMath.MaxUint64)+1.0) + 1.0) / 4.0)
 
 func prepareSineInput(precision int, xValue *decimal.Big) (*decimal.Big, *decimal.Big, error) {
 	c2Pi := Pi(decimal.WithPrecision(precision + defaultExtraPrecision))
@@ -116,9 +113,9 @@ func getSineQ(precision int) func(n uint64) *decimal.Big {
 // Input range : all real numbers
 // Output range: -1 <= Sin() <= 1
 // Notes:
-//  	Sin(-Inf) ->   NaN
+//		Sin(-Inf) ->   NaN
 //		Sin(Inf)  ->   NaN
-//      Sin(NaN)  ->   NaN
+//		Sin(NaN)  ->   NaN
 //		Sin(nil)  -> error
 func Sin(z *decimal.Big, theta *decimal.Big) (*decimal.Big, error) {
 	calculatingPrecision := z.Context.Precision + defaultExtraPrecision

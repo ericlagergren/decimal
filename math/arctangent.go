@@ -34,7 +34,7 @@ import (
 	"github.com/ericlagergren/decimal"
 )
 
-var AtanMax = uint64((stdMath.MaxUint64 - 1) / 2)
+var atanMax = uint64((stdMath.MaxUint64 - 1) / 2)
 
 func prepareAtanInput(precision int, xValue *decimal.Big) (*decimal.Big, *decimal.Big, *decimal.Big, int, int) {
 	calculatingPrecision := precision + defaultExtraPrecision
@@ -131,7 +131,7 @@ func getAtanQ(precision int, xSqPlus1 *decimal.Big) func(n uint64) *decimal.Big 
 		//most of the time n will be a small number so
 		// use the fastest method to calculate (2n+1)
 		var c2NPlus1 *decimal.Big
-		if n < AtanMax {
+		if n < atanMax {
 			c2NPlus1 = new(decimal.Big).SetUint64((n << 1) + 1)
 		}
 		c2N := decimal.WithPrecision(precision).SetUint64(n)
@@ -141,13 +141,13 @@ func getAtanQ(precision int, xSqPlus1 *decimal.Big) func(n uint64) *decimal.Big 
 	}
 }
 
-//Atan returns the Atangent value in radians.
+//Atan returns the arctangent value in radians.
 // Input range : all real numbers
 // Output range: -pi/2 <= Atan() <= pi/2
 // Notes:
-//  	Atan(-Inf) -> -pi/2
+//		Atan(-Inf) -> -pi/2
 //		Atan(Inf)  ->  pi/2
-//      Atan(NaN)  ->   NaN
+//		Atan(NaN)  ->   NaN
 //		Atan(nil)  -> error
 func Atan(z *decimal.Big, value *decimal.Big) (*decimal.Big, error) {
 	calculatingPrecision := z.Context.Precision + defaultExtraPrecision

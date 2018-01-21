@@ -34,10 +34,7 @@ import (
 	"github.com/ericlagergren/decimal"
 )
 
-var (
-	cosine4NMaxN     = uint64((stdMath.Sqrt(4.0*float64(stdMath.MaxUint64)+1.0) + 1.0) / 4.0)
-	cosPrecisionList = make(map[int]int)
-)
+var cosine4NMaxN = uint64((stdMath.Sqrt(4.0*float64(stdMath.MaxUint64)+1.0) + 1.0) / 4.0)
 
 func prepareCosineInput(precision int, xValue *decimal.Big) (*decimal.Big, int, error) {
 	c2Pi := Pi(decimal.WithPrecision(precision))
@@ -146,13 +143,13 @@ func getCosineQ(precision int) func(n uint64) *decimal.Big {
 	}
 }
 
-//Cos returns the Cosine of theta(radians).
+//Cos returns the cosine of theta(radians).
 // Input range : all real numbers
 // Output range: -1 <= Cos() <= 1
 // Notes:
-//  	Cos(-Inf) ->   NaN
+//		Cos(-Inf) ->   NaN
 //		Cos(Inf)  ->   NaN
-//      Cos(NaN)  ->   NaN
+//		Cos(NaN)  ->   NaN
 //		Cos(nil)  -> error
 func Cos(z *decimal.Big, theta *decimal.Big) (*decimal.Big, error) {
 	calculatingPrecision := z.Context.Precision + defaultExtraPrecision

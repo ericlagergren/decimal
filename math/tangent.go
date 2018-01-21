@@ -77,14 +77,12 @@ func prepareTangentInput(precision int, theta *decimal.Big) (*decimal.Big, error
 // Input range : -pi/2 <= theta <= pi/2
 // Output range: all real numbers
 // Notes:
-//  	Tan(-Inf) ->   NaN
+//		Tan(-Inf) ->   NaN
 //		Tan(Inf)  ->   NaN
-//      Tan(NaN)  ->   NaN
+//		Tan(NaN)  ->   NaN
 //		Tan(nil)  -> error
 func Tan(z *decimal.Big, theta *decimal.Big) (*decimal.Big, error) {
 	//tan(x) = sign(x)*sqrt(1/cos(x)^2-1)
-	// //assume we lose a digit with / ^ and sqrt (3)
-
 	if theta == nil {
 		return nil, fmt.Errorf("there was an error, input value was nil")
 	}
