@@ -33,7 +33,7 @@ import (
 	"github.com/ericlagergren/decimal"
 )
 
-func TestArccos(t *testing.T) {
+func TestAcos(t *testing.T) {
 	type args struct {
 		z     *decimal.Big
 		value *decimal.Big
@@ -54,15 +54,15 @@ func TestArccos(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Arccos(tt.args.z, tt.args.value)
+			got, err := Acos(tt.args.z, tt.args.value)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Arccos() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Acos() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			diff := decimal.WithPrecision(tt.args.z.Context.Precision).Sub(tt.want, got)
 			errorBounds := decimal.New(1, tt.args.z.Context.Precision)
 			if errorBounds.CmpAbs(diff) <= 0 {
-				t.Errorf("Arccos(%v) = %v\nwant %v\ndiff: %v\n", tt.args.value, got, tt.want, diff)
+				t.Errorf("Acos(%v) = %v\nwant %v\ndiff: %v\n", tt.args.value, got, tt.want, diff)
 
 			}
 		})
