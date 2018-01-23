@@ -76,10 +76,10 @@ func prepareTangentInput(precision int, theta *decimal.Big) (*decimal.Big, bool)
 // Input range : -pi/2 <= theta <= pi/2
 // Output range: all real numbers
 // Notes:
-//		Tan(-Inf) ->   NaN
-//		Tan(Inf)  ->   NaN
-//		Tan(NaN)  ->   NaN
+//		Tan(NaN)    -> NaN
+//		Tan(+/-Inf) -> NaN
 func Tan(z *decimal.Big, theta *decimal.Big) *decimal.Big {
+	//here we use the formula
 	//tan(x) = sign(x)*sqrt(1/cos(x)^2-1)
 
 	if theta.IsInf(0) || theta.IsNaN(0) {

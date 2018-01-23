@@ -146,9 +146,8 @@ func getCosineQ(precision int) func(n uint64) *decimal.Big {
 // Input range : all real numbers
 // Output range: -1 <= Cos() <= 1
 // Notes:
-//		Cos(-Inf) ->   NaN
-//		Cos(Inf)  ->   NaN
-//		Cos(NaN)  ->   NaN
+//		Cos(NaN)    -> NaN
+//		Cos(+/-Inf) -> NaN
 func Cos(z *decimal.Big, theta *decimal.Big) *decimal.Big {
 	calculatingPrecision := z.Context.Precision + defaultExtraPrecision
 
