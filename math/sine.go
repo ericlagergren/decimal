@@ -28,95 +28,18 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 import (
-	"fmt"
-	stdMath "math"
-
 	"github.com/ericlagergren/decimal"
 )
-
-var sine4NMaxN = uint64((stdMath.Sqrt(4.0*float64(stdMath.MaxUint64)+1.0) + 1.0) / 4.0)
-
-func prepareSineInput(precision int, xValue *decimal.Big) (*decimal.Big, *decimal.Big, error) {
-	c2Pi := Pi(decimal.WithPrecision(precision + defaultExtraPrecision))
-	c2Pi = c2Pi.Mul(c2Pi, two)
-	var x *decimal.Big
-	//we need to make sure the value we're working with a value is closer to zero (for better results)
-	if c2Pi.CmpAbs(xValue) < 0 {
-		//for cos to work correctly the input
-		// must be |xValue|< 2Pi so we'll fix it
-
-		v := decimal.WithPrecision(precision+defaultExtraPrecision).QuoInt(xValue, c2Pi)
-		vInt, ok := v.Int64()
-		if !ok {
-			return nil, nil, fmt.Errorf("theta input value was to large")
-		}
-		//now we'll resize Pi to be a more accurate precision
-		piPrecision := precision + defaultExtraPrecision + int(stdMath.Ceil(stdMath.Abs(float64(vInt))/float64(10)))
-		piMultiplier := decimal.New(2*vInt, 0)
-		toRemove := Pi(decimal.WithPrecision(piPrecision))
-		toRemove = toRemove.Mul(toRemove, piMultiplier)
-		//so toRemove = 2*Pi*vInt so
-		// xValue-toRemove < 2*Pi
-		//add 1 to the precision for the up comming squaring
-		x = decimal.WithPrecision(precision+defaultExtraPrecision).Sub(xValue, toRemove)
-	} else {
-		//add 1 to the precision for the up comming squaring
-		x = decimal.WithPrecision(precision + defaultExtraPrecision).Copy(xValue)
-	}
-	xsq := decimal.WithPrecision(precision+defaultExtraPrecision).Mul(x, x)
-
-	//we need to make sure the value we're working with is closer to zero (better for better results)
-	return x.Round(precision), (xsq.Neg(xsq)).Round(precision), nil
-}
-
-func getSineA() func(n uint64) *decimal.Big {
-	return func(n uint64) *decimal.Big {
-		return one
-	}
-}
-
-func getSineP(x, negXSq *decimal.Big) func(n uint64) *decimal.Big {
-	return func(n uint64) *decimal.Big {
-		if n == 0 {
-			return x
-		}
-		return negXSq
-	}
-}
-
-func getSineB() func(n uint64) *decimal.Big {
-	return func(n uint64) *decimal.Big {
-		return one
-	}
-}
-
-func getSineQ(precision int) func(n uint64) *decimal.Big {
-	return func(n uint64) *decimal.Big {
-		//(0) = 1, q(n) = 2n(2n+1) for n > 0
-		if n == 0 {
-			return one
-		}
-
-		//most of the time n will be a small number so
-		// use the fastest method to calculate 2n(2n+1)
-		if n < sine4NMaxN {
-			return new(decimal.Big).SetUint64(((n * n) << 2) + (n << 1))
-		}
-		c2N := new(decimal.Big).SetUint64(n)
-		c2N.Mul(c2N, two)
-		c2NPlus1 := decimal.WithPrecision(precision).Add(c2N, one)
-		return decimal.WithPrecision(precision).Mul(c2N, c2NPlus1)
-	}
-}
 
 //Sin returns the sine of theta(radians).
 // Input range : all real numbers
 // Output range: -1 <= Sin() <= 1
 // Notes:
-//		Sin(-Inf) ->   NaN
-//		Sin(Inf)  ->   NaN
-//		Sin(NaN)  ->   NaN
+//		Sin(NaN)    -> NaN
+//		Sin(+/-Inf) -> NaN
 func Sin(z *decimal.Big, theta *decimal.Big) *decimal.Big {
+	//here we use the formula
+	// Sin(theta) = Cos(pi/2 - theta)
 	calculatingPrecision := z.Context.Precision + defaultExtraPrecision
 
 	if theta.IsInf(0) || theta.IsNaN(0) {

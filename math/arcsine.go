@@ -35,20 +35,18 @@ import (
 // Input range : -1 <= value <= 1
 // Output range: -pi/2 <= Asin() <= pi/2
 // Notes:
-//		Asin(-1)		-> -pi/2
-//		Asin(1)			->  pi/2
-//		Asin(NaN)		->   NaN
-//		Asin(|value|>1)	->   NaN
-//		Asin(+/-Inf)	->   NaN
+//		Asin(NaN)       -> NaN
+//		Asin(+/-Inf)    -> NaN
+//		Asin(|value|>1) -> NaN
+//		Asin(+/-1)      -> +/-pi/2
 func Asin(z *decimal.Big, value *decimal.Big) *decimal.Big {
-	// here we'll use the half-angle formula
+	// here we'll use the formula
 	// Asin(x) = 2atan(x/(1+sqrt(1-x*x)))
 	calculatingPrecision := z.Context.Precision + defaultExtraPrecision
 
 	if value.IsInf(0) || value.IsNaN(0) || one.CmpAbs(value) < 0 {
 		z.Context.Conditions |= decimal.InvalidOperation
 		return z.SetNaN(false)
-		//TODO remove: return nil, fmt.Errorf("input value must be between [-1,1]")
 	}
 
 	if one.CmpAbs(value) == 0 {

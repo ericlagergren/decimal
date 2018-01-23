@@ -144,9 +144,8 @@ func getAtanQ(precision int, xSqPlus1 *decimal.Big) func(n uint64) *decimal.Big 
 // Input range : all real numbers
 // Output range: -pi/2 <= Atan() <= pi/2
 // Notes:
-//		Atan(-Inf) -> -pi/2
-//		Atan(Inf)  ->  pi/2
-//		Atan(NaN)  ->   NaN
+//		Atan(NaN)    -> NaN
+//		Atan(+/-Inf) -> +/-pi/2
 func Atan(z *decimal.Big, value *decimal.Big) *decimal.Big {
 	calculatingPrecision := z.Context.Precision + defaultExtraPrecision
 
@@ -197,7 +196,7 @@ func Atan(z *decimal.Big, value *decimal.Big) *decimal.Big {
 // (output consistent with golang's math.atan2)
 // y input range : all real numbers
 // x input range : all real numbers
-// Output range: -pi/2 < Atan2(y,x) <= pi/2
+// Output range: -pi < Atan2(y,x) <= pi
 //
 // Notes:
 //		Atan2(NaN, NaN)		-> NaN

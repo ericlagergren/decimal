@@ -35,11 +35,11 @@ import (
 // Input range : -1 <= value <= 1
 // Output range: 0 <= Acos() <= pi
 // Notes:
-//		Acos(-1)			->  pi
-//		Acos(1)				->   0
-//		Acos(NaN) 			-> NaN
-//		Acos(|value| > 1)	-> NaN
-//		Acos(+/-Inf)		-> NaN
+//		Acos(NaN)         -> NaN
+//		Acos(+/-Inf)      -> NaN
+//		Acos(|value| > 1) -> NaN
+//		Acos(-1)          -> pi
+//		Acos(1)           -> 0
 func Acos(z *decimal.Big, value *decimal.Big) *decimal.Big {
 	// here we'll use the half-angle formula
 	// Acos(x) = pi/2 - arcsin(x)
