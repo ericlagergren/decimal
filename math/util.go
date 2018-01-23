@@ -6,8 +6,11 @@ import (
 
 var (
 	negfour   = decimal.New(-4, 0)
+	zero      = decimal.New(0, 0)
 	one       = decimal.New(1, 0)
 	two       = decimal.New(2, 0)
+	three     = decimal.New(3, 0)
+	four      = decimal.New(4, 0)
 	six       = decimal.New(6, 0)
 	eight     = decimal.New(8, 0)
 	eleven    = decimal.New(11, 0)
