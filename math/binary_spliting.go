@@ -81,13 +81,12 @@ type apbqBinarySplitState struct {
 
 //BinarySplitCalculate calculates using the APBQ version of Binary Split algorithm
 // the function should be used when the number of terms is known a priori
+// inclusiveNStart < exclusiveNStop
 func BinarySplitCalculate(precision int, inclusiveNStart, exclusiveNStop uint64,
 	A func(n uint64) *decimal.Big, P func(n uint64) *decimal.Big,
 	B func(n uint64) *decimal.Big, Q func(n uint64) *decimal.Big) (*decimal.Big, error) {
 	diff := exclusiveNStop - inclusiveNStart
 	switch {
-	case inclusiveNStart < 0:
-		return nil, fmt.Errorf("the Start value must be equal to 0 or larger")
 	case diff == 0:
 		return nil, fmt.Errorf("the Start and End must be not be the same value")
 	case diff < 0:
@@ -105,7 +104,7 @@ func BinarySplitCalculate(precision int, inclusiveNStart, exclusiveNStop uint64,
 // somewhat slower than BinarySplitCalculate due to the checking for steady state
 func BinarySplitDynamicCalculate(precision int,
 	A func(n uint64) *decimal.Big, P func(n uint64) *decimal.Big,
-	B func(n uint64) *decimal.Big, Q func(n uint64) *decimal.Big) (*decimal.Big, error) {
+	B func(n uint64) *decimal.Big, Q func(n uint64) *decimal.Big) *decimal.Big {
 
 	//for this algorithm we start with a standard 16 terms to mark the first return values status,
 	// then we calculate the next 4 terms and mark the difference (if ZERO return as is else repeat +4 terms until at least
@@ -140,7 +139,7 @@ func BinarySplitDynamicCalculate(precision int,
 			if markValue1.Cmp(markValue2) == 0 {
 				//value isn't changing! we're found
 				//our target end term just return the value
-				return markValue2, nil
+				return markValue2
 			}
 			//if not equal one of two things could be happening
 			// 1)markValue2 approaching a value away from markValue1 (something not close to markValue1)
@@ -163,11 +162,11 @@ func BinarySplitDynamicCalculate(precision int,
 			//if not equal take the difference and figure out if we
 			// have at least one digit of precision gained
 			diff := decimal.WithPrecision(precision).Sub(markValue1, markValue2).Reduce()
-			
+
 			//here's the one case where we need to do a check for
 			// something 1E-Precision if equal to or less than
 			if diffToCompare.CmpAbs(diff) >= 0 {
-				return markValue2, nil
+				return markValue2
 			}
 
 			//we want to have at least 1 digit which really means we

@@ -28,8 +28,6 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 import (
-	"fmt"
-
 	"github.com/ericlagergren/decimal"
 )
 
@@ -37,42 +35,32 @@ import (
 // Input range : -1 <= value <= 1
 // Output range: 0 <= Acos() <= pi
 // Notes:
-//		Acos(-1)  ->    pi
-//		Acos(1)   ->     0
-//		Acos(NaN) ->   NaN
-//		Acos(nil) -> error
-//		|value| > 1 -> error
-func Acos(z *decimal.Big, value *decimal.Big) (*decimal.Big, error) {
+//		Acos(-1)			->  pi
+//		Acos(1)				->   0
+//		Acos(NaN) 			-> NaN
+//		Acos(|value| > 1)	-> NaN
+//		Acos(+/-Inf)		-> NaN
+func Acos(z *decimal.Big, value *decimal.Big) *decimal.Big {
 	// here we'll use the half-angle formula
 	// Acos(x) = pi/2 - arcsin(x)
 	calculatingPrecision := z.Context.Precision + defaultExtraPrecision
 
-	if value == nil {
-		return nil, fmt.Errorf("there was an error, input value was nil")
-	}
-
-	if value.IsInf(0) || one.CmpAbs(value) < 0 {
-		return nil, fmt.Errorf("input value must be between [-1,1]")
-	}
-
-	if value.IsNaN(0) {
-		return decimal.WithPrecision(z.Context.Precision).SetNaN(value.Signbit()), nil
+	if value.IsInf(0) || one.CmpAbs(value) < 0 || value.IsNaN(0) {
+		z.Context.Conditions |= decimal.InvalidOperation
+		return z.SetNaN(false)
 	}
 
 	if one.CmpAbs(value) == 0 {
 		if value.Signbit() {
-			return Pi(decimal.WithPrecision(calculatingPrecision)).Round(z.Context.Precision), nil
+			return Pi(z)
 		}
-		return zero, nil
+		return z.SetMantScale(0, 0)
 	}
 
-	result, err := Asin(decimal.WithPrecision(calculatingPrecision), value)
-	if err != nil {
-		return nil, fmt.Errorf("could not calculate Acos(%v), there was an error %v", value, err)
-	}
+	result := Asin(decimal.WithPrecision(calculatingPrecision), value)
 
 	piOver2 := Pi(decimal.WithPrecision(calculatingPrecision))
 	piOver2.Quo(piOver2, two)
 	result = result.Sub(piOver2, result)
-	return z.Set(result), nil
+	return z.Set(result)
 }

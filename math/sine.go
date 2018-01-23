@@ -116,25 +116,16 @@ func getSineQ(precision int) func(n uint64) *decimal.Big {
 //		Sin(-Inf) ->   NaN
 //		Sin(Inf)  ->   NaN
 //		Sin(NaN)  ->   NaN
-//		Sin(nil)  -> error
-func Sin(z *decimal.Big, theta *decimal.Big) (*decimal.Big, error) {
+func Sin(z *decimal.Big, theta *decimal.Big) *decimal.Big {
 	calculatingPrecision := z.Context.Precision + defaultExtraPrecision
 
-	if theta == nil {
-		return nil, fmt.Errorf("there was an error, input value was nil")
-	}
-
 	if theta.IsInf(0) || theta.IsNaN(0) {
-		return decimal.WithPrecision(z.Context.Precision).SetNaN(theta.Signbit()), nil
+		z.Context.Conditions |= decimal.InvalidOperation
+		return z.SetNaN(false)
 	}
 
 	piOver2 := Pi(decimal.WithPrecision(calculatingPrecision))
 	piOver2.Quo(piOver2, two)
 
-	result, err := Cos(decimal.WithPrecision(calculatingPrecision), piOver2.Sub(piOver2, theta))
-	if err != nil {
-		return nil, fmt.Errorf("could not calculate Sin(%v), there was an error %v", theta, err)
-	}
-
-	return z.Set(result), nil
+	return z.Set(Cos(decimal.WithPrecision(calculatingPrecision), piOver2.Sub(piOver2, theta)))
 }
