@@ -28,13 +28,12 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 import (
-	"fmt"
 	stdMath "math"
 
 	"github.com/ericlagergren/decimal"
 )
 
-func prepareTangentInput(precision int, theta *decimal.Big) (*decimal.Big, error) {
+func prepareTangentInput(precision int, theta *decimal.Big) (*decimal.Big, bool) {
 	cPi := Pi(decimal.WithPrecision(precision))
 	cPiOver2 := decimal.WithPrecision(precision).Quo(cPi, two)
 	var x *decimal.Big
@@ -55,7 +54,7 @@ func prepareTangentInput(precision int, theta *decimal.Big) (*decimal.Big, error
 		}
 		mInt, ok := m.Int64()
 		if !ok {
-			return nil, fmt.Errorf("theta input value was to large")
+			return nil, false
 		}
 		//now we'll resize Pi to be a more accurate precision
 		piPrecision := precision + int(stdMath.Ceil(stdMath.Abs(float64(mInt))/float64(10)))
@@ -70,7 +69,7 @@ func prepareTangentInput(precision int, theta *decimal.Big) (*decimal.Big, error
 		//add 1 to the precision for the up comming squaring
 		x = decimal.WithPrecision(precision + 1).Copy(theta)
 	}
-	return x, nil
+	return x, true
 }
 
 //Tan returns the tangent of theta(radians).
@@ -80,21 +79,19 @@ func prepareTangentInput(precision int, theta *decimal.Big) (*decimal.Big, error
 //		Tan(-Inf) ->   NaN
 //		Tan(Inf)  ->   NaN
 //		Tan(NaN)  ->   NaN
-//		Tan(nil)  -> error
-func Tan(z *decimal.Big, theta *decimal.Big) (*decimal.Big, error) {
+func Tan(z *decimal.Big, theta *decimal.Big) *decimal.Big {
 	//tan(x) = sign(x)*sqrt(1/cos(x)^2-1)
-	if theta == nil {
-		return nil, fmt.Errorf("there was an error, input value was nil")
-	}
 
 	if theta.IsInf(0) || theta.IsNaN(0) {
-		return decimal.WithPrecision(z.Context.Precision).SetNaN(theta.Signbit()), nil
+		z.Context.Conditions |= decimal.InvalidOperation
+		return z.SetNaN(false)
 	}
 
 	calculatingPrecision := z.Context.Precision + defaultExtraPrecision
-	x, err := prepareTangentInput(calculatingPrecision, theta)
-	if err != nil {
-		return nil, fmt.Errorf("could not prepare value %v, there was an error %v", theta, err)
+	x, ok := prepareTangentInput(calculatingPrecision, theta)
+	if !ok {
+		z.Context.Conditions |= decimal.InvalidOperation
+		return z.SetNaN(false)
 	}
 
 	// tangent has an asymptote at pi/2 and we'll need more precision as we get closer
@@ -119,10 +116,7 @@ func Tan(z *decimal.Big, theta *decimal.Big) (*decimal.Big, error) {
 		tmpCalculation = calculatingPrecision + dd.Scale() - dd.Precision()
 	}
 
-	result, err := Cos(decimal.WithPrecision(tmpCalculation), x)
-	if err != nil {
-		return nil, fmt.Errorf("could not calculate Tan(%v), there was an error %v", x, err)
-	}
+	result := Cos(decimal.WithPrecision(tmpCalculation), x)
 
 	result = decimal.WithPrecision(calculatingPrecision).Copy(result)
 	result = result.Mul(result, result)
@@ -134,5 +128,5 @@ func Tan(z *decimal.Big, theta *decimal.Big) (*decimal.Big, error) {
 		result.Neg(result)
 	}
 
-	return z.Set(result), nil
+	return z.Set(result)
 }

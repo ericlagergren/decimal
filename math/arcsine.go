@@ -28,8 +28,6 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 import (
-	"fmt"
-
 	"github.com/ericlagergren/decimal"
 )
 
@@ -37,26 +35,20 @@ import (
 // Input range : -1 <= value <= 1
 // Output range: -pi/2 <= Asin() <= pi/2
 // Notes:
-//		Asin(-1)  -> -pi/2
-//		Asin(1)   ->  pi/2
-//		Asin(NaN) ->   NaN
-//		Asin(nil) -> error
-//		|value| > 1 -> error
-func Asin(z *decimal.Big, value *decimal.Big) (*decimal.Big, error) {
+//		Asin(-1)		-> -pi/2
+//		Asin(1)			->  pi/2
+//		Asin(NaN)		->   NaN
+//		Asin(|value|>1)	->   NaN
+//		Asin(+/-Inf)	->   NaN
+func Asin(z *decimal.Big, value *decimal.Big) *decimal.Big {
 	// here we'll use the half-angle formula
 	// Asin(x) = 2atan(x/(1+sqrt(1-x*x)))
 	calculatingPrecision := z.Context.Precision + defaultExtraPrecision
 
-	if value == nil {
-		return nil, fmt.Errorf("there was an error, input value was nil")
-	}
-
-	if value.IsInf(0) || one.CmpAbs(value) < 0 {
-		return nil, fmt.Errorf("input value must be between [-1,1]")
-	}
-
-	if value.IsNaN(0) {
-		return decimal.WithPrecision(z.Context.Precision).SetNaN(value.Signbit()), nil
+	if value.IsInf(0) || value.IsNaN(0) || one.CmpAbs(value) < 0 {
+		z.Context.Conditions |= decimal.InvalidOperation
+		return z.SetNaN(false)
+		//TODO remove: return nil, fmt.Errorf("input value must be between [-1,1]")
 	}
 
 	if one.CmpAbs(value) == 0 {
@@ -67,15 +59,13 @@ func Asin(z *decimal.Big, value *decimal.Big) (*decimal.Big, error) {
 			piOver2.Neg(piOver2)
 		}
 
-		return piOver2, nil
+		return z.Set(piOver2)
 	}
 
 	xsq := decimal.WithPrecision(calculatingPrecision).Mul(value, value)
 	x := xsq.Quo(value, xsq.Add(Sqrt(xsq, xsq.Sub(one, xsq)), one))
-	result, err := Atan(decimal.WithPrecision(calculatingPrecision), x)
-	if err != nil {
-		return nil, fmt.Errorf("could not calculate Asin(%v), there was an error %v", value, err)
-	}
+	result := Atan(decimal.WithPrecision(calculatingPrecision), x)
+
 	result = result.Mul(two, result)
-	return z.Set(result), nil
+	return z.Set(result)
 }

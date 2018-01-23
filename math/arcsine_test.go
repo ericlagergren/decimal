@@ -42,23 +42,19 @@ func TestAsin(t *testing.T) {
 		name    string
 		args    args
 		want    *decimal.Big
-		wantErr bool
 	}{
-		{"0", args{decimal.WithPrecision(100), newDecimal("0")}, newDecimal("0"), false},
-		{"1", args{decimal.WithPrecision(100), newDecimal("1.00")}, newDecimal("1.570796326794896619231321691639751442098584699687552910487472296153908203143104499314017412671058534"), false},
-		{"2", args{decimal.WithPrecision(100), newDecimal("-1.00")}, newDecimal("-1.570796326794896619231321691639751442098584699687552910487472296153908203143104499314017412671058534"), false},
-		{"3", args{decimal.WithPrecision(100), newDecimal("0.5")}, newDecimal("0.5235987755982988730771072305465838140328615665625176368291574320513027343810348331046724708903528447"), false},
-		{"4", args{decimal.WithPrecision(100), newDecimal("-0.50")}, newDecimal("-0.5235987755982988730771072305465838140328615665625176368291574320513027343810348331046724708903528447"), false},
+		{"0", args{decimal.WithPrecision(100), newDecimal("0")}, newDecimal("0")},
+		{"1", args{decimal.WithPrecision(100), newDecimal("1.00")}, newDecimal("1.570796326794896619231321691639751442098584699687552910487472296153908203143104499314017412671058534")},
+		{"2", args{decimal.WithPrecision(100), newDecimal("-1.00")}, newDecimal("-1.570796326794896619231321691639751442098584699687552910487472296153908203143104499314017412671058534")},
+		{"3", args{decimal.WithPrecision(100), newDecimal("0.5")}, newDecimal("0.5235987755982988730771072305465838140328615665625176368291574320513027343810348331046724708903528447")},
+		{"4", args{decimal.WithPrecision(100), newDecimal("-0.50")}, newDecimal("-0.5235987755982988730771072305465838140328615665625176368291574320513027343810348331046724708903528447")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Asin(tt.args.z, tt.args.value)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Asin() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
+			got := Asin(tt.args.z, tt.args.value)
 			diff := decimal.WithPrecision(tt.args.z.Context.Precision).Sub(tt.want, got)
 			errorBounds := decimal.New(1, tt.args.z.Context.Precision)
+
 			if errorBounds.CmpAbs(diff) <= 0 {
 				t.Errorf("Asin(%v) = %v\nwant %v\ndiff: %v\n", tt.args.value, got, tt.want, diff)
 

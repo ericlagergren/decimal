@@ -28,7 +28,6 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 import (
-	"fmt"
 	stdMath "math"
 
 	"github.com/ericlagergren/decimal"
@@ -36,7 +35,7 @@ import (
 
 var cosine4NMaxN = uint64((stdMath.Sqrt(4.0*float64(stdMath.MaxUint64)+1.0) + 1.0) / 4.0)
 
-func prepareCosineInput(precision int, xValue *decimal.Big) (*decimal.Big, int, error) {
+func prepareCosineInput(precision int, xValue *decimal.Big) (*decimal.Big, int, bool) {
 	c2Pi := Pi(decimal.WithPrecision(precision))
 	c2Pi = c2Pi.Mul(c2Pi, two)
 	var x *decimal.Big
@@ -49,7 +48,7 @@ func prepareCosineInput(precision int, xValue *decimal.Big) (*decimal.Big, int, 
 		v := decimal.WithPrecision(calculatingPrecision).QuoInt(xValue, c2Pi)
 		vInt, ok := v.Int64()
 		if !ok {
-			return nil, 0, fmt.Errorf("theta input value was to large")
+			return nil, 0, false
 		}
 		//now we'll resize Pi to be a more accurate precision
 		piPrecision := precision + int(stdMath.Ceil(stdMath.Abs(float64(vInt))/float64(10)))
@@ -100,7 +99,7 @@ func prepareCosineInput(precision int, xValue *decimal.Big) (*decimal.Big, int, 
 	//lastly do the
 	x.Mul(x, x)
 
-	return x.Neg(x), halfed, nil
+	return x.Neg(x), halfed, true
 }
 
 func getCosineA() func(n uint64) *decimal.Big {
@@ -150,30 +149,23 @@ func getCosineQ(precision int) func(n uint64) *decimal.Big {
 //		Cos(-Inf) ->   NaN
 //		Cos(Inf)  ->   NaN
 //		Cos(NaN)  ->   NaN
-//		Cos(nil)  -> error
-func Cos(z *decimal.Big, theta *decimal.Big) (*decimal.Big, error) {
+func Cos(z *decimal.Big, theta *decimal.Big) *decimal.Big {
 	calculatingPrecision := z.Context.Precision + defaultExtraPrecision
 
-	if theta == nil {
-		return nil, fmt.Errorf("there was an error, input value was nil")
-	}
-
 	if theta.IsInf(0) || theta.IsNaN(0) {
-		return decimal.WithPrecision(z.Context.Precision).SetNaN(theta.Signbit()), nil
+		z.Context.Conditions |= decimal.InvalidOperation
+		return z.SetNaN(false)
 	}
 
-	negXSq, halfed, err := prepareCosineInput(calculatingPrecision, theta)
-	if err != nil {
-		return nil, fmt.Errorf("could not prepare value %v, there was an error %v", theta, err)
+	negXSq, halfed, ok := prepareCosineInput(calculatingPrecision, theta)
+	if !ok {
+		z.Context.Conditions |= decimal.InvalidOperation
+		return z.SetNaN(false)
 	}
 
 	calculatingPrecision = calculatingPrecision + halfed
-	result, err := BinarySplitDynamicCalculate(calculatingPrecision,
+	result := BinarySplitDynamicCalculate(calculatingPrecision,
 		getCosineA(), getCosineP(negXSq), getCosineB(), getCosineQ(calculatingPrecision))
-
-	if err != nil {
-		return nil, fmt.Errorf("could not calculate Cos(%v), there was an error %v", theta, err)
-	}
 
 	//now undo the half angle bit
 	for i := 0; i < halfed; i++ {
@@ -182,5 +174,5 @@ func Cos(z *decimal.Big, theta *decimal.Big) (*decimal.Big, error) {
 		result = result.Sub(result, one)
 	}
 
-	return result.Round(z.Context.Precision), nil
+	return z.Set(result)
 }

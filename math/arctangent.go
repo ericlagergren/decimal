@@ -28,7 +28,6 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 import (
-	"fmt"
 	stdMath "math"
 
 	"github.com/ericlagergren/decimal"
@@ -148,36 +147,28 @@ func getAtanQ(precision int, xSqPlus1 *decimal.Big) func(n uint64) *decimal.Big 
 //		Atan(-Inf) -> -pi/2
 //		Atan(Inf)  ->  pi/2
 //		Atan(NaN)  ->   NaN
-//		Atan(nil)  -> error
-func Atan(z *decimal.Big, value *decimal.Big) (*decimal.Big, error) {
+func Atan(z *decimal.Big, value *decimal.Big) *decimal.Big {
 	calculatingPrecision := z.Context.Precision + defaultExtraPrecision
 
-	if value == nil {
-		return nil, fmt.Errorf("there was an error, input value was nil")
-	}
-
 	if value.IsInf(0) {
-		z := Pi(z)
-		z.Quo(z, two)
+		piOver2 := Pi(z)
+		piOver2.Quo(piOver2, two)
 
 		if value.IsInf(-1) {
-			z.Neg(z)
+			piOver2.Neg(piOver2)
 		}
 
-		return z, nil
+		return z
 	}
 
 	if value.IsNaN(0) {
-		return decimal.WithPrecision(z.Context.Precision).SetNaN(value.Signbit()), nil
+		z.Context.Conditions |= decimal.InvalidOperation
+		return z.SetNaN(false)
 	}
 
 	y, ySq, ySqPlus1, segment, halfed := prepareAtanInput(calculatingPrecision, value)
-	result, err := BinarySplitDynamicCalculate(calculatingPrecision,
+	result := BinarySplitDynamicCalculate(calculatingPrecision,
 		getAtanA(y), getAtanP(calculatingPrecision, ySq), getAtanB(), getAtanQ(calculatingPrecision, ySqPlus1))
-
-	if err != nil {
-		return nil, fmt.Errorf("could not calculate Atan(%v), there was an error %v", value, err)
-	}
 
 	//undo the double angle part
 	twoMultiplier := Pow(decimal.WithPrecision(calculatingPrecision), two, decimal.New(int64(halfed), 0))
@@ -198,5 +189,167 @@ func Atan(z *decimal.Big, value *decimal.Big) (*decimal.Big, error) {
 		piOver2.Quo(piOver2, two)
 		result = decimal.WithPrecision(calculatingPrecision).Sub(piOver2, result)
 	}
-	return z.Set(result), nil
+	return z.Set(result)
+}
+
+//Atan2 calculates arctan of y/x and uses the signs
+// of y and x to determine valid quadrant
+// (output consistent with golang's math.atan2)
+// y input range : all real numbers
+// x input range : all real numbers
+// Output range: -pi/2 < Atan2(y,x) <= pi/2
+//
+// Notes:
+//		Atan2(NaN, NaN)		-> NaN
+//		Atan2(y, NaN)		-> NaN
+//		Atan2(NaN, x)		-> NaN
+//		Atan2(+/-0, x>=0)	-> +/-0
+//		Atan2(+/-0, x<=-0)	-> +/-pi
+//		Atan2(y>0, 0)		-> +pi/2
+//		Atan2(y<0, 0)		-> -pi/2
+//		Atan2(+/-Inf, +Inf)	-> +/-pi/4
+//		Atan2(+/-Inf, -Inf)	-> +/-3pi/4
+//		Atan2(y, +Inf)		-> 0
+//		Atan2(y>0, -Inf)	-> +pi
+//		Atan2(y<0, -Inf)	-> -pi
+//		Atan2(+/-Inf, x)	-> +/-pi/2
+//		Atan2(y,x>0)		-> Atan(y/x)
+//		Atan2(y>=0, x<0)	-> Atan(y/x) + pi
+//		Atan2(y<0, x<0)		-> Atan(y/x) - pi
+func Atan2(z *decimal.Big, y *decimal.Big, x *decimal.Big) *decimal.Big {
+	//here we basically have a bunch of special cases to handle then
+
+	if x.IsNaN(0) || y.IsNaN(0) {
+		z.Context.Conditions |= decimal.InvalidOperation
+		return z.SetNaN(false)
+	}
+
+	yIsNeg := y.Signbit()
+	xIsNeg := x.Signbit()
+	yIsInf := y.IsInf(0)
+	xIsInf := x.IsInf(0)
+
+	if yIsNeg && xIsNeg {
+		if yIsInf && xIsInf {
+			//Atan2(-Inf, -Inf)	-> -3pi/4
+			negThreePiOver4 := Pi(z)
+			negThreePiOver4.Mul(negThreePiOver4, three)
+			negThreePiOver4.Quo(negThreePiOver4, four)
+			negThreePiOver4.Neg(negThreePiOver4)
+			return z
+		} else if !yIsInf && xIsInf {
+			//Atan2(y<0, -Inf) -> -pi
+			negPi := Pi(z)
+			negPi.Neg(negPi)
+			return z
+		} else if yIsInf && !xIsInf {
+			//Atan2(-Inf, x) -> -pi/2
+			negPiOver2 := Pi(z)
+			negPiOver2.Quo(negPiOver2, two)
+			negPiOver2.Neg(negPiOver2)
+			return z
+		}
+		// else if !yIsInf && !xIsInf
+		if zero.CmpAbs(y) == 0 {
+			//Atan2(-0, x<=-0) -> -pi
+			negPi := Pi(z)
+			negPi.Neg(negPi)
+			return z
+		}
+		//Atan2(y<0, x<0) -> Atan(y/x) - pi
+		v := Atan(z, new(decimal.Big).Quo(y, x))
+		v.Sub(v, Pi(decimal.WithPrecision(z.Context.Precision)))
+		return z.Set(v)
+
+	} else if !yIsNeg && xIsNeg {
+		if yIsInf && xIsInf {
+			//Atan2(+Inf, -Inf)	-> +3pi/4
+			threePiOver4 := Pi(z)
+			threePiOver4.Mul(threePiOver4, three)
+			threePiOver4.Quo(threePiOver4, four)
+			return z
+		} else if !yIsInf && xIsInf {
+			//Atan2(y>0, -Inf) -> +pi
+			return Pi(z)
+		} else if yIsInf && !xIsInf {
+			//Atan2(+Inf, x) -> +pi/2
+			piOver2 := Pi(z)
+			piOver2.Quo(piOver2, two)
+			return z
+		}
+		// else if !yIsInf && !xIsInf
+		if zero.CmpAbs(y) == 0 {
+			//Atan2(+0, x<=-0) -> +pi
+			return Pi(z)
+		}
+		//Atan2(y>=0,x<0) -> Atan(y/x) + pi
+		v := Atan(z, new(decimal.Big).Quo(y, x))
+		v.Add(v, Pi(decimal.WithPrecision(z.Context.Precision)))
+		return z.Set(v)
+	} else if yIsNeg && !xIsNeg {
+
+		if yIsInf && xIsInf {
+			//Atan2(-Inf, +Inf)	-> -pi/4
+			negPiOver4 := Pi(z)
+			negPiOver4.Quo(negPiOver4, four)
+			negPiOver4.Neg(negPiOver4)
+			return z
+		} else if !yIsInf && xIsInf {
+			//Atan2(y, +Inf) -> 0
+			return zero
+		} else if yIsInf && !xIsInf {
+			//Atan2(-Inf, x) -> -pi/2
+			negPiOver2 := Pi(z)
+			negPiOver2.Quo(negPiOver2, two)
+			negPiOver2.Neg(negPiOver2)
+			return z
+		}
+		// else if !yIsInf && !xIsInf
+		switch zero.CmpAbs(y) {
+		case 0:
+			//Atan2(-0, x>=0) -> -0
+			z.Set(zero)
+			z.Neg(z)
+			return z
+		case 1:
+			//Atan2(y<0, 0) -> -pi/2
+			negPiOver2 := Pi(z)
+			negPiOver2.Quo(negPiOver2, two)
+			negPiOver2.Neg(negPiOver2)
+			return z
+		case -1:
+			//Atan2(y,x>0) -> Atan(y/x)
+			return Atan(z, new(decimal.Big).Quo(y, x))
+		}
+
+	}
+	//if !yIsNeg && !xIsNeg
+	if yIsInf && xIsInf {
+		//Atan2(+Inf, +Inf) -> +pi/4
+		piOver4 := Pi(z)
+		piOver4.Quo(piOver4, four)
+		return z
+	} else if !yIsInf && xIsInf {
+		//Atan2(y, +Inf) -> 0
+		return z.Set(zero)
+	} else if yIsInf && !xIsInf {
+		//Atan2(+Inf, x) -> +pi/2
+		piOver2 := Pi(z)
+		piOver2.Quo(piOver2, two)
+		return z
+	}
+	// else if !yIsInf && !xIsInf
+	if zero.CmpAbs(x) == 0 {
+		if zero.CmpAbs(y) == 0 {
+			//Atan2(+0, x>=0) -> +0
+			return z.SetMantScale(0, 0)
+		}
+		//Atan2(y>0, 0) -> +pi/2
+		piOver2 := Pi(z)
+		piOver2.Quo(piOver2, two)
+		return z
+	}
+	//Atan2(y,x>0) -> Atan(y/x)
+	return Atan(z, new(decimal.Big).Quo(y, x))
+
 }
