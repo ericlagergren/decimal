@@ -20,9 +20,11 @@ const (
 )
 
 var (
-	_E    = newDecimal("2.718281828459045235360287471352662497757247093699959574966967627724076630353547594571382178525166427")
-	_Ln10 = newDecimal("2.302585092994045684017991454684364207601101488628772976033327900967572609677352480235997205089598298")
-	_Pi   = newDecimal("3.141592653589793238462643383279502884197169399375105820974944592307816406286208998628034825342117")
+	_E     = newDecimal("2.718281828459045235360287471352662497757247093699959574966967627724076630353547594571382178525166427")
+	_Ln10  = newDecimal("2.302585092994045684017991454684364207601101488628772976033327900967572609677352480235997205089598298")
+	_Pi    = newDecimal("3.141592653589793238462643383279502884197169399375105820974944592307816406286208998628034825342117068")
+	_Pi2   = newDecimal("1.570796326794896619231321691639751442098584699687552910487472296153908203143104499314017412671058534")
+	_Sqrt3 = newDecimal("1.732050807568877293527446341505872366942805253810380628055806979451933016908800037081146186757248576")
 
 	//_Gamma = newDecimal("0.577215664901532860606512090082402431042159335939923598805767234884867726777664670936947063291746749")
 	//_Ln2   = newDecimal("0.693147180559945309417232121458176568075500134360255254120680009493393621969694715605863326996418687")
@@ -58,10 +60,17 @@ func E(z *decimal.Big) *decimal.Big {
 	return ctx.Set(z, sum)
 }
 
-// Pi sets z to the mathematical constant π and returns z.
-func Pi(z *decimal.Big) *decimal.Big {
-	ctx := decimal.Context{Precision: precision(z)}
-	if ctx.Precision <= (constPrec - 3) {
+// pi2 sets z to the mathematical constant pi / 2 and returns z.
+func pi2(z *decimal.Big, ctx decimal.Context) *decimal.Big {
+	if ctx.Precision <= constPrec {
+		return ctx.Set(z, _Pi2)
+	}
+	return ctx.Quo(z, Pi(z, ctx), two)
+}
+
+// Pi sets z to the mathematical constant pi and returns z.
+func Pi(z *decimal.Big, ctx decimal.Context) *decimal.Big {
+	if ctx.Precision <= constPrec {
 		return ctx.Set(z, _Pi)
 	}
 
@@ -110,4 +119,13 @@ func ln10(z *decimal.Big, prec int) *decimal.Big {
 		t:    Term{A: decimal.WithPrecision(prec), B: decimal.WithPrecision(prec)},
 	}
 	return ctx.Quo(z, eighteen /* 9 * 2 */, Lentz(z, &g))
+}
+
+// sqrt3 sets z to sqrt(3) and returns z.
+func sqrt3(z *decimal.Big, ctx decimal.Context) *decimal.Big {
+	if ctx.Precision <= constPrec {
+		return ctx.Set(z, _Sqrt3)
+	}
+	// TODO(eric): get rid of this allocation.
+	return ctx.Set(z, Sqrt(decimal.WithContext(ctx), three))
 }

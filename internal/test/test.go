@@ -60,11 +60,14 @@ const (
 	Sqrt       Test = "square-root"
 )
 
-func (t Test) Test(tt *testing.T) {
-	for s := open(tt, string(t)); s.Next(); {
-		c := s.Case()
-		//fmt.Println(c.c.ShortString(25))
-		c.execute(t)
+func (tst Test) Test(t *testing.T) {
+	s := open(string(tst))
+	for s.Next() {
+		t.Run(string(tst), func(t *testing.T) {
+			c := s.Case(t)
+			t.Parallel() // Call after parsing so we don't goof the scanner.
+			c.execute(tst)
+		})
 	}
 }
 
@@ -143,7 +146,7 @@ func (c *scase) execute(name Test) {
 	}
 }
 
-func open(t *testing.T, name string) (c *scanner) {
+func open(name string) (c *scanner) {
 	fpath := filepath.Join("_testdata", fmt.Sprintf("%s-tables.gz", name))
 	file, err := os.Open(fpath)
 	if err != nil {
@@ -155,7 +158,6 @@ func open(t *testing.T, name string) (c *scanner) {
 	}
 	return &scanner{
 		s:     bufio.NewScanner(gzr),
-		t:     t,
 		close: func() { gzr.Close(); file.Close() },
 	}
 }
@@ -163,7 +165,6 @@ func open(t *testing.T, name string) (c *scanner) {
 type scanner struct {
 	i     int
 	s     *bufio.Scanner
-	t     *testing.T
 	close func()
 }
 
@@ -176,12 +177,12 @@ func (c *scanner) Next() bool {
 	return true
 }
 
-func (c *scanner) Case() *scase {
+func (c *scanner) Case(t *testing.T) *scase {
 	cs, err := suite.ParseCase(c.s.Bytes())
 	if err != nil {
 		panic(err)
 	}
-	return parse(c.t, cs, c.i)
+	return parse(t, cs, c.i)
 }
 
 func ctx(c suite.Case) decimal.Context {

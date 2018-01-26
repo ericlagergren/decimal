@@ -1,63 +1,39 @@
 package math
 
-/*
-Copyright 2018 W. Nathan Hack
-
-Redistribution and use in source and binary forms, with or without modification,
-are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-	list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-	this list of conditions and the following disclaimer in the documentation and/or
-	other materials provided with the distribution.
-
-3. Neither the name of the copyright holder nor the names of its contributors may be
-	used to endorse or promote products derived from this software without specific
-	prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
-OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
-SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
 import (
+	"strconv"
 	"testing"
 
 	"github.com/ericlagergren/decimal"
 )
 
 func TestAsin(t *testing.T) {
-	type args struct {
-		z     *decimal.Big
-		value *decimal.Big
-	}
-	tests := []struct {
-		name    string
-		args    args
-		want    *decimal.Big
+	const N = 100
+	eps := decimal.New(1, N)
+	diff := decimal.WithPrecision(N)
+
+	for i, tt := range [...]struct {
+		x, r string
 	}{
-		{"0", args{decimal.WithPrecision(100), newDecimal("0")}, newDecimal("0")},
-		{"1", args{decimal.WithPrecision(100), newDecimal("1.00")}, newDecimal("1.570796326794896619231321691639751442098584699687552910487472296153908203143104499314017412671058534")},
-		{"2", args{decimal.WithPrecision(100), newDecimal("-1.00")}, newDecimal("-1.570796326794896619231321691639751442098584699687552910487472296153908203143104499314017412671058534")},
-		{"3", args{decimal.WithPrecision(100), newDecimal("0.5")}, newDecimal("0.5235987755982988730771072305465838140328615665625176368291574320513027343810348331046724708903528447")},
-		{"4", args{decimal.WithPrecision(100), newDecimal("-0.50")}, newDecimal("-0.5235987755982988730771072305465838140328615665625176368291574320513027343810348331046724708903528447")},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := Asin(tt.args.z, tt.args.value)
-			diff := decimal.WithPrecision(tt.args.z.Context.Precision).Sub(tt.want, got)
-			errorBounds := decimal.New(1, tt.args.z.Context.Precision)
+		0: {"0", "0"},
+		1: {"1.00", "1.570796326794896619231321691639751442098584699687552910487472296153908203143104499314017412671058534"},
+		2: {"-1.00", "-1.570796326794896619231321691639751442098584699687552910487472296153908203143104499314017412671058534"},
+		3: {"0.5", "0.5235987755982988730771072305465838140328615665625176368291574320513027343810348331046724708903528447"},
+		4: {"-0.50", "-0.5235987755982988730771072305465838140328615665625176368291574320513027343810348331046724708903528447"},
+	} {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			z := decimal.WithPrecision(N)
 
-			if errorBounds.CmpAbs(diff) <= 0 {
-				t.Errorf("Asin(%v) = %v\nwant %v\ndiff: %v\n", tt.args.value, got, tt.want, diff)
+			x, _ := new(decimal.Big).SetString(tt.x)
+			r, _ := new(decimal.Big).SetString(tt.r)
 
+			Asin(z, x)
+			if z.Cmp(r) != 0 || diff.Sub(r, z).CmpAbs(eps) > 0 {
+				t.Errorf(`#%d: Asin(%s)
+wanted: %s
+got   : %s
+diff  : %s
+`, i, x, r, z, diff)
 			}
 		})
 	}
