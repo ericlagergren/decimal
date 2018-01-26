@@ -224,8 +224,8 @@ func (c Context) FMA(z, x, y, u *Big) *Big {
 	if z.validateContext(c) {
 		return z
 	}
-	// Create a temporary reciever in the case z == u so we handle the case
-	// z.FMA(x, y, z) without clobbering z partway through.
+	// Create a temporary reciever if z == u so we handle the z.FMA(x, y, z)
+	// without clobbering z partway through.
 	z0 := z
 	if z == u {
 		z0 = WithContext(c)
