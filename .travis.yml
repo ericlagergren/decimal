@@ -27,4 +27,4 @@ before_script:
 
 script:
   - test -z $(gofmt -s -l $GO_FILES)
-  - go test -tags=ddebug -short -race -v ./... >&2
+  - go test -tags=ddebug -short -race -v ./...
