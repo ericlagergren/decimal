@@ -23,7 +23,6 @@ _testmain.go
 *.test
 *.prof
 
-_test*
 *.tags
 
 .git
@@ -36,7 +35,6 @@ old.*
 literature/
 j/
 *.txt
-!_testdata/
 fuzz/
 benchmarks/decbench
 *.xml

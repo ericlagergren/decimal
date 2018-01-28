@@ -14,6 +14,13 @@ install: true
 notifications:
   email: false
 
+addons:
+  apt:
+    sources:
+      - deadsnakes # source required so it finds the package definition below
+    packages:
+      - python3.6
+
 before_script:
   - cd _testdata && python tables.py
   - GO_FILES=$(find . -type f -iname '*.go')
