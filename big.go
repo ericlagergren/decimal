@@ -143,6 +143,8 @@ const (
 	invctxsltu
 	invctxsgtu
 	reduction
+	quointprec
+	remprec
 )
 
 var payloads = [...]string{
@@ -173,6 +175,8 @@ var payloads = [...]string{
 	invctxsltu:     "operation with a scale lesser than MinScale",
 	invctxsgtu:     "operation with a scale greater than MaxScale",
 	reduction:      "reduction with NaN as an operand",
+	quointprec:     "result of integer division was larger than the desired precision",
+	remprec:        "result of remainder operation was larger than the desired precision",
 }
 
 func (p Payload) String() string {
@@ -1008,17 +1012,17 @@ func (x *Big) Rat(z *big.Rat) *big.Rat {
 		}
 	}
 
-	// A little ugly, but it saves us an allocation if x > 0 and inflated.
-	num := &x.unscaled
+	num := new(big.Int)
 	if x.isCompact() {
-		// We would ideally clobber x.unscaled here, but that's not allowed per
-		// our API.
-		num = new(big.Int).SetUint64(x.compact)
-		if x.Signbit() {
-			num.Neg(num)
-		}
-	} else if x.Signbit() {
-		num = new(big.Int).Neg(&x.unscaled)
+		num.SetUint64(x.compact)
+	} else {
+		num.Set(&x.unscaled)
+	}
+	if x.exp > 0 {
+		checked.MulBigPow10(num, num, uint64(x.exp))
+	}
+	if x.Signbit() {
+		num.Neg(num)
 	}
 
 	denom := c.OneInt
@@ -1214,9 +1218,9 @@ func (z *Big) SetFloat(x *big.Float) *Big {
 	}
 
 	z.exp = 0
-	x0 := x
+	x0 := new(big.Float).Copy(x).SetPrec(big.MaxPrec)
+	x0.Abs(x0)
 	if !x.IsInt() {
-		x0 = new(big.Float).Copy(x)
 		for !x0.IsInt() {
 			x0.Mul(x0, c.TenFloat)
 			z.exp--

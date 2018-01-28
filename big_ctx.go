@@ -560,6 +560,9 @@ func (c Context) QuoInt(z, x, y *Big) *Big {
 		}
 		z, _ = c.quorem(z, nil, x, y)
 		z.exp = 0
+		if z.Precision() > precision(c) {
+			return z.setNaN(DivisionImpossible, qnan, quointprec)
+		}
 		return z
 	}
 

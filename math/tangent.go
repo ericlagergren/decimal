@@ -18,7 +18,7 @@ func prepTan(z, x *decimal.Big, ctx decimal.Context) (*decimal.Big, bool) {
 		}
 
 		var tmp decimal.Big
-		ctx.QuoInt(x0, x0, Pi(&tmp, ctx))
+		ctx.QuoInt(x0, x0, pi(&tmp, ctx))
 		if x.Signbit() {
 			ctx.Sub(x0, x0, one)
 		} else {
@@ -40,7 +40,7 @@ func prepTan(z, x *decimal.Big, ctx decimal.Context) (*decimal.Big, bool) {
 		}
 		pctx := decimal.Context{Precision: int(prec)}
 
-		pctx.Mul(x0, Pi(&tmp, pctx), x0)
+		pctx.Mul(x0, pi(&tmp, pctx), x0)
 
 		ctx.Precision++
 		// so toRemove = m*Pi so |x-toRemove| < Pi/2

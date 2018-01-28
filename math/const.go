@@ -65,38 +65,41 @@ func pi2(z *decimal.Big, ctx decimal.Context) *decimal.Big {
 	if ctx.Precision <= constPrec {
 		return ctx.Set(z, _Pi2)
 	}
-	return ctx.Quo(z, Pi(z, ctx), two)
+	return ctx.Quo(z, pi(z, ctx), two)
 }
 
 // Pi sets z to the mathematical constant pi and returns z.
-func Pi(z *decimal.Big, ctx decimal.Context) *decimal.Big {
+func Pi(z *decimal.Big) *decimal.Big {
+	return pi(z, decimal.Context{Precision: precision(z)})
+}
+
+// pi sets z to the mathematical constant pi and returns z.
+func pi(z *decimal.Big, ctx decimal.Context) *decimal.Big {
 	if ctx.Precision <= constPrec {
 		return ctx.Set(z, _Pi)
 	}
 
-	// TODO(eric): use the ctx.Add (etc) forms and avoid WithContext.
-
 	var (
-		lasts = decimal.WithContext(ctx).SetMantScale(0, 0)
-		t     = decimal.WithContext(ctx).SetMantScale(3, 0)
-		s     = z.SetMantScale(3, 0)
-		n     = decimal.WithContext(ctx).SetMantScale(1, 0)
-		na    = decimal.WithContext(ctx).SetMantScale(0, 0)
-		d     = decimal.WithContext(ctx).SetMantScale(0, 0)
-		da    = decimal.WithContext(ctx).SetMantScale(24, 0)
+		lasts = new(decimal.Big)
+		t     = new(decimal.Big).SetUint64(3)
+		s     = z.SetUint64(3)
+		n     = new(decimal.Big).SetUint64(1)
+		na    = new(decimal.Big)
+		d     = new(decimal.Big)
+		da    = new(decimal.Big).SetUint64(24)
 	)
 
 	for s.Cmp(lasts) != 0 {
-		lasts.Set(s)
-		n.Add(n, na)
-		na.Add(na, eight)
-		d.Add(d, da)
-		da.Add(da, thirtyTwo)
-		t.Mul(t, n)
-		t.Quo(t, d)
+		ctx.Set(lasts, s)
+		ctx.Add(n, n, na)
+		ctx.Add(na, na, eight)
+		ctx.Add(d, d, da)
+		ctx.Add(da, da, thirtyTwo)
+		ctx.Mul(t, t, n)
+		ctx.Quo(t, t, d)
 		ctx.Add(s, s, t)
 	}
-	return ctx.Set(z, s)
+	return ctx.Round(z) // z == s
 }
 
 // ln10 sets z to log(10) and returns z.

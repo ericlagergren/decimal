@@ -9,8 +9,6 @@ import (
 
 // Pow sets z to x**y and returns z.
 func Pow(z, x, y *decimal.Big) *decimal.Big {
-	// Pass x to the second call to CheckNaNs since the first argument cannot
-	// be nil.
 	if z.CheckNaNs(x, y) {
 		return z
 	}
@@ -40,11 +38,11 @@ func Pow(z, x, y *decimal.Big) *decimal.Big {
 	if x.IsInf(0) {
 		switch y.Sign() {
 		case +1:
-			// ±Inf ** y = 0
-			return z.SetUint64(0)
+			// ±Inf ** y = +Inf
+			return z.SetInf(false)
 		case -1:
-			// ±Inf ** -y = +Inf
-			return z.SetInf(true)
+			// ±Inf ** -y = 0
+			return z.SetUint64(0)
 		case 0:
 			// ±Inf ** 0 = 1
 			return z.SetUint64(1)
@@ -69,7 +67,7 @@ func Pow(z, x, y *decimal.Big) *decimal.Big {
 
 func powInt(z, x, y *decimal.Big) *decimal.Big {
 	prec := precision(z)
-	ctx := decimal.Context{Precision: prec + y.Precision() + 2}
+	ctx := decimal.Context{Precision: prec - y.Scale() + y.Precision() + 2}
 
 	var x0 decimal.Big
 	if y.Signbit() {

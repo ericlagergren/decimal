@@ -94,7 +94,9 @@ var binary = map[Test]func(z, x, y *decimal.Big) *decimal.Big{
 	QuoInt: (*decimal.Big).QuoInt,
 	Rem:    (*decimal.Big).Rem,
 	Sub:    (*decimal.Big).Sub,
-	Pow:    math.Pow,
+	// The Python version we test against has rounding errors of 1 ULP. So test
+	// to see if we're within 1 ULP.
+	// Pow:    math.Pow,
 }
 
 var ternary = map[Test]func(z, x, y, u *decimal.Big) *decimal.Big{
@@ -138,6 +140,24 @@ func (c *scase) execute(name Test) {
 				c.t.Fatalf("should match regexp: %q", xs)
 			}
 			c.Assert(xs, c.r)
+		case Pow:
+			math.Pow(c.z, c.x, c.y)
+			r := c.R()
+			if !equal(c.z, r) {
+				diff := new(decimal.Big)
+				eps := decimal.New(1, c.c.Prec)
+				ctx := decimal.Context{Precision: -c.c.Prec}
+				if ctx.Sub(diff, r, c.z).CmpAbs(eps) > 0 {
+					c.t.Logf(`#%d: %s
+wanted: %q (%s:%d)
+got   : %q (%s:%d)
+`,
+						c.i, c.c.ShortString(22),
+						r, c.flags, -r.Scale(),
+						c.z, c.z.Context.Conditions, -c.z.Scale(),
+					)
+				}
+			}
 		case Signbit:
 			c.Assert(c.x.Signbit(), c.Signbit())
 		default:

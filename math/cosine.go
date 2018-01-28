@@ -16,14 +16,14 @@ func prepCosine(z, x *decimal.Big, ctx decimal.Context) (*decimal.Big, int, bool
 	x0 := alias(z, x)
 
 	var tmp decimal.Big
-	var pi decimal.Big
+	var twoPi decimal.Big
 
 	// for better results, we need to make sure the value we're working with a
 	// value is closer to zero.
-	ctx.Mul(&pi, Pi(&pi, ctx), two) // 2 * Pi
-	if x.CmpAbs(&pi) >= 0 {
+	ctx.Mul(&twoPi, pi(&twoPi, ctx), two) // 2 * Pi
+	if x.CmpAbs(&twoPi) >= 0 {
 		// for cos to work correctly the input must be in (-2Pi, 2Pi).
-		ctx.Quo(&tmp, x, &pi)
+		ctx.Quo(&tmp, x, &twoPi)
 		v, ok := tmp.Int64()
 		if !ok {
 			return nil, 0, false
@@ -43,7 +43,7 @@ func prepCosine(z, x *decimal.Big, ctx decimal.Context) (*decimal.Big, int, bool
 			tmp.SetMantScale(v, 0)
 		}
 
-		pctx.Mul(&tmp, &pi, &tmp)
+		pctx.Mul(&tmp, &twoPi, &tmp)
 
 		// so toRemove = 2*Pi*v so x - toRemove < 2*Pi
 		ctx.Sub(x0, x, &tmp)

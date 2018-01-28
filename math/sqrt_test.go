@@ -8,7 +8,7 @@ import (
 )
 
 func TestDecimal_Hypot(t *testing.T) {
-	pi := math.Pi(new(decimal.Big), decimal.Context{Precision: 100})
+	pi := math.Pi(decimal.WithPrecision(100))
 	tests := [...]struct {
 		p, q string
 		c    int

@@ -29,7 +29,7 @@ func Acos(z, x *decimal.Big) *decimal.Big {
 
 	if cmp1 == 0 {
 		if x.Signbit() {
-			return Pi(z, ctx)
+			return pi(z, ctx)
 		}
 		return z.SetUint64(0)
 	}

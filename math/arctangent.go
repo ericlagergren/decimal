@@ -170,7 +170,7 @@ func Atan(z, x *decimal.Big) *decimal.Big {
 	// set 2: 1 < value               // then result = pi/2 - result
 	switch segment {
 	case 1:
-		piOver6 := Pi(tmp, ctx) // clobber _2p
+		piOver6 := pi(tmp, ctx) // clobber _2p
 		ctx.Quo(piOver6, piOver6, six)
 		ctx.Add(z, piOver6, z)
 	case 2:
@@ -225,7 +225,7 @@ func Atan2(z, y, x *decimal.Big) *decimal.Big {
 			return z.CopySign(z.SetUint64(0), y)
 		}
 		// Atan2(y == 0, x <= -0) = ±pi
-		return rctx.Round(misc.SetSignbit(Pi(z, wctx), neg))
+		return rctx.Round(misc.SetSignbit(pi(z, wctx), neg))
 	}
 	if xs == 0 {
 		// Atan2(y, x == 0) = ±pi/2
@@ -235,7 +235,7 @@ func Atan2(z, y, x *decimal.Big) *decimal.Big {
 		if x.IsInf(+1) {
 			if y.IsInf(0) {
 				// Atan2(±Inf, +Inf) = ±pi/4
-				wctx.Quo(z, Pi(z, wctx), four)
+				wctx.Quo(z, pi(z, wctx), four)
 				return rctx.Round(misc.SetSignbit(z, neg))
 			}
 			// Atan2(y, +Inf) = ±0
@@ -243,12 +243,12 @@ func Atan2(z, y, x *decimal.Big) *decimal.Big {
 		}
 		if y.IsInf(0) {
 			// Atan2(±Inf, -Inf) = ±3 * pi/4
-			wctx.Quo(z, Pi(z, wctx), four)
+			wctx.Quo(z, pi(z, wctx), four)
 			wctx.Mul(z, z, three)
 			return rctx.Round(misc.SetSignbit(z, neg))
 		}
 		// Atan2(y, -Inf) = ±pi
-		return rctx.Round(misc.SetSignbit(Pi(z, wctx), neg))
+		return rctx.Round(misc.SetSignbit(pi(z, wctx), neg))
 	}
 	if y.IsInf(0) {
 		// Atan2(±Inf, x) = ±pi/2
@@ -257,7 +257,7 @@ func Atan2(z, y, x *decimal.Big) *decimal.Big {
 
 	Atan(z, wctx.Quo(z, y, x))
 	if xs < 0 {
-		pi := Pi(new(decimal.Big), wctx)
+		pi := pi(new(decimal.Big), wctx)
 		if z.Sign() <= 0 {
 			wctx.Add(z, z, pi)
 		} else {
