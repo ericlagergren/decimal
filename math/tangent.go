@@ -77,8 +77,6 @@ func Tan(z, x *decimal.Big) *decimal.Big {
 		return z.SetNaN(false)
 	}
 
-	ctx.Precision++
-
 	// tan(x) = sign(x)*sqrt(1/cos(x)^2-1)
 
 	// tangent has an asymptote at pi/2 and we'll need more precision as we get
@@ -97,7 +95,7 @@ func Tan(z, x *decimal.Big) *decimal.Big {
 		} else {
 			ctx.Sub(&tmp, x, pi2(&tmp, ctx))
 		}
-		tctx.Precision += ctx.Precision + tmp.Scale() - tmp.Precision()
+		tctx.Precision += tmp.Scale() - tmp.Precision()
 	}
 	tmp.Context = tctx
 
@@ -109,6 +107,6 @@ func Tan(z, x *decimal.Big) *decimal.Big {
 	if x0.Signbit() {
 		misc.CopyNeg(&tmp, &tmp)
 	}
-	ctx.Precision -= defaultExtraPrecision + 1
+	ctx.Precision -= defaultExtraPrecision
 	return ctx.Set(z, &tmp)
 }

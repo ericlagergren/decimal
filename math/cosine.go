@@ -5,6 +5,7 @@ import (
 	"math/bits"
 
 	"github.com/ericlagergren/decimal"
+	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/arith/checked"
 	"github.com/ericlagergren/decimal/misc"
 )
@@ -15,39 +16,37 @@ func prepCosine(z, x *decimal.Big, ctx decimal.Context) (*decimal.Big, int, bool
 	x0 := alias(z, x)
 
 	var tmp decimal.Big
+	var pi decimal.Big
 
 	// for better results, we need to make sure the value we're working with a
 	// value is closer to zero.
-	ctx.Mul(&tmp, Pi(&tmp, ctx), two) // 2 * Pi
-	if x.CmpAbs(&tmp) >= 0 {
+	ctx.Mul(&pi, Pi(&pi, ctx), two) // 2 * Pi
+	if x.CmpAbs(&pi) >= 0 {
 		// for cos to work correctly the input must be in (-2Pi, 2Pi).
-		ctx.Quo(&tmp, x, &tmp)
-		misc.SetSignbit(&tmp, false)
-		v, ok := tmp.Uint64()
+		ctx.Quo(&tmp, x, &pi)
+		v, ok := tmp.Int64()
 		if !ok {
 			return nil, 0, false
 		}
+		uv := arith.Abs(v)
 
 		// Adjust so we have ceil(v/10) + ctx.Precision, but check for overflows.
 		// 1+((v-1)/10) will be widly incorrect for v == 0, but x/y = 0 iff
 		// x = 0 and y != 0. In this case, -2pi <= x >= 2pi, so we're fine.
-		prec, ok := checked.Add(1+((v-1)/10), uint64(ctx.Precision))
+		prec, ok := checked.Add(1+((uv-1)/10), uint64(ctx.Precision))
 		if !ok || prec > maxInt {
 			return nil, 0, false
 		}
 		pctx := decimal.Context{Precision: int(prec)}
 
-		if v <= stdMath.MaxUint64/2 {
-			tmp.SetUint64(2 * v)
-		} else {
-			ctx.Mul(&tmp, &tmp, two)
+		if uv <= stdMath.MaxInt64/2 {
+			tmp.SetMantScale(v, 0)
 		}
 
-		var pi decimal.Big
-		pctx.Mul(&tmp, Pi(&pi, pctx), &tmp)
+		pctx.Mul(&tmp, &pi, &tmp)
 
 		// so toRemove = 2*Pi*v so x - toRemove < 2*Pi
-		ctx.Sub(x0, x, &pi)
+		ctx.Sub(x0, x, &tmp)
 	} else {
 		x0.Copy(x)
 	}
