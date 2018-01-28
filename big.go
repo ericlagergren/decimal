@@ -486,13 +486,12 @@ func (z *Big) CopySign(x, y *Big) *Big {
 	z.copyAbs(x)
 	z.form |= sign
 	return z
-
 }
 
-// Float64 returns x as a float64 and a bool indicating whether x can be
-// exactly represented as a float64. Special values are considered exact;
-// however, special values that occur because the magnitude of x is too large
-// to be represented as a float64 are not.
+// Float64 returns x as a float64 and a bool indicating whether x can be exactly
+// represented as a float64. Special values are considered exact; however, special
+// values that occur because the magnitude of x is too large to be represented
+// as a float64 are not.
 func (x *Big) Float64() (f float64, exact bool) {
 	if debug {
 		x.validate()

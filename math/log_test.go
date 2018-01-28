@@ -41,11 +41,7 @@ BenchmarkLog_alg3_500-4   	       2	 550735383 ns/op
 var log_X, _ = new(decimal.Big).SetString("123456.789")
 
 func BenchmarkLog(b *testing.B) {
-	for _, prec := range [...]int{
-		5, 16, 25, 32, 41, 50, 75, 82, 97,
-		100, 137, 250, 646, 750, 943,
-		1500, 5000, 7500,
-	} {
+	for _, prec := range benchPrecs {
 		b.Run(fmt.Sprintf("%d", prec), func(b *testing.B) {
 			z := decimal.WithPrecision(prec)
 			for j := 0; j < b.N; j++ {
