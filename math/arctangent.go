@@ -48,7 +48,7 @@ func prepAtan(z, x *decimal.Big, ctx decimal.Context) (
 	// point the sqrt causes a problem
 	// note (http:// fredrikj.net/blog/2014/12/faster-high-ctx-Atangents/)
 	// suggests that r= 8 times is a good value for
-	// ctx with 1000s of digits to millions
+	// precision with 1000s of digits to millions
 	// however it was easy to determine there is a
 	// better sliding window to use instead
 	// which is what we use as it turns out
@@ -66,7 +66,7 @@ func prepAtan(z, x *decimal.Big, ctx decimal.Context) (
 	if ctx.Precision <= maxPrec {
 		p = 1 / float64(uint64(1)<<uint64(r))
 	} else {
-		p = 1 / stdMath.Pow(2, r)
+		p = stdMath.Pow(2, -r)
 	}
 	halved := int(stdMath.Ceil(stdMath.Log(xf/p) / stdMath.Ln2))
 
