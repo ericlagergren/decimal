@@ -55,7 +55,7 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 		f = math.Sqrt(f)
 		if _, fr := math.Modf(f); fr == 0 || prec <= 15 {
 			z.SetFloat64(f)
-			if fr == 0 {
+			if fr != 0 {
 				ctx.Round(z)
 			}
 			return z
