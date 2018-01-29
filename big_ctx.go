@@ -346,7 +346,8 @@ func (c Context) Quantize(z *Big, n int) *Big {
 			}
 			// shift < 0
 		} else if yc, ok := arith.Pow10(uint64(-shift)); ok {
-			return z.quo(m, z.compact, neg, yc, 0)
+			z.quo(m, z.compact, neg, yc, 0)
+			return z
 		}
 		z.unscaled.SetUint64(z.compact)
 		z.compact = cst.Inflated
@@ -425,7 +426,10 @@ func (c Context) Quo(z, x, y *Big) *Big {
 		z.exp = (x.exp - y.exp) - shift
 		if shift > 0 {
 			if sx, ok := checked.MulPow10(x.compact, uint64(shift)); ok {
-				return z.quo(m, sx, x.form, y.compact, y.form)
+				if z.quo(m, sx, x.form, y.compact, y.form) {
+					c.Reduce(z)
+				}
+				return z
 			}
 			xb := z.unscaled.SetUint64(x.compact)
 			xb = checked.MulBigPow10(xb, xb, uint64(shift))
@@ -437,7 +441,10 @@ func (c Context) Quo(z, x, y *Big) *Big {
 		}
 		if shift < 0 {
 			if sy, ok := checked.MulPow10(y.compact, uint64(-shift)); ok {
-				return z.quo(m, x.compact, x.form, sy, y.form)
+				if z.quo(m, x.compact, x.form, sy, y.form) {
+					c.Reduce(z)
+				}
+				return z
 			}
 			yb := z.unscaled.SetUint64(y.compact)
 			yb = checked.MulBigPow10(yb, yb, uint64(-shift))
@@ -445,7 +452,8 @@ func (c Context) Quo(z, x, y *Big) *Big {
 			z.quoBig(m, xb, x.form, yb, y.form)
 			return z
 		}
-		return z.quo(m, x.compact, x.form, y.compact, y.form)
+		z.quo(m, x.compact, x.form, y.compact, y.form)
+		return z
 	}
 
 	xb, yb := &x.unscaled, &y.unscaled
@@ -475,19 +483,19 @@ func (c Context) Quo(z, x, y *Big) *Big {
 	return z
 }
 
-func (z *Big) quo(m RoundingMode, x uint64, xneg form, y uint64, yneg form) *Big {
+func (z *Big) quo(m RoundingMode, x uint64, xneg form, y uint64, yneg form) bool {
 	z.form = xneg ^ yneg
 	z.compact = x / y
 	r := x % y
 	if r == 0 {
 		z.precision = arith.Length(z.compact)
-		return z
+		return true
 	}
 
 	z.Context.Conditions |= Inexact | Rounded
 	if m == ToZero {
 		z.precision = arith.Length(z.compact)
-		return z
+		return false
 	}
 
 	rc := 1
@@ -496,15 +504,15 @@ func (z *Big) quo(m RoundingMode, x uint64, xneg form, y uint64, yneg form) *Big
 	}
 
 	if m == unnecessary {
-		return z.setNaN(
-			InvalidOperation|InvalidContext|InsufficientStorage, qnan, quotermexp)
+		z.setNaN(InvalidOperation|InvalidContext|InsufficientStorage, qnan, quotermexp)
+		return false
 	}
 	if m.needsInc(z.compact&1 != 0, rc, xneg == yneg) {
 		z.Context.Conditions |= Rounded
 		z.compact++
 	}
 	z.precision = arith.Length(z.compact)
-	return z
+	return false
 }
 
 func (z *Big) quoBig(m RoundingMode, x *big.Int, xneg form, y *big.Int, yneg form) bool {
@@ -825,6 +833,8 @@ func (c Context) Reduce(z *Big) *Big {
 	return z
 }
 
+var I int
+
 // Rem sets z to the remainder x % y. See QuoRem for more details.
 func (c Context) Rem(z, x, y *Big) *Big {
 	if debug {
@@ -848,8 +858,14 @@ func (c Context) Rem(z, x, y *Big) *Big {
 			// 0 / y
 			return z.setZero(x.form&signbit, min(x.exp, y.exp))
 		}
-		_, z = c.quorem(nil, z, x, y)
+		// TODO(eric): See if we can get rid of tmp. See issue #72.
+		var tmp Big
+		_, z = c.quorem(&tmp, z, x, y)
 		z.exp = min(x.exp, y.exp)
+		tmp.exp = 0
+		if tmp.Precision() > precision(c) {
+			return z.setNaN(DivisionImpossible, qnan, quointprec)
+		}
 		return c.round(z)
 	}
 
