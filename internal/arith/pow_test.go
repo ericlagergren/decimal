@@ -10,9 +10,10 @@ import (
 )
 
 func TestBigTen(t *testing.T) {
+	const N = 15
 	errc := make(chan error)
-	workc := make(chan struct{}, 1000)
-	for i := 0; i < 1000; i++ {
+	workc := make(chan struct{}, N)
+	for i := 0; i < N; i++ {
 		workc <- struct{}{}
 	}
 
