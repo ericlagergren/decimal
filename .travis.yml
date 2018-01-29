@@ -24,6 +24,7 @@ addons:
 before_script:
   - cd _testdata && ./tables.py && cd ..
   - GO_FILES=$(find . -type f -iname '*.go')
+  - go get -u -t ./...
 
 script:
   - test -z $(gofmt -s -l $GO_FILES)
