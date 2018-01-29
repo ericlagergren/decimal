@@ -156,11 +156,6 @@ var tiny = decimal.New(10, 60)
 // If terms need to be subtracted, the a_N terms should be negative. To compute
 // a continued fraction without b_0, divide the result by a_1.
 //
-// Unlike the normal convention for ``recievers'' named ``z,'' Lentz will not
-// modify ``z'' until the terms have converged. This is so functions like Exp
-// and Log can allow their arguments to alias without having to defensively
-// copy the input (``x'').
-//
 // If the first call to the Generator's Next method returns false, the result
 // of Lentz is undefined.
 //
