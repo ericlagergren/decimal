@@ -20,7 +20,7 @@ func Log10(z, x *decimal.Big) *decimal.Big {
 		tpow = arith.PowOfTenBig(u)
 	}
 	if tpow {
-		return z.SetMantScale(int64(adjusted(x)), 0)
+		return z.Set(z.SetMantScale(int64(adjusted(x)), 0))
 	}
 	return log(z, x, true)
 }

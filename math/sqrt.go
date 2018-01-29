@@ -51,8 +51,15 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 	ctx := decimal.Context{Precision: prec}
 
 	// Fast path #1: use math.Sqrt if our decimal is small enough.
-	if f, exact := x.Float64(); exact && prec <= 15 {
-		return ctx.Round(z.SetFloat64(math.Sqrt(f)))
+	if f, exact := x.Float64(); exact {
+		f = math.Sqrt(f)
+		if _, fr := math.Modf(f); fr == 0 || prec <= 15 {
+			z.SetFloat64(f)
+			if fr == 0 {
+				ctx.Round(z)
+			}
+			return z
+		}
 	}
 
 	// Source for the following algorithm:

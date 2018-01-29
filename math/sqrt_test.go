@@ -1,14 +1,13 @@
-package math_test
+package math
 
 import (
 	"testing"
 
 	"github.com/ericlagergren/decimal"
-	"github.com/ericlagergren/decimal/math"
 )
 
 func TestDecimal_Hypot(t *testing.T) {
-	pi := math.Pi(decimal.WithPrecision(100))
+	pi := Pi(decimal.WithPrecision(100))
 	tests := [...]struct {
 		p, q string
 		c    int
@@ -28,11 +27,29 @@ func TestDecimal_Hypot(t *testing.T) {
 		p, _ := new(decimal.Big).SetString(v.p)
 		q, _ := new(decimal.Big).SetString(v.q)
 		a, _ := new(decimal.Big).SetString(v.a)
-		if math.Hypot(z, p, q).Cmp(a) != 0 {
+		if Hypot(z, p, q).Cmp(a) != 0 {
 			t.Fatalf(`#%d:
 wanted: %q
 got:    %q
 `, i, a, z)
+		}
+	}
+}
+
+func TestIssue_69(t *testing.T) {
+	x := new(decimal.Big)
+	maxSqrt := uint64(4294967295)
+	if testing.Short() {
+		maxSqrt = 1e7
+	}
+	for i := maxSqrt; i != 0; i-- {
+		x.SetUint64(i * i)
+		v, _ := decimal.Raw(Sqrt(x, x))
+		if *v != i {
+			t.Fatalf(`Sqrt(%d)
+wanted: %d (0)
+got   : %d (%d)
+`, i*i, i, v, -x.Scale())
 		}
 	}
 }

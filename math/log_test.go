@@ -7,6 +7,18 @@ import (
 	"github.com/ericlagergren/decimal"
 )
 
+func TestIssue_70(t *testing.T) {
+	x, _ := new(decimal.Big).SetString("1E+41")
+	x.Context.Precision = 1
+	Log10(x, x)
+	if x.Cmp(decimal.New(40, 0)) != 0 {
+		t.Fatalf(`Log10(1e+41)
+wanted: 40
+got   : %s
+`, x)
+	}
+}
+
 /*
 Benchmarks from "Handbook of Continued Fractions for Special Functions."
 
