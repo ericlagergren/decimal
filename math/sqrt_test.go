@@ -36,7 +36,7 @@ got:    %q
 	}
 }
 
-func TestIssue_69(t *testing.T) {
+func TestIssue69(t *testing.T) {
 	x := new(decimal.Big)
 	maxSqrt := uint64(4294967295)
 	if testing.Short() {

@@ -1049,77 +1049,7 @@ func Raw(x *Big) (*uint64, *big.Int) {
 
 // Reduce reduces a finite z to its most simplest form.
 func (z *Big) Reduce() *Big {
-	if debug {
-		z.validate()
-	}
-
-	z.Context.round(z)
-
-	if z.isSpecial() {
-		// Same semantics as plus(z), i.e. z + 0.
-		z.checkNaNs(z, z, reduction)
-		return z
-	}
-
-	if z.compact == 0 {
-		z.exp = 0
-		z.precision = 1
-		return z
-	}
-
-	if z.compact == c.Inflated {
-		if z.unscaled.Bit(0) != 0 {
-			return z
-		}
-
-		var r big.Int
-		for z.precision >= 20 {
-			z.unscaled.QuoRem(&z.unscaled, c.OneMillionInt, &r)
-			if r.Sign() != 0 {
-				// TODO(eric): which is less expensive? Copying z.unscaled into
-				// a temporary or reconstructing if we can't divide by N?
-				z.unscaled.Mul(&z.unscaled, c.OneMillionInt)
-				z.unscaled.Add(&z.unscaled, &r)
-				break
-			}
-			z.exp += 6
-			z.precision -= 6
-
-			// Try to avoid reconstruction for odd numbers.
-			if z.unscaled.Bit(0) != 0 {
-				break
-			}
-		}
-
-		for z.precision >= 20 {
-			z.unscaled.QuoRem(&z.unscaled, c.TenInt, &r)
-			if r.Sign() != 0 {
-				z.unscaled.Mul(&z.unscaled, c.TenInt)
-				z.unscaled.Add(&z.unscaled, &r)
-				break
-			}
-			z.exp++
-			z.precision--
-			if z.unscaled.Bit(0) != 0 {
-				break
-			}
-		}
-
-		if z.precision >= 20 {
-			return z.norm()
-		}
-		z.compact = z.unscaled.Uint64()
-	}
-
-	for ; z.compact >= 10000 && z.compact%10000 == 0; z.precision -= 4 {
-		z.compact /= 10000
-		z.exp += 4
-	}
-	for ; z.compact%10 == 0; z.precision-- {
-		z.compact /= 10
-		z.exp++
-	}
-	return z
+	return z.Context.Reduce(z)
 }
 
 // Rem sets z to the remainder x % y. See QuoRem for more details.

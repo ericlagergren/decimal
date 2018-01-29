@@ -199,3 +199,7 @@ func min(x, y int) int {
 	}
 	return y
 }
+
+func tz(z *big.Int) int {
+	return 0
+}

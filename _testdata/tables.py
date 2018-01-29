@@ -315,7 +315,7 @@ def rand_traps():
 
 
 # set N higher for local testing.
-N = 2500
+N = 5000
 
 
 def make_tables(items):

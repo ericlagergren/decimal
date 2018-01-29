@@ -7,7 +7,7 @@ import (
 	"github.com/ericlagergren/decimal"
 )
 
-func TestIssue_70(t *testing.T) {
+func TestIssue70(t *testing.T) {
 	x, _ := new(decimal.Big).SetString("1E+41")
 	x.Context.Precision = 1
 	Log10(x, x)

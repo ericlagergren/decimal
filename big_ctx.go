@@ -355,9 +355,10 @@ func (c Context) Quantize(z *Big, n int) *Big {
 	if shift > 0 {
 		_ = checked.MulBigPow10(&z.unscaled, &z.unscaled, uint64(shift))
 		z.precision = arith.BigLength(&z.unscaled)
-		return z
+	} else {
+		z.quoBig(m, &z.unscaled, neg, arith.BigPow10(uint64(-shift)), 0)
 	}
-	return z.quoBig(m, &z.unscaled, neg, arith.BigPow10(uint64(-shift)), 0)
+	return z
 }
 
 // Quo sets z to x / y and returns z.
@@ -429,7 +430,10 @@ func (c Context) Quo(z, x, y *Big) *Big {
 			xb := z.unscaled.SetUint64(x.compact)
 			xb = checked.MulBigPow10(xb, xb, uint64(shift))
 			yb := new(big.Int).SetUint64(y.compact)
-			return z.quoBig(m, xb, x.form, yb, y.form)
+			if z.quoBig(m, xb, x.form, yb, y.form) {
+				c.Reduce(z)
+			}
+			return z
 		}
 		if shift < 0 {
 			if sy, ok := checked.MulPow10(y.compact, uint64(-shift)); ok {
@@ -438,7 +442,8 @@ func (c Context) Quo(z, x, y *Big) *Big {
 			yb := z.unscaled.SetUint64(y.compact)
 			yb = checked.MulBigPow10(yb, yb, uint64(-shift))
 			xb := new(big.Int).SetUint64(x.compact)
-			return z.quoBig(m, xb, x.form, yb, y.form)
+			z.quoBig(m, xb, x.form, yb, y.form)
+			return z
 		}
 		return z.quo(m, x.compact, x.form, y.compact, y.form)
 	}
@@ -463,7 +468,11 @@ func (c Context) Quo(z, x, y *Big) *Big {
 		tmp := alias(&z.unscaled, xb)
 		yb = checked.MulBigPow10(tmp, yb, uint64(-shift))
 	}
-	return z.quoBig(m, xb, x.form, yb, y.form)
+
+	if z.quoBig(m, xb, x.form, yb, y.form) && shift > 0 {
+		c.Reduce(z)
+	}
+	return z
 }
 
 func (z *Big) quo(m RoundingMode, x uint64, xneg form, y uint64, yneg form) *Big {
@@ -498,18 +507,20 @@ func (z *Big) quo(m RoundingMode, x uint64, xneg form, y uint64, yneg form) *Big
 	return z
 }
 
-func (z *Big) quoBig(m RoundingMode, x *big.Int, xneg form, y *big.Int, yneg form) *Big {
+func (z *Big) quoBig(m RoundingMode, x *big.Int, xneg form, y *big.Int, yneg form) bool {
 	z.compact = cst.Inflated
 	z.form = xneg ^ yneg
 
 	q, r := z.unscaled.QuoRem(x, y, new(big.Int))
 	if r.Sign() == 0 {
-		return z.norm()
+		z.norm()
+		return true
 	}
 
 	z.Context.Conditions |= Inexact | Rounded
 	if m == ToZero {
-		return z.norm()
+		z.norm()
+		return false
 	}
 
 	var rc int
@@ -522,14 +533,15 @@ func (z *Big) quoBig(m RoundingMode, x *big.Int, xneg form, y *big.Int, yneg for
 	}
 
 	if m == unnecessary {
-		return z.setNaN(
-			InvalidOperation|InvalidContext|InsufficientStorage, qnan, quotermexp)
+		z.setNaN(InvalidOperation|InvalidContext|InsufficientStorage, qnan, quotermexp)
+		return false
 	}
 	if m.needsInc(q.Bit(0) != 0, rc, xneg == yneg) {
 		z.Context.Conditions |= Rounded
 		arith.Add(q, q, 1)
 	}
-	return z.norm()
+	z.norm()
+	return false
 }
 
 // QuoInt sets z to x / y with the remainder truncated. See QuoRem for more
@@ -737,6 +749,80 @@ func (m RoundingMode) quoremBig(
 	}
 	z0.form = xneg ^ yneg
 	return z0.norm(), z1
+}
+
+func (c Context) Reduce(z *Big) *Big {
+	if debug {
+		z.validate()
+	}
+
+	c.round(z)
+
+	if z.isSpecial() {
+		// Same semantics as plus(z), i.e. z + 0.
+		z.checkNaNs(z, z, reduction)
+		return z
+	}
+
+	if z.compact == 0 {
+		z.exp = 0
+		z.precision = 1
+		return z
+	}
+
+	if z.compact == cst.Inflated {
+		if z.unscaled.Bit(0) != 0 {
+			return z
+		}
+
+		var r big.Int
+		for z.precision >= 20 {
+			z.unscaled.QuoRem(&z.unscaled, cst.OneMillionInt, &r)
+			if r.Sign() != 0 {
+				// TODO(eric): which is less expensive? Copying z.unscaled into
+				// a temporary or reconstructing if we can't divide by N?
+				z.unscaled.Mul(&z.unscaled, cst.OneMillionInt)
+				z.unscaled.Add(&z.unscaled, &r)
+				break
+			}
+			z.exp += 6
+			z.precision -= 6
+
+			// Try to avoid reconstruction for odd numbers.
+			if z.unscaled.Bit(0) != 0 {
+				break
+			}
+		}
+
+		for z.precision >= 20 {
+			z.unscaled.QuoRem(&z.unscaled, cst.TenInt, &r)
+			if r.Sign() != 0 {
+				z.unscaled.Mul(&z.unscaled, cst.TenInt)
+				z.unscaled.Add(&z.unscaled, &r)
+				break
+			}
+			z.exp++
+			z.precision--
+			if z.unscaled.Bit(0) != 0 {
+				break
+			}
+		}
+
+		if z.precision >= 20 {
+			return z.norm()
+		}
+		z.compact = z.unscaled.Uint64()
+	}
+
+	for ; z.compact >= 10000 && z.compact%10000 == 0; z.precision -= 4 {
+		z.compact /= 10000
+		z.exp += 4
+	}
+	for ; z.compact%10 == 0; z.precision-- {
+		z.compact /= 10
+		z.exp++
+	}
+	return z
 }
 
 // Rem sets z to the remainder x % y. See QuoRem for more details.
