@@ -104,7 +104,7 @@ func log(z, x *decimal.Big, ten bool) *decimal.Big {
 
 	// TODO(eric): adj should be large enough. It's passed multiple iterations
 	// of with a precision in [1, 5000) and a 128-bit decimal.
-	adj := 6 + (3 * int(stdMath.Log(float64(x.Precision()))))
+	adj := 7 + int(4*stdMath.Log(float64(x.Precision())))
 	if ten {
 		adj += 3
 	}

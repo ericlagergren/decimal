@@ -323,6 +323,11 @@ func (c Context) Quantize(z *Big, n int) *Big {
 		return z.setNaN(InvalidOperation, qnan, quantminmax)
 	}
 
+	if z.compact == 0 {
+		z.exp = n
+		return z
+	}
+
 	shift := z.exp - n
 	if z.Precision()+shift > precision(c) {
 		return z.setNaN(InvalidOperation, qnan, quantprec)
@@ -834,8 +839,6 @@ func (c Context) simpleReduce(z *Big) *Big {
 	}
 	return z
 }
-
-var I int
 
 // Rem sets z to the remainder x % y. See QuoRem for more details.
 func (c Context) Rem(z, x, y *Big) *Big {

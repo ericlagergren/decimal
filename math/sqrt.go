@@ -4,7 +4,6 @@ import (
 	"math"
 
 	"github.com/ericlagergren/decimal"
-	"github.com/ericlagergren/decimal/internal/c"
 )
 
 // Hypot sets z to Sqrt(p*p + q*q) and returns z.
@@ -36,6 +35,8 @@ var (
 )
 
 // Sqrt sets z to the square root of x and returns z.
+//
+// BUG(eric): The Rounded and Inexact conditions may be incorrect.
 func Sqrt(z, x *decimal.Big) *decimal.Big {
 	if z.CheckNaNs(x, nil) {
 		return z
@@ -56,19 +57,29 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 		return z.SetInf(false)
 	}
 
-	prec := precision(z)
-	ctx := decimal.Context{Precision: prec}
+	var (
+		prec = precision(z)
+		ctx  = decimal.Context{Precision: prec}
+		rnd  = z.Context.Conditions&decimal.Rounded != 0
+		ixt  = z.Context.Conditions&decimal.Inexact != 0
+	)
 
 	// Fast path #1: use math.Sqrt if our decimal is small enough.
-	if f, exact := x.Float64(); f >= 1 && exact {
-		sqrt := math.Sqrt(f)
-		if _, fr := math.Modf(sqrt); fr == 0 || prec <= 15 {
-			z.SetFloat64(sqrt)
-			if fr != 0 {
-				ctx.Round(z)
+	if f, exact := x.Float64(); exact && prec <= 15 {
+		ctx.Round(z.SetFloat64(math.Sqrt(f)))
+		ctx.Precision = x.Precision()
+
+		var tmp decimal.Big
+		if ctx.Mul(&tmp, z, z).Cmp(x) == 0 {
+			ctx.Reduce(z)
+			if !rnd {
+				z.Context.Conditions &= ^decimal.Rounded
 			}
-			return z
+			if !ixt {
+				z.Context.Conditions &= ^decimal.Inexact
+			}
 		}
+		return z
 	}
 
 	// Source for the following algorithm:
@@ -119,33 +130,24 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 
 	z.SetScale(z.Scale() - e/2)
 	if z.Precision() > prec {
+		if !rnd {
+			z.Context.Conditions &= ^decimal.Rounded
+		}
+		if !ixt {
+			z.Context.Conditions &= ^decimal.Inexact
+		}
 		ctx.Precision = prec
-		// TODO(eric): it's not always inexact—sometimes we only have to trim
-		// a few trailing 0s. However, other libraries always (in effect) mark
-		// it as inexact, so we'll do so as well.
-		z.Context.Conditions |= decimal.Inexact
 		return ctx.Round(z)
 	}
-	if perfectSquare(ctx, z, x) {
-		ctx.Precision = ideal
-		ctx.Round(z)
-		z.Context.Conditions &= ^decimal.Rounded
+	// Perfect square.
+	if ctx.Mul(&tmp, z, z).Cmp(x) == 0 {
+		ctx.Reduce(z)
+		if !rnd {
+			z.Context.Conditions &= ^decimal.Rounded
+		}
+		if !ixt {
+			z.Context.Conditions &= ^decimal.Inexact
+		}
 	}
 	return z
-}
-
-func perfectSquare(ctx decimal.Context, r, x *decimal.Big) bool {
-	var v uint64
-	if m, u := decimal.Raw(r); *m != c.Inflated {
-		v = *m & 0xF
-	} else {
-		v = uint64(u.Bits()[len(u.Bits())-1] & 0xF)
-	}
-	switch v {
-	case 0, 1, 4, 9:
-		var tmp decimal.Big
-		return ctx.Mul(&tmp, r, r).Cmp(x) == 0
-	default:
-		return false
-	}
 }
