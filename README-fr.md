@@ -9,7 +9,8 @@ précision arbitrarie que mettre en œuvre la spécification
  * Valeur zéros sont sûr utiliser.
  * Multiple modes de fonctionnement 
  * Haute performance
- * Un logithèque mathématiques avec « sqrt », « exp », « log », fraction continue, et beaucoup plus.
+ * Un logithèque mathématiques avec fonctions élémentaires et trigonométriques,
+   fraction continues, et beaucoup plus.
  * Un API familier idiomatique.
 
 ## Installation
@@ -18,11 +19,11 @@ précision arbitrarie que mettre en œuvre la spécification
 
 ## Documentation
 
-http://godoc.org/github.com/ericlagergren/decimal
+[Godoc](http://godoc.org/github.com/ericlagergren/decimal)
 
 ## Gestion de versions
 
-`decimal` utilise le gestion sémantique de version.
+`decimal` utilise le gestion sémantique de version. La version actuelle est 3.0.
 
 ## Licence
 

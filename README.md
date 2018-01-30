@@ -8,7 +8,8 @@ library implementing the [General Decimal Arithmetic](http://speleotrove.com/dec
  * Zero-values are safe to use without initialization.
  * Multiple operating modes (GDA, Go) to fit your use cases.
  * High performance.
- * A math library with `sqrt`, `exp`, `log`, continued fractions, and more.
+ * A math library with elementary and trigonometric functions, continued fractions,
+   and more.
  * A familiar, idiomatic API.
 
 ## Installation
@@ -17,11 +18,11 @@ library implementing the [General Decimal Arithmetic](http://speleotrove.com/dec
 
 ## Documentation
 
-http://godoc.org/github.com/ericlagergren/decimal
+[Godoc](http://godoc.org/github.com/ericlagergren/decimal)
 
 ## Versioning
 
-`decimal` uses Semantic Versioning. 
+`decimal` uses Semantic Versioning. The current version is 3.0.
 
 ## License
 
