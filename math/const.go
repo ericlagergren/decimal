@@ -37,7 +37,7 @@ func E(z *decimal.Big) *decimal.Big {
 		return ctx.Set(z, _E)
 	}
 
-	ctx.Precision += 4
+	ctx.Precision += 5
 	var (
 		sum  = z.SetUint64(2)
 		fac  = new(decimal.Big).SetUint64(1)
@@ -56,7 +56,7 @@ func E(z *decimal.Big) *decimal.Big {
 		ctx.Add(sum, sum, term)
 	}
 
-	ctx.Precision -= 4
+	ctx.Precision -= 5
 	return ctx.Set(z, sum)
 }
 
@@ -113,15 +113,17 @@ func ln10(z *decimal.Big, prec int) *decimal.Big {
 	// that's some truncation of our continued fraction and setting the starting
 	// term to that position in our continued fraction.
 
-	prec += 3
+	ctx.Precision += 3
 	g := lgen{
-		prec: prec,
-		pow:  eightyOne, // 9 * 9
-		z2:   eleven,    // 9 + 2
-		k:    -1,
-		t:    Term{A: decimal.WithPrecision(prec), B: decimal.WithPrecision(prec)},
+		ctx: ctx,
+		pow: eightyOne, // 9 * 9
+		z2:  eleven,    // 9 + 2
+		k:   -1,
+		t:   Term{A: new(decimal.Big), B: new(decimal.Big)},
 	}
-	return ctx.Quo(z, eighteen /* 9 * 2 */, Lentz(z, &g))
+	ctx.Quo(z, eighteen /* 9 * 2 */, Lentz(z, &g))
+	ctx.Precision -= 3
+	return ctx.Round(z)
 }
 
 // sqrt3 sets z to sqrt(3) and returns z.

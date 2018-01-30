@@ -1,6 +1,8 @@
 package math
 
 import (
+	stdMath "math"
+
 	"github.com/ericlagergren/decimal"
 	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/c"
@@ -13,14 +15,15 @@ func Log10(z, x *decimal.Big) *decimal.Big {
 	}
 
 	// If x is a power of 10 the result is the exponent and exact.
-	tpow := false
+	var tpow bool
 	if m, u := decimal.Raw(x); *m != c.Inflated {
 		tpow = arith.PowOfTen(*m)
 	} else {
 		tpow = arith.PowOfTenBig(u)
 	}
 	if tpow {
-		return z.Set(z.SetMantScale(int64(adjusted(x)), 0))
+		ctx := decimal.Context{Precision: precision(z)}
+		return ctx.Set(z, z.SetMantScale(int64(adjusted(x)), 0))
 	}
 	return log(z, x, true)
 }
@@ -76,7 +79,7 @@ func logSpecials(z, x *decimal.Big) bool {
 func log(z, x *decimal.Big, ten bool) *decimal.Big {
 	prec := precision(z)
 
-	t := int64(x.Scale()-x.Precision()) - 1
+	t := int64(adjusted(x))
 	if t < 0 {
 		t = -t - 1
 	}
@@ -99,8 +102,13 @@ func log(z, x *decimal.Big, ten bool) *decimal.Big {
 	// Compute
 	//    log(y) + p*log(10)
 
-	const adj = 4
-	ctx := decimal.Context{Precision: prec + 3 + adj}
+	// TODO(eric): adj should be large enough. It's passed multiple iterations
+	// of with a precision in [1, 5000) and a 128-bit decimal.
+	adj := 6 + (3 * int(stdMath.Log(float64(x.Precision()))))
+	if ten {
+		adj += 3
+	}
+	ctx := decimal.Context{Precision: prec + adj}
 
 	var p int64
 	switch {
@@ -120,13 +128,12 @@ func log(z, x *decimal.Big, ten bool) *decimal.Big {
 	// Continued fraction algorithm is for log(1+x)
 	y.Sub(y, one)
 
-	lgp := ctx.Precision + 2
 	g := lgen{
-		prec: lgp,
-		pow:  decimal.WithPrecision(lgp).Mul(y, y),
-		z2:   decimal.WithPrecision(lgp).Add(y, two),
-		k:    -1,
-		t:    Term{A: decimal.WithPrecision(lgp), B: decimal.WithPrecision(lgp)},
+		ctx: ctx,
+		pow: ctx.Mul(new(decimal.Big), y, y),
+		z2:  ctx.Add(new(decimal.Big), y, two),
+		k:   -1,
+		t:   Term{A: new(decimal.Big), B: new(decimal.Big)},
 	}
 
 	// TODO(eric): Similar to the comment inside Exp, this library only provides
@@ -157,28 +164,26 @@ func log(z, x *decimal.Big, ten bool) *decimal.Big {
 			ctx.Quo(z, z, t)
 		}
 	}
-	ctx.Precision -= 3 + adj
+	ctx.Precision -= adj
 	return ctx.Round(z)
 }
 
 type lgen struct {
-	prec int
-	pow  *decimal.Big // z*z
-	z2   *decimal.Big // z+2
-	k    int64
-	t    Term
+	ctx decimal.Context
+	pow *decimal.Big // z*z
+	z2  *decimal.Big // z+2
+	k   int64
+	t   Term
 }
 
-func (l *lgen) Context() decimal.Context {
-	return decimal.Context{Precision: l.prec}
-}
+func (l *lgen) Context() decimal.Context { return l.ctx }
 
 func (l *lgen) Lentz() (f, Δ, C, D, eps *decimal.Big) {
-	f = decimal.WithPrecision(l.prec)
-	Δ = decimal.WithPrecision(l.prec)
-	C = decimal.WithPrecision(l.prec)
-	D = decimal.WithPrecision(l.prec)
-	eps = decimal.New(1, l.prec)
+	f = decimal.WithContext(l.ctx)
+	Δ = decimal.WithContext(l.ctx)
+	C = decimal.WithContext(l.ctx)
+	D = decimal.WithContext(l.ctx)
+	eps = decimal.New(1, l.ctx.Precision)
 	return
 }
 
@@ -202,9 +207,9 @@ func (a *lgen) Term() Term {
 	a.k += 2
 	if a.k != 1 {
 		a.t.A.SetMantScale(-((a.k / 2) * (a.k / 2)), 0)
-		a.t.A.Mul(a.t.A, a.pow)
+		a.ctx.Mul(a.t.A, a.t.A, a.pow)
 	}
 	a.t.B.SetMantScale(a.k, 0)
-	a.t.B.Mul(a.t.B, a.z2)
+	a.ctx.Mul(a.t.B, a.t.B, a.z2)
 	return a.t
 }

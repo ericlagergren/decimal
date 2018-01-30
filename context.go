@@ -205,7 +205,6 @@ const (
 	//  - it utilizes traps to set both Context.Err and Context.Conditions
 	//  - its string forms of qNaN, sNaN, +Inf, and -Inf are "NaN", "sNaN",
 	//    "Infinity", and "-Infinity", respectively
-	//  - Set rounds if the precisions differ
 	//
 	GDA OperatingMode = iota
 	// Go adheres to typical Go idioms. In particular:
@@ -216,7 +215,6 @@ const (
 	//  - traps are ignored; it does not set Context.Err or Context.Conditions
 	//  - its string forms of qNaN, sNaN, +Inf, and -Inf are "NaN", "NaN",
 	//     "+Inf", and "-Inf", respectively
-	//  - Set is analogous to Copy (i.e., no rounding)
 	//
 	Go
 )

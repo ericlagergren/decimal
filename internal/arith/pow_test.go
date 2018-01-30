@@ -13,7 +13,7 @@ func TestBigTen(t *testing.T) {
 	if testing.Short() {
 		// This seems to be causing issues on Travis CI and I can't figure out
 		// why, so just test it locally for now.
-		return
+		t.Skip("skipping testing BigPow10 in short mode")
 	}
 
 	const N = 15

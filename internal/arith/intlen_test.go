@@ -88,7 +88,7 @@ func TestBigLength(t *testing.T) {
 	}
 
 	if testing.Short() {
-		return
+		t.Skip("skipping testing enormous big.Int bit-length in short mode")
 	}
 
 	// Randomly chosen length so its bit-length is a smidge above overflowCutoff

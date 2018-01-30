@@ -40,7 +40,8 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 		return z.SetInf(false)
 	}
 
-	ctx := decimal.Context{Precision: precision(z) + 3}
+	prec := precision(z)
+	ctx := decimal.Context{Precision: prec + 3}
 	tmp := alias(z, x) // scratch space
 
 	// |x| <= 9 * 10 ** -(prec + 1)
@@ -49,7 +50,10 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 		z.Context.Conditions |= decimal.Rounded | decimal.Inexact
 		return ctx.Round(z.SetMantScale(1, 0).Quantize(ctx.Precision - 1 - 3))
 	}
-	ctx.Precision += k + 2
+	ctx.Precision += k + 3
+	if ctx.Precision < 10 {
+		ctx.Precision = 10
+	}
 
 	if x.IsInt() {
 		if v, ok := x.Uint64(); ok && v == 1 {
@@ -86,7 +90,7 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 		fastPowUint(ctx, z, m, k)
 	}
 
-	ctx.Precision -= k + 3 + 2
+	ctx.Precision = prec
 	return ctx.Round(z)
 }
 

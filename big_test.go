@@ -248,7 +248,7 @@ func TestBig_Scan(t *testing.T) {
 
 func TestBig_SetFloat64(t *testing.T) {
 	if testing.Short() {
-		return
+		t.Skip("skipping testing all 32-bit floats in short mode")
 	}
 
 	const eps = 1e-15

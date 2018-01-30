@@ -384,8 +384,7 @@ func (c Context) Quo(z, x, y *Big) *Big {
 		if x.form&inf != 0 {
 			if y.form&inf != 0 {
 				// ±Inf / ±Inf
-				z.setNaN(InvalidOperation, qnan, quoinfinf)
-				return z
+				return z.setNaN(InvalidOperation, qnan, quoinfinf)
 			}
 			// ±Inf / y
 			return z.SetInf(sign != 0)
@@ -427,7 +426,7 @@ func (c Context) Quo(z, x, y *Big) *Big {
 		if shift > 0 {
 			if sx, ok := checked.MulPow10(x.compact, uint64(shift)); ok {
 				if z.quo(m, sx, x.form, y.compact, y.form) {
-					c.Reduce(z)
+					c.simpleReduce(z)
 				}
 				return z
 			}
@@ -435,15 +434,13 @@ func (c Context) Quo(z, x, y *Big) *Big {
 			xb = checked.MulBigPow10(xb, xb, uint64(shift))
 			yb := new(big.Int).SetUint64(y.compact)
 			if z.quoBig(m, xb, x.form, yb, y.form) {
-				c.Reduce(z)
+				c.simpleReduce(z)
 			}
 			return z
 		}
 		if shift < 0 {
 			if sy, ok := checked.MulPow10(y.compact, uint64(-shift)); ok {
-				if z.quo(m, x.compact, x.form, sy, y.form) {
-					c.Reduce(z)
-				}
+				z.quo(m, x.compact, x.form, sy, y.form)
 				return z
 			}
 			yb := z.unscaled.SetUint64(y.compact)
@@ -478,7 +475,7 @@ func (c Context) Quo(z, x, y *Big) *Big {
 	}
 
 	if z.quoBig(m, xb, x.form, yb, y.form) && shift > 0 {
-		c.Reduce(z)
+		c.simpleReduce(z)
 	}
 	return z
 }
@@ -759,13 +756,18 @@ func (m RoundingMode) quoremBig(
 	return z0.norm(), z1
 }
 
+// Reduce reduces a finite z to its most simplest form.
 func (c Context) Reduce(z *Big) *Big {
 	if debug {
 		z.validate()
 	}
+	c.Round(z)
+	return c.simpleReduce(z)
+}
 
-	c.round(z)
-
+// simpleReduce is the same as Reduce, but it does not round prior to reducing
+// the decimal.
+func (c Context) simpleReduce(z *Big) *Big {
 	if z.isSpecial() {
 		// Same semantics as plus(z), i.e. z + 0.
 		z.checkNaNs(z, z, reduction)
@@ -993,7 +995,7 @@ func (c Context) RoundToInt(z *Big) *Big {
 
 // Set sets z to x and returns z. The result might be rounded, even if z == x.
 func (c Context) Set(z, x *Big) *Big {
-	return c.round(z.Copy(x))
+	return c.Round(z.Copy(x))
 }
 
 // SetString sets z to the value of s, returning z and a bool indicating success.

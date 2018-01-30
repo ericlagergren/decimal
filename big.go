@@ -201,9 +201,7 @@ var _ error = ErrNaN{}
 // CheckNaNs checks if either x or y is NaN. If so, it follows the rules of NaN
 // handling set forth in the GDA specification. The second argument, y, may be
 // nil. It returns true if either condition is a NaN.
-func (z *Big) CheckNaNs(x, y *Big) bool {
-	return z.checkNaNs(x, y, 0)
-}
+func (z *Big) CheckNaNs(x, y *Big) bool { return z.checkNaNs(x, y, 0) }
 
 func (z *Big) checkNaNs(x, y *Big, op Payload) bool {
 	var yform form
@@ -285,9 +283,7 @@ func (z *Big) Abs(x *Big) *Big {
 }
 
 // Add sets z to x + y and returns z.
-func (z *Big) Add(x, y *Big) *Big {
-	return z.Context.Add(z, x, y)
-}
+func (z *Big) Add(x, y *Big) *Big { return z.Context.Add(z, x, y) }
 
 // Class returns the ``class'' of x, which is one of the following:
 //
@@ -341,9 +337,7 @@ func (x *Big) Class() string {
 //
 // It does not modify x or y. The result is undefined if either x or y are NaN.
 // For an abstract comparison with NaN values, see misc.CmpTotal.
-func (x *Big) Cmp(y *Big) int {
-	return cmp(x, y, false)
-}
+func (x *Big) Cmp(y *Big) int { return cmp(x, y, false) }
 
 // CmpAbs compares |x| and |y| and returns:
 //
@@ -353,9 +347,7 @@ func (x *Big) Cmp(y *Big) int {
 //
 // It does not modify x or y. The result is undefined if either x or y are NaN.
 // For an abstract comparison with NaN values, see misc.CmpTotalAbs.
-func (x *Big) CmpAbs(y *Big) int {
-	return cmp(x, y, true)
-}
+func (x *Big) CmpAbs(y *Big) int { return cmp(x, y, true) }
 
 // cmp is the implementation for both Cmp and CmpAbs.
 func cmp(x, y *Big, abs bool) int {
@@ -724,9 +716,7 @@ func (x *Big) Format(s fmt.State, c rune) {
 var _ fmt.Formatter = (*Big)(nil)
 
 // FMA sets z to (x * y) + u without any intermediate rounding.
-func (z *Big) FMA(x, y, u *Big) *Big {
-	return z.Context.FMA(z, x, y, u)
-}
+func (z *Big) FMA(x, y, u *Big) *Big { return z.Context.FMA(z, x, y, u) }
 
 // Int sets z to x, truncating the fractional portion (if any) and returns z. z
 // is allowed to be nil. If x is an infinity or a NaN value the result is
@@ -910,9 +900,7 @@ func (x *Big) MarshalText() ([]byte, error) {
 }
 
 // Mul sets z to x * y and returns z.
-func (z *Big) Mul(x, y *Big) *Big {
-	return z.Context.Mul(z, x, y)
-}
+func (z *Big) Mul(x, y *Big) *Big { return z.Context.Mul(z, x, y) }
 
 // Neg sets z to -x and returns z. If x is positive infinity, z will be set to
 // negative infinity and visa versa. If x == 0, z will be set to zero as well.
@@ -967,20 +955,14 @@ func (x *Big) Precision() int {
 }
 
 // Quantize sets z to the number equal in value and sign to z with the scale, n.
-func (z *Big) Quantize(n int) *Big {
-	return z.Context.Quantize(z, n)
-}
+func (z *Big) Quantize(n int) *Big { return z.Context.Quantize(z, n) }
 
 // Quo sets z to x / y and returns z.
-func (z *Big) Quo(x, y *Big) *Big {
-	return z.Context.Quo(z, x, y)
-}
+func (z *Big) Quo(x, y *Big) *Big { return z.Context.Quo(z, x, y) }
 
 // QuoInt sets z to x / y with the remainder truncated. See QuoRem for more
 // details.
-func (z *Big) QuoInt(x, y *Big) *Big {
-	return z.Context.QuoInt(z, x, y)
-}
+func (z *Big) QuoInt(x, y *Big) *Big { return z.Context.QuoInt(z, x, y) }
 
 // QuoRem sets z to the quotient x / y and r to the remainder x % y, such that
 // x = z * y + r, and returns the pair (z, r).
@@ -1043,19 +1025,13 @@ func (x *Big) Rat(z *big.Rat) *big.Rat {
 // Additionally, Raw is the only part of this package's API which is not
 // guaranteed to remain stable. This means the function could change or
 // disappear at any time, even across minor version numbers.
-func Raw(x *Big) (*uint64, *big.Int) {
-	return &x.compact, &x.unscaled
-}
+func Raw(x *Big) (*uint64, *big.Int) { return &x.compact, &x.unscaled }
 
 // Reduce reduces a finite z to its most simplest form.
-func (z *Big) Reduce() *Big {
-	return z.Context.Reduce(z)
-}
+func (z *Big) Reduce() *Big { return z.Context.Reduce(z) }
 
 // Rem sets z to the remainder x % y. See QuoRem for more details.
-func (z *Big) Rem(x, y *Big) *Big {
-	return z.Context.Rem(z, x, y)
-}
+func (z *Big) Rem(x, y *Big) *Big { return z.Context.Rem(z, x, y) }
 
 // Round rounds z down to n digits of precision and returns z. The result is
 // undefined if z is not finite. No rounding will occur if n <= 0. The result of
@@ -1068,9 +1044,7 @@ func (z *Big) Round(n int) *Big {
 }
 
 // RoundToInt rounds z down to an integral value.
-func (z *Big) RoundToInt() *Big {
-	return z.Context.RoundToInt(z)
-}
+func (z *Big) RoundToInt() *Big { return z.Context.RoundToInt(z) }
 
 // Scale returns x's scale.
 func (x *Big) Scale() int { return -x.exp }
@@ -1084,9 +1058,7 @@ var _ fmt.Scanner = (*Big)(nil)
 
 // Set sets z to x and returns z. The result might be rounded depending on z's
 // Context, and even if z == x.
-func (z *Big) Set(x *Big) *Big {
-	return z.Context.round(z.Copy(x))
-}
+func (z *Big) Set(x *Big) *Big { return z.Context.round(z.Copy(x)) }
 
 // setShared sets z to x, but does not copy—z may possibly alias x.
 func (z *Big) setShared(x *Big) *Big {
@@ -1421,9 +1393,7 @@ func (x *Big) String() string {
 var _ fmt.Stringer = (*Big)(nil)
 
 // Sub sets z to x - y and returns z.
-func (z *Big) Sub(x, y *Big) *Big {
-	return z.Context.Sub(z, x, y)
-}
+func (z *Big) Sub(x, y *Big) *Big { return z.Context.Sub(z, x, y) }
 
 // UnmarshalText implements encoding.TextUnmarshaler.
 func (z *Big) UnmarshalText(data []byte) error {

@@ -53,3 +53,16 @@ got   : %d (%d)
 		}
 	}
 }
+
+func TestIssue73(t *testing.T) {
+	x := decimal.New(16, 2)
+	z := decimal.WithPrecision(4100)
+	Sqrt(z, x)
+	r := decimal.New(4, 1)
+	if z.Cmp(r) != 0 || z.Scale() != r.Scale() || z.Context.Conditions != r.Context.Conditions {
+		t.Fatalf(`Sqrt(%d)
+wanted: %s (%d) %s
+got   : %s (%d) %s
+`, x, r, -r.Scale(), r.Context.Conditions, z, -z.Scale(), z.Context.Conditions)
+	}
+}

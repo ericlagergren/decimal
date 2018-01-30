@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/ericlagergren/decimal"
+	"github.com/ericlagergren/decimal/internal/c"
 )
 
 // Hypot sets z to Sqrt(p*p + q*q) and returns z.
@@ -25,6 +26,14 @@ func Hypot(z, p, q *decimal.Big) *decimal.Big {
 	ctx.Mul(&q0, q, q)
 	return Sqrt(z, ctx.Add(z, &p0, &q0))
 }
+
+var (
+	approx1 = decimal.New(259, 3)
+	approx2 = decimal.New(819, 3)
+	approx3 = decimal.New(819, 4)
+	approx4 = decimal.New(259, 2)
+	ptFive  = decimal.New(5, 1)
+)
 
 // Sqrt sets z to the square root of x and returns z.
 func Sqrt(z, x *decimal.Big) *decimal.Big {
@@ -51,10 +60,10 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 	ctx := decimal.Context{Precision: prec}
 
 	// Fast path #1: use math.Sqrt if our decimal is small enough.
-	if f, exact := x.Float64(); exact {
-		f = math.Sqrt(f)
-		if _, fr := math.Modf(f); fr == 0 || prec <= 15 {
-			z.SetFloat64(f)
+	if f, exact := x.Float64(); f >= 1 && exact {
+		sqrt := math.Sqrt(f)
+		if _, fr := math.Modf(sqrt); fr == 0 || prec <= 15 {
+			z.SetFloat64(sqrt)
 			if fr != 0 {
 				ctx.Round(z)
 			}
@@ -109,17 +118,34 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 	// anyway.
 
 	z.SetScale(z.Scale() - e/2)
-	if ideal != z.Scale() {
-		z.Context.Conditions |= decimal.Rounded | decimal.Inexact
+	if z.Precision() > prec {
+		ctx.Precision = prec
+		// TODO(eric): it's not always inexact—sometimes we only have to trim
+		// a few trailing 0s. However, other libraries always (in effect) mark
+		// it as inexact, so we'll do so as well.
+		z.Context.Conditions |= decimal.Inexact
+		return ctx.Round(z)
 	}
-	ctx.Precision = prec
-	return ctx.Round(z)
+	if perfectSquare(ctx, z, x) {
+		ctx.Precision = ideal
+		ctx.Round(z)
+		z.Context.Conditions &= ^decimal.Rounded
+	}
+	return z
 }
 
-var (
-	approx1 = decimal.New(259, 3)
-	approx2 = decimal.New(819, 3)
-	approx3 = decimal.New(819, 4)
-	approx4 = decimal.New(259, 2)
-	ptFive  = decimal.New(5, 1)
-)
+func perfectSquare(ctx decimal.Context, r, x *decimal.Big) bool {
+	var v uint64
+	if m, u := decimal.Raw(r); *m != c.Inflated {
+		v = *m & 0xF
+	} else {
+		v = uint64(u.Bits()[len(u.Bits())-1] & 0xF)
+	}
+	switch v {
+	case 0, 1, 4, 9:
+		var tmp decimal.Big
+		return ctx.Mul(&tmp, r, r).Cmp(x) == 0
+	default:
+		return false
+	}
+}

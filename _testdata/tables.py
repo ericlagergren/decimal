@@ -315,7 +315,7 @@ def rand_traps():
 
 
 # set N higher for local testing.
-N = 5000
+N = int(sys.argv[1])
 
 
 def make_tables(items):
@@ -343,7 +343,7 @@ def make_tables(items):
 
 
 items = ops.items()
-if len(sys.argv) > 1:
-    arg = sys.argv[1]
+if len(sys.argv) > 2:
+    arg = sys.argv[2]
     items = [(arg, ops[arg])]
 make_tables(items)

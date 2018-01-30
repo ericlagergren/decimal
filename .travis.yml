@@ -22,7 +22,7 @@ addons:
       - python3.6
 
 before_script:
-  - cd _testdata && ./tables.py && cd ..
+  - cd _testdata && ./tables.py 500 && cd ..
   - GO_FILES=$(find . -type f -iname '*.go')
   - go get -u -t ./...
 
