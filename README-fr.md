@@ -23,7 +23,7 @@ précision arbitrarie que mettre en œuvre la spécification
 
 ## Gestion de versions
 
-`decimal` utilise le gestion sémantique de version. La version actuelle est 3.0.
+`decimal` utilise le gestion sémantique de version. La version actuelle est 3.1.
 
 ## Licence
 
