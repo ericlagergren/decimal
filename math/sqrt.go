@@ -47,7 +47,6 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 		if xs == 0 {
 			return z.SetMantScale(0, ideal).CopySign(z, x)
 		}
-		// errors.New("math.Sqrt: cannot take square root of negative number"),
 		z.Context.Conditions |= decimal.InvalidOperation
 		return z.SetNaN(false)
 	}
@@ -66,20 +65,7 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 
 	// Fast path #1: use math.Sqrt if our decimal is small enough.
 	if f, exact := x.Float64(); exact && prec <= 15 {
-		ctx.Round(z.SetFloat64(math.Sqrt(f)))
-		ctx.Precision = x.Precision()
-
-		var tmp decimal.Big
-		if ctx.Mul(&tmp, z, z).Cmp(x) == 0 {
-			ctx.Reduce(z)
-			if !rnd {
-				z.Context.Conditions &= ^decimal.Rounded
-			}
-			if !ixt {
-				z.Context.Conditions &= ^decimal.Inexact
-			}
-		}
-		return z
+		return ctx.Reduce(z.SetFloat64(math.Sqrt(f)))
 	}
 
 	// Source for the following algorithm:
@@ -128,20 +114,8 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 	// rounding mode half even (speleotrove.com/decimal/daops.html#refsqrt)
 	// anyway.
 
-	z.SetScale(z.Scale() - e/2)
-	if z.Precision() > prec {
-		if !rnd {
-			z.Context.Conditions &= ^decimal.Rounded
-		}
-		if !ixt {
-			z.Context.Conditions &= ^decimal.Inexact
-		}
-		ctx.Precision = prec
-		return ctx.Round(z)
-	}
-	// Perfect square.
-	if ctx.Mul(&tmp, z, z).Cmp(x) == 0 {
-		ctx.Reduce(z)
+	ctx.Reduce(z.SetScale(z.Scale() - e/2))
+	if z.Precision() <= prec {
 		if !rnd {
 			z.Context.Conditions &= ^decimal.Rounded
 		}
@@ -149,5 +123,6 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 			z.Context.Conditions &= ^decimal.Inexact
 		}
 	}
-	return z
+	ctx.Precision = prec
+	return ctx.Round(z)
 }

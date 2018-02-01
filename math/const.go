@@ -103,15 +103,15 @@ func pi(z *decimal.Big, ctx decimal.Context) *decimal.Big {
 }
 
 // ln10 sets z to log(10) and returns z.
-func ln10(z *decimal.Big, prec int) *decimal.Big {
+func ln10(z *decimal.Big, prec int, t *Term) *decimal.Big {
 	ctx := decimal.Context{Precision: prec}
 	if ctx.Precision <= constPrec {
 		return ctx.Set(z, _Ln10)
 	}
 
-	// TODO(eric): we can (possibly?) speed this up by selecting a log10 constant
-	// that's some truncation of our continued fraction and setting the starting
-	// term to that position in our continued fraction.
+	// TODO(eric): we can speed this up by selecting a log10 constant that's
+	// some truncation of our continued fraction and setting the starting term
+	// to that position in our continued fraction.
 
 	ctx.Precision += 3
 	g := lgen{
@@ -119,10 +119,14 @@ func ln10(z *decimal.Big, prec int) *decimal.Big {
 		pow: eightyOne, // 9 * 9
 		z2:  eleven,    // 9 + 2
 		k:   -1,
-		t:   Term{A: new(decimal.Big), B: new(decimal.Big)},
 	}
-	ctx.Quo(z, eighteen /* 9 * 2 */, Lentz(z, &g))
-	ctx.Precision -= 3
+	if t != nil {
+		g.t = *t
+	} else {
+		g.t = makeTerm()
+	}
+	ctx.Quo(z, eighteen /* 9 * 2 */, Wallis(z, &g))
+	ctx.Precision = prec
 	return ctx.Round(z)
 }
 

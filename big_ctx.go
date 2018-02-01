@@ -909,11 +909,12 @@ func (c Context) Round(z *Big) *Big {
 		return z
 	}
 
-	if z.Precision() <= n {
+	zp := z.Precision()
+	if zp <= n {
 		return c.fix(z)
 	}
 
-	shift := z.Precision() - n
+	shift := zp - n
 	if shift > c.maxScale() {
 		return z.xflow(c.minScale(), false, true)
 	}

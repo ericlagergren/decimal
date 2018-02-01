@@ -18,6 +18,10 @@ func (t Term) String() string {
 	return fmt.Sprintf("[%s / %s]", t.A, t.B)
 }
 
+func makeTerm() Term {
+	return Term{A: new(decimal.Big), B: new(decimal.Big)}
+}
+
 // Generator represents a continued fraction.
 type Generator interface {
 	// Next returns true if there are future terms. Every call to Term—even the

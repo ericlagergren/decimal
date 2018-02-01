@@ -1,8 +1,6 @@
 package math
 
 import (
-	stdMath "math"
-
 	"github.com/ericlagergren/decimal"
 	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/c"
@@ -41,7 +39,7 @@ func Log(z, x *decimal.Big) *decimal.Big {
 				return z.SetMantScale(0, 0)
 			case 10:
 				// Specialized function.
-				return ln10(z, precision(z))
+				return ln10(z, precision(z), nil)
 			}
 		}
 	}
@@ -77,8 +75,6 @@ func logSpecials(z, x *decimal.Big) bool {
 // log set z to log(x), or log10(x) if ten. It does not check for special values,
 // nor implement any special casing.
 func log(z, x *decimal.Big, ten bool) *decimal.Big {
-	prec := precision(z)
-
 	t := int64(adjusted(x))
 	if t < 0 {
 		t = -t - 1
@@ -102,13 +98,15 @@ func log(z, x *decimal.Big, ten bool) *decimal.Big {
 	// Compute
 	//    log(y) + p*log(10)
 
-	// TODO(eric): adj should be large enough. It's passed multiple iterations
-	// of with a precision in [1, 5000) and a 128-bit decimal.
-	adj := 7 + int(4*stdMath.Log(float64(x.Precision())))
-	if ten {
-		adj += 3
+	// TODO(eric): the precision adjustment should be large enough. It's passed
+	// multiple iterations of with a precision in [1, 5000) and a 128-bit decimal.
+	prec := precision(z)
+	ctx := decimal.Context{
+		Precision: prec + arith.Length(uint64(prec+x.Precision())) + 5,
 	}
-	ctx := decimal.Context{Precision: prec + adj}
+	if ten {
+		ctx.Precision += 3
+	}
 
 	var p int64
 	switch {
@@ -118,15 +116,16 @@ func log(z, x *decimal.Big, ten bool) *decimal.Big {
 	// 0.0001
 	case x.Scale() >= x.Precision():
 		p = -int64(x.Scale() - x.Precision() + 1)
+		ctx.Precision = int(float64(ctx.Precision) * 1.5)
 	// 12.345
 	default:
 		p = int64(-x.Scale() + x.Precision() - 1)
 	}
 
-	// Rescale to 1 <= x <= 10
-	y := decimal.WithContext(ctx).Copy(x).SetScale(x.Precision() - 1)
+	// Rescale to 1 <= x < 10
+	y := new(decimal.Big).Copy(x).SetScale(x.Precision() - 1)
 	// Continued fraction algorithm is for log(1+x)
-	y.Sub(y, one)
+	ctx.Sub(y, y, one)
 
 	g := lgen{
 		ctx: ctx,
@@ -140,10 +139,10 @@ func log(z, x *decimal.Big, ten bool) *decimal.Big {
 	// better performance at ~750 digits of precision. Consider using Newton's
 	// method or another algorithm for lower precision ranges.
 
-	ctx.Quo(z, y.Mul(y, two), Lentz(z, &g))
+	ctx.Quo(z, ctx.Mul(y, y, two), Wallis(z, &g))
 
 	if p != 0 || ten {
-		t := ln10(y, ctx.Precision) // recycle y
+		t := ln10(y, ctx.Precision, &g.t) // recycle y, g.t
 
 		// Avoid doing unnecessary work.
 		switch p {
@@ -164,7 +163,7 @@ func log(z, x *decimal.Big, ten bool) *decimal.Big {
 			ctx.Quo(z, z, t)
 		}
 	}
-	ctx.Precision -= adj
+	ctx.Precision = prec
 	return ctx.Round(z)
 }
 
@@ -178,13 +177,14 @@ type lgen struct {
 
 func (l *lgen) Context() decimal.Context { return l.ctx }
 
-func (l *lgen) Lentz() (f, Δ, C, D, eps *decimal.Big) {
-	f = decimal.WithContext(l.ctx)
-	Δ = decimal.WithContext(l.ctx)
-	C = decimal.WithContext(l.ctx)
-	D = decimal.WithContext(l.ctx)
+func (l *lgen) Wallis() (a, a1, b, b1, p, eps *decimal.Big) {
+	a = decimal.WithContext(l.ctx)
+	a1 = decimal.WithContext(l.ctx)
+	b = decimal.WithContext(l.ctx)
+	b1 = decimal.WithContext(l.ctx)
+	p = decimal.WithContext(l.ctx)
 	eps = decimal.New(1, l.ctx.Precision)
-	return
+	return a, a1, b, b1, p, eps
 }
 
 func (a *lgen) Next() bool { return true }

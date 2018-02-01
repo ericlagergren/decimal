@@ -41,3 +41,4 @@ benchmarks/decbench
 *.class
 *.gz
 internal/nat/
+x.bash

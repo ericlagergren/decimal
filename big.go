@@ -759,7 +759,7 @@ func (x *Big) Int64() (int64, bool) {
 		return 0, false
 	}
 
-	// x might be too large to fit into an uint64 *now*, but rescaling x might
+	// x might be too large to fit into an int64 *now*, but rescaling x might
 	// shrink it enough. See issue #20.
 	if !x.isCompact() {
 		xb := x.Int(nil)
@@ -773,14 +773,11 @@ func (x *Big) Int64() (int64, bool) {
 			return 0, false
 		}
 	}
-	if u > math.MaxInt64 {
-		return 0, false
+	su := int64(u)
+	if su >= 0 || x.Signbit() && su == -su {
+		return su, true
 	}
-	b := int64(u)
-	if x.form&signbit != 0 {
-		b = -b
-	}
-	return b, true
+	return 0, false
 }
 
 // Uint64 returns x as an int64, truncating towards zero. The returned boolean

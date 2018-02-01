@@ -1,4 +1,4 @@
-// +build amd64,!386
+// +build ppc64le ppc64 amd64p32 s390x arm64 mips64 mips64le amd64
 
 package c
 

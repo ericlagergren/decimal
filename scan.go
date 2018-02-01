@@ -354,6 +354,8 @@ Loop:
 		if err == nil {
 			if scale != noScale {
 				z.exp = -int(length - scale)
+			} else {
+				z.exp = 0
 			}
 			z.precision = arith.Length(z.compact)
 			return nil
