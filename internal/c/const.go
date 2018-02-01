@@ -3,7 +3,8 @@ package c
 
 import (
 	"math"
-	"math/big"
+
+	big "github.com/ericlagergren/gmp"
 )
 
 const Inflated uint64 = math.MaxUint64
@@ -15,7 +16,7 @@ var (
 	TenInt        = big.NewInt(10)
 	OneMillionInt = big.NewInt(1000000)
 
-	TenFloat = big.NewFloat(10)
+	//TenFloat = big.NewFloat(10)
 
 	MaxInt64 = big.NewInt(math.MaxInt64)
 	MinInt64 = big.NewInt(math.MinInt64)

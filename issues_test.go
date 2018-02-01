@@ -1,7 +1,7 @@
 package decimal
 
 import (
-	"math/big"
+	big "github.com/ericlagergren/gmp"
 	"testing"
 )
 

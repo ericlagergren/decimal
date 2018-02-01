@@ -2,12 +2,13 @@ package decimal_test
 
 import (
 	"math"
-	"math/big"
 	"math/rand"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
+
+	big "github.com/ericlagergren/gmp"
 
 	"github.com/ericlagergren/decimal"
 	"github.com/ericlagergren/decimal/internal/test"
@@ -62,20 +63,6 @@ var randDecs = func() (a [5000]string) {
 	}
 	return a
 }()
-
-func TestBig_Float(t *testing.T) {
-	for i, test := range randDecs {
-		flt, ok := new(big.Float).SetString(test)
-		if !ok {
-			t.Fatal("!ok")
-		}
-		fv := new(big.Float).SetPrec(flt.Prec())
-		xf := new(decimal.Big).SetFloat(flt).Float(fv)
-		if xf.String() != flt.String() {
-			t.Fatalf("#%d: wanted %f, got %f", i, flt, xf)
-		}
-	}
-}
 
 func TestBig_Int(t *testing.T) {
 	for i, test := range randDecs {

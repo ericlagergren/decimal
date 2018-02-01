@@ -2,7 +2,7 @@
 package arith
 
 import (
-	"math/big"
+	big "github.com/ericlagergren/gmp"
 	"sync"
 	"sync/atomic"
 

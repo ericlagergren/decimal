@@ -6,17 +6,17 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"math/big"
 	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
 
+	big "github.com/ericlagergren/gmp"
+
 	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/arith/checked"
 	"github.com/ericlagergren/decimal/internal/buf"
 	"github.com/ericlagergren/decimal/internal/c"
-	"github.com/ericlagergren/decimal/internal/compat"
 )
 
 // Big is a floating-point, arbitrary-precision decimal.
@@ -34,11 +34,11 @@ import (
 // Additionally, each Big value has a contextual object which governs arithmetic
 // operations.
 type Big struct {
-	// Context is the decimal's unique contextual object.
-	Context Context
-
 	// unscaled is only used if the decimal is too large to fit in compact.
 	unscaled big.Int
+
+	// Context is the decimal's unique contextual object.
+	Context Context
 
 	// compact is use if the value fits into an uint64. The scale does not
 	// affect whether this field is used; typically, if a decimal has <= 20
@@ -400,7 +400,7 @@ func cmpabs(x, y *Big) int {
 		if y.isCompact() {
 			return +1 // !x.isCompact
 		}
-		return compat.BigCmpAbs(&x.unscaled, &y.unscaled)
+		return x.unscaled.CmpAbs(&y.unscaled)
 	}
 
 	// Signs are the same and the scales differ. Compare the lengths of their
@@ -427,21 +427,20 @@ func cmpabs(x, y *Big) int {
 		return -arith.AbsCmp128(y.compact, x.compact, p)
 	}
 
-	xw, yw := x.unscaled.Bits(), y.unscaled.Bits()
-	if x.isCompact() {
-		xw = arith.Words(x.compact)
-	}
-	if y.isCompact() {
-		yw = arith.Words(y.compact)
-	}
-
+	xb, yb := &x.unscaled, &y.unscaled
 	var tmp big.Int
 	if diff < 0 {
-		yw = checked.MulBigPow10(&tmp, tmp.SetBits(copybits(yw)), shift).Bits()
+		if y.isCompact() {
+			yb = tmp.SetUint64(y.compact)
+		}
+		yb = checked.MulBigPow10(&tmp, yb, shift)
 	} else {
-		xw = checked.MulBigPow10(&tmp, tmp.SetBits(copybits(xw)), shift).Bits()
+		if x.isCompact() {
+			xb = tmp.SetUint64(x.compact)
+		}
+		xb = checked.MulBigPow10(&tmp, xb, shift)
 	}
-	return arith.CmpBits(xw, yw)
+	return xb.CmpAbs(yb)
 }
 
 // Copy sets z to a copy of x and returns z.
@@ -526,32 +525,6 @@ func (x *Big) Float64() (f float64, exact bool) {
 		f = math.Copysign(f, -1)
 	}
 	return f, exact
-}
-
-// Float sets z to x and returns z. z is allowed to be nil. The result is
-// undefined if z is a NaN value.
-func (x *Big) Float(z *big.Float) *big.Float {
-	if debug {
-		x.validate()
-	}
-
-	if z == nil {
-		z = new(big.Float)
-	}
-
-	switch x.form {
-	case finite, finite | signbit:
-		if x.compact == 0 {
-			z.SetUint64(0)
-		} else {
-			z.SetRat(x.Rat(nil))
-		}
-	case pinf, ninf:
-		z.SetInf(x.form == pinf)
-	default: // snan, qnan, ssnan, sqnan:
-		z.SetUint64(0)
-	}
-	return z
 }
 
 // Format implements the fmt.Formatter interface. The following verbs are
@@ -669,8 +642,8 @@ func (x *Big) Format(s fmt.State, c rune) {
 		// even though it's declared inside a function. Go thinks it's recursive.
 		// At least the fields are checked at compile time.
 		type Big struct {
-			Context   Context
 			unscaled  big.Int
+			Context   Context
 			compact   uint64
 			exp       int
 			precision int
@@ -1098,52 +1071,6 @@ func (z *Big) SetBigMantScale(value *big.Int, scale int) *Big {
 	return z
 }
 
-// SetFloat sets z to x and returns z.
-func (z *Big) SetFloat(x *big.Float) *Big {
-	if x.IsInf() {
-		if x.Signbit() {
-			z.form = ninf
-		} else {
-			z.form = pinf
-		}
-		return z
-	}
-
-	neg := x.Signbit()
-	if x.Sign() == 0 {
-		if neg {
-			z.form |= signbit
-		}
-		z.compact = 0
-		z.precision = 1
-		return z
-	}
-
-	z.exp = 0
-	x0 := new(big.Float).Copy(x).SetPrec(big.MaxPrec)
-	x0.Abs(x0)
-	if !x.IsInt() {
-		for !x0.IsInt() {
-			x0.Mul(x0, c.TenFloat)
-			z.exp--
-		}
-	}
-
-	if mant, acc := x0.Uint64(); acc == big.Exact {
-		z.compact = mant
-		z.precision = arith.Length(mant)
-	} else {
-		z.compact = c.Inflated
-		x0.Int(&z.unscaled)
-		z.precision = arith.BigLength(&z.unscaled)
-	}
-	z.form = finite
-	if neg {
-		z.form |= signbit
-	}
-	return z
-}
-
 // SetFloat64 sets z to exactly x.
 func (z *Big) SetFloat64(x float64) *Big {
 	if x == 0 {
@@ -1412,8 +1339,8 @@ func (x *Big) validate() {
 				fmt.Println("called by:", caller.Name())
 			}
 			type Big struct {
-				Context   Context
 				unscaled  big.Int
+				Context   Context
 				compact   uint64
 				exp       int
 				precision int

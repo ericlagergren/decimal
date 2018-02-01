@@ -2,7 +2,7 @@ package postgres
 
 import (
 	"fmt"
-	"math/big"
+	big "github.com/ericlagergren/gmp"
 	"math/rand"
 	"strconv"
 	"strings"

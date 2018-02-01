@@ -2,12 +2,12 @@ package decimal
 
 import (
 	"math"
-	"math/big"
+
+	big "github.com/ericlagergren/gmp"
 
 	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/arith/checked"
 	cst "github.com/ericlagergren/decimal/internal/c"
-	"github.com/ericlagergren/decimal/internal/compat"
 )
 
 // Add sets z to x + y and returns z.
@@ -562,7 +562,7 @@ func (z *Big) quoBig(m RoundingMode, x *big.Int, xneg form, y *big.Int, yneg for
 	if arith.IsUint64(r) && arith.IsUint64(y) && rv <= math.MaxUint64/2 {
 		rc = arith.Cmp(rv*2, y.Uint64())
 	} else {
-		rc = compat.BigCmpAbs(new(big.Int).Mul(r, cst.TwoInt), y)
+		rc = r.Mul(r, cst.TwoInt).CmpAbs(y)
 	}
 
 	if m == unnecessary {

@@ -3,8 +3,9 @@ package decimal
 import (
 	"fmt"
 	"io"
-	"math/big"
 	"strconv"
+
+	big "github.com/ericlagergren/gmp"
 )
 
 // allZeros returns true if every character in b is '0'.
@@ -93,10 +94,7 @@ func formatCompact(x uint64) []byte {
 // formatUnscaled formats the unscaled (non-compact) decimal, unscaled, as an
 // unsigned integer.
 func formatUnscaled(unscaled *big.Int) []byte {
-	// math/big.MarshalText never returns an error, only nil, so there's no need
-	// to check for an error. Use MarshalText instead of Append because it limits
-	// us to one allocation.
-	b, _ := unscaled.MarshalText()
+	b := []byte(unscaled.String())
 	if b[0] == '-' {
 		b = b[1:]
 	}

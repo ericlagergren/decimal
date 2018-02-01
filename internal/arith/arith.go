@@ -1,7 +1,7 @@
 package arith
 
 import (
-	"math/big"
+	big "github.com/ericlagergren/gmp"
 	"math/bits"
 )
 

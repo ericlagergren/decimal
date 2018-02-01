@@ -1,6 +1,8 @@
+// +build ignore
+
 package arith
 
-import "math/big"
+import big "github.com/ericlagergren/gmp"
 
 // Mul128 returns the 128-bit multiplication of x and y.
 func Mul128(x, y uint64) (z1, z0 uint64)

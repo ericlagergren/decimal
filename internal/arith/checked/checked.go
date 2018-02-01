@@ -2,7 +2,7 @@
 package checked
 
 import (
-	"math/big"
+	big "github.com/ericlagergren/gmp"
 
 	"github.com/ericlagergren/decimal/internal/arith"
 )

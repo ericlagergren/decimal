@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"compress/gzip"
 	"fmt"
-	"math/big"
+	big "github.com/ericlagergren/gmp"
 	"os"
 	"path/filepath"
 	"reflect"

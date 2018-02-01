@@ -2,7 +2,7 @@
 package misc
 
 import (
-	"math/big"
+	big "github.com/ericlagergren/gmp"
 
 	"github.com/ericlagergren/decimal"
 	"github.com/ericlagergren/decimal/internal/arith"

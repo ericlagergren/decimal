@@ -1,7 +1,7 @@
 package decimal
 
 import (
-	"math/big"
+	big "github.com/ericlagergren/gmp"
 
 	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/arith/checked"
@@ -79,14 +79,6 @@ func (c Context) fix(z *Big) *Big {
 
 // alias returns z if z != x, otherwise a newly-allocated big.Int.
 func alias(z, x *big.Int) *big.Int {
-	if z != x {
-		// We have to check the first element of their internal slices since
-		// Big doesn't store a pointer to a big.Int.
-		zb, xb := z.Bits(), x.Bits()
-		if cap(zb) > 0 && cap(xb) > 0 && &zb[0:cap(zb)][cap(zb)-1] != &xb[0:cap(xb)][cap(xb)-1] {
-			return z
-		}
-	}
 	return new(big.Int)
 }
 
@@ -115,21 +107,6 @@ func precision(c Context) (p int) {
 		return p
 	}
 	return DefaultPrecision
-}
-
-// copybits can be useful when we want to allocate a big.Int without calling
-// new or big.Int.Set. For example:
-//
-//   var x big.Int
-//   if foo {
-//       x.SetBits(copybits(y.Bits()))
-//   }
-//   ...
-//
-func copybits(x []big.Word) []big.Word {
-	z := make([]big.Word, len(x))
-	copy(z, x)
-	return z
 }
 
 // cmpNorm compares x and y in the range [0.1, 0.999...] and returns true if x

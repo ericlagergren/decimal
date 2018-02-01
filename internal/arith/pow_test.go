@@ -2,7 +2,7 @@ package arith
 
 import (
 	"fmt"
-	"math/big"
+	big "github.com/ericlagergren/gmp"
 	"sync"
 	"testing"
 
