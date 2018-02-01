@@ -334,7 +334,7 @@ func (c Context) Quantize(z *Big, n int) *Big {
 	}
 
 	z.exp = n
-	if shift == 0 || z.compact == 0 {
+	if shift == 0 {
 		return z
 	}
 
@@ -359,7 +359,7 @@ func (c Context) Quantize(z *Big, n int) *Big {
 	}
 
 	if shift > 0 {
-		_ = checked.MulBigPow10(&z.unscaled, &z.unscaled, uint64(shift))
+		checked.MulBigPow10(&z.unscaled, &z.unscaled, uint64(shift))
 		z.precision = arith.BigLength(&z.unscaled)
 	} else {
 		z.quoBig(m, &z.unscaled, neg, arith.BigPow10(uint64(-shift)), 0)

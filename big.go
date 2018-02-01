@@ -775,6 +775,9 @@ func (x *Big) Int64() (int64, bool) {
 	}
 	su := int64(u)
 	if su >= 0 || x.Signbit() && su == -su {
+		if x.Signbit() {
+			su = -su
+		}
 		return su, true
 	}
 	return 0, false
