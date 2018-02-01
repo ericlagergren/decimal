@@ -44,8 +44,7 @@ func TestIssue69(t *testing.T) {
 	}
 	for i := maxSqrt; i != 0; i-- {
 		x.SetUint64(i * i)
-		v, _ := decimal.Raw(Sqrt(x, x))
-		if *v != i {
+		if v, ok := Sqrt(x, x).Uint64(); !ok || v != i {
 			t.Fatalf(`Sqrt(%d)
 wanted: %d (0)
 got   : %d (%d)

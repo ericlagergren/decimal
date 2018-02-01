@@ -1,8 +1,6 @@
 package math
 
 import (
-	"math"
-
 	"github.com/ericlagergren/decimal"
 )
 
@@ -35,8 +33,6 @@ var (
 )
 
 // Sqrt sets z to the square root of x and returns z.
-//
-// BUG(eric): The Rounded and Inexact conditions may be incorrect.
 func Sqrt(z, x *decimal.Big) *decimal.Big {
 	if z.CheckNaNs(x, nil) {
 		return z
@@ -62,11 +58,6 @@ func Sqrt(z, x *decimal.Big) *decimal.Big {
 		rnd  = z.Context.Conditions&decimal.Rounded != 0
 		ixt  = z.Context.Conditions&decimal.Inexact != 0
 	)
-
-	// Fast path #1: use math.Sqrt if our decimal is small enough.
-	if f, exact := x.Float64(); exact && prec <= 15 {
-		return ctx.Reduce(z.SetFloat64(math.Sqrt(f)))
-	}
 
 	// Source for the following algorithm:
 	//
