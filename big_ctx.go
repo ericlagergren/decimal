@@ -445,16 +445,22 @@ func (c Context) Quo(z, x, y *Big) *Big {
 		}
 		if shift < 0 {
 			if sy, ok := checked.MulPow10(y.compact, uint64(-shift)); ok {
-				z.quo(m, x.compact, x.form, sy, y.form)
+				if z.quo(m, x.compact, x.form, sy, y.form) {
+					c.simpleReduce(z)
+				}
 				return z
 			}
 			yb := z.unscaled.SetUint64(y.compact)
 			yb = checked.MulBigPow10(yb, yb, uint64(-shift))
 			xb := new(big.Int).SetUint64(x.compact)
-			z.quoBig(m, xb, x.form, yb, y.form)
+			if z.quoBig(m, xb, x.form, yb, y.form) {
+				c.simpleReduce(z)
+			}
 			return z
 		}
-		z.quo(m, x.compact, x.form, y.compact, y.form)
+		if z.quo(m, x.compact, x.form, y.compact, y.form) {
+			c.simpleReduce(z)
+		}
 		return z
 	}
 
@@ -479,7 +485,7 @@ func (c Context) Quo(z, x, y *Big) *Big {
 		yb = checked.MulBigPow10(tmp, yb, uint64(-shift))
 	}
 
-	if z.quoBig(m, xb, x.form, yb, y.form) && shift > 0 {
+	if z.quoBig(m, xb, x.form, yb, y.form) {
 		c.simpleReduce(z)
 	}
 	return z
@@ -488,15 +494,15 @@ func (c Context) Quo(z, x, y *Big) *Big {
 func (z *Big) quo(m RoundingMode, x uint64, xneg form, y uint64, yneg form) bool {
 	z.form = xneg ^ yneg
 	z.compact = x / y
+	z.precision = arith.Length(z.compact)
+
 	r := x % y
 	if r == 0 {
-		z.precision = arith.Length(z.compact)
 		return true
 	}
 
 	z.Context.Conditions |= Inexact | Rounded
 	if m == ToZero {
-		z.precision = arith.Length(z.compact)
 		return false
 	}
 
@@ -509,11 +515,28 @@ func (z *Big) quo(m RoundingMode, x uint64, xneg form, y uint64, yneg form) bool
 		z.setNaN(InvalidOperation|InvalidContext|InsufficientStorage, qnan, quotermexp)
 		return false
 	}
+
 	if m.needsInc(z.compact&1 != 0, rc, xneg == yneg) {
 		z.Context.Conditions |= Rounded
 		z.compact++
+
+		// Test to see if we accidentally increased precision because of rounding.
+		// For example, given n = 17 and RoundingMode = ToNearestEven, rounding
+		//
+		//   0.9999999999999999994284
+		//
+		// results in
+		//
+		//   0.99999999999999999 (precision = 17)
+		//
+		// which is rounded up to
+		//
+		//   1.00000000000000000 (precision = 18)
+		if arith.Length(z.compact) != z.precision {
+			z.compact /= 10
+			z.exp++
+		}
 	}
-	z.precision = arith.Length(z.compact)
 	return false
 }
 
@@ -546,9 +569,15 @@ func (z *Big) quoBig(m RoundingMode, x *big.Int, xneg form, y *big.Int, yneg for
 		z.setNaN(InvalidOperation|InvalidContext|InsufficientStorage, qnan, quotermexp)
 		return false
 	}
+
 	if m.needsInc(q.Bit(0) != 0, rc, xneg == yneg) {
 		z.Context.Conditions |= Rounded
+		z.precision = arith.BigLength(q)
 		arith.Add(q, q, 1)
+		if arith.BigLength(q) != z.precision {
+			z.exp++
+			q.Quo(q, cst.TenInt)
+		}
 	}
 	z.norm()
 	return false
@@ -923,37 +952,6 @@ func (c Context) Round(z *Big) *Big {
 	z.Context.Conditions |= Rounded
 
 	c.shiftr(z, uint64(shift))
-
-	// Test to see if we accidentally increased precision because of rounding.
-	// For example, given n = 17 and RoundingMode = ToNearestEven, rounding
-	//
-	//   0.9999999999999999994284
-	//
-	// results in
-	//
-	//   0.99999999999999999 (precision = 17)
-	//
-	// which is rounded up to
-	//
-	//   1.00000000000000000 (precision = 18)
-	//
-	// Ideally, we'd have a more efficient method of correcting the extra
-	// precision than this double shift. Inside the quo and quoBig methods we
-	// might try something like
-	//
-	//   if m.needsInc( ... ) {
-	//      z.precision = arith.Length(z.compact)
-	//      z.compact++
-	//      if arith.Length(z.compact) != z.precision {
-	//          z.compact /= 10
-	//      }
-	//   }
-	//
-	// But that might have too much overhead for the general case division.
-	if z.Precision() != n {
-		c.shiftr(z, 1)
-		z.exp++
-	}
 	return c.fix(z)
 }
 

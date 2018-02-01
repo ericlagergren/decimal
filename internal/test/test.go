@@ -258,7 +258,7 @@ func (c *scase) Check(z *decimal.Big) {
 wanted: %q (%s:%d)
 got   : %q (%s:%d)
 `,
-			c.i, c.c.ShortString(22),
+			c.i, c.c.ShortString(10000),
 			r, c.flags, -r.Scale(),
 			z, z.Context.Conditions, -z.Scale(),
 		)
