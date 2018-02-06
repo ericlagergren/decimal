@@ -16,7 +16,7 @@ func (c Context) Add(z, x, y *Big) *Big {
 		x.validate()
 		y.validate()
 	}
-	if z.validateContext(c) {
+	if z.invalidContext(c) {
 		return z
 	}
 
@@ -221,10 +221,10 @@ func (c Context) addBig(z *Big, hi *big.Int, hineg form, lo *big.Int, loneg form
 
 // FMA sets z to (x * y) + u without any intermediate rounding.
 func (c Context) FMA(z, x, y, u *Big) *Big {
-	if z.validateContext(c) {
+	if z.invalidContext(c) {
 		return z
 	}
-	// Create a temporary reciever if z == u so we handle the z.FMA(x, y, z)
+	// Create a temporary receiver if z == u so we handle the z.FMA(x, y, z)
 	// without clobbering z partway through.
 	z0 := z
 	if z == u {
@@ -240,7 +240,7 @@ func (c Context) FMA(z, x, y, u *Big) *Big {
 
 // Mul sets z to x * y and returns z.
 func (c Context) Mul(z, x, y *Big) *Big {
-	if z.validateContext(c) {
+	if z.invalidContext(c) {
 		return z
 	}
 	return c.round(c.mul(z, x, y))
@@ -306,7 +306,7 @@ func (c Context) Quantize(z *Big, n int) *Big {
 	if debug {
 		z.validate()
 	}
-	if z.validateContext(c) {
+	if z.invalidContext(c) {
 		return z
 	}
 
@@ -362,7 +362,8 @@ func (c Context) Quantize(z *Big, n int) *Big {
 		checked.MulBigPow10(&z.unscaled, &z.unscaled, uint64(shift))
 		z.precision = arith.BigLength(&z.unscaled)
 	} else {
-		z.quoBig(m, &z.unscaled, neg, arith.BigPow10(uint64(-shift)), 0)
+		var r big.Int
+		z.quoBig(m, &z.unscaled, neg, arith.BigPow10(uint64(-shift)), 0, &r)
 	}
 	return z
 }
@@ -373,7 +374,7 @@ func (c Context) Quo(z, x, y *Big) *Big {
 		x.validate()
 		y.validate()
 	}
-	if z.validateContext(c) {
+	if z.invalidContext(c) {
 		return z
 	}
 
@@ -413,9 +414,12 @@ func (c Context) Quo(z, x, y *Big) *Big {
 		return c.fix(z.setZero(sign, x.exp-y.exp))
 	}
 
-	m := c.RoundingMode
-	yp := y.Precision()
-	zp := precision(c)
+	var (
+		ideal = x.exp - y.exp // preferred exponent.
+		m     = c.RoundingMode
+		yp    = y.Precision() // stored since we might decrement it.
+		zp    = precision(c)  // stored because of overhead.
+	)
 	if zp == UnlimitedPrecision {
 		m = unnecessary
 		zp = x.Precision() + int(math.Ceil(10*float64(yp)/3))
@@ -428,9 +432,10 @@ func (c Context) Quo(z, x, y *Big) *Big {
 
 		shift := zp + yp - x.Precision()
 		z.exp = (x.exp - y.exp) - shift
+		expadj := ideal - z.exp
 		if shift > 0 {
 			if sx, ok := checked.MulPow10(x.compact, uint64(shift)); ok {
-				if z.quo(m, sx, x.form, y.compact, y.form) {
+				if z.quo(m, sx, x.form, y.compact, y.form) && expadj > 0 {
 					c.simpleReduce(z)
 				}
 				return z
@@ -438,14 +443,14 @@ func (c Context) Quo(z, x, y *Big) *Big {
 			xb := z.unscaled.SetUint64(x.compact)
 			xb = checked.MulBigPow10(xb, xb, uint64(shift))
 			yb := new(big.Int).SetUint64(y.compact)
-			if z.quoBig(m, xb, x.form, yb, y.form) {
+			if z.quoBig(m, xb, x.form, yb, y.form, yb) && expadj > 0 {
 				c.simpleReduce(z)
 			}
 			return z
 		}
 		if shift < 0 {
 			if sy, ok := checked.MulPow10(y.compact, uint64(-shift)); ok {
-				if z.quo(m, x.compact, x.form, sy, y.form) {
+				if z.quo(m, x.compact, x.form, sy, y.form) && expadj > 0 {
 					c.simpleReduce(z)
 				}
 				return z
@@ -453,12 +458,12 @@ func (c Context) Quo(z, x, y *Big) *Big {
 			yb := z.unscaled.SetUint64(y.compact)
 			yb = checked.MulBigPow10(yb, yb, uint64(-shift))
 			xb := new(big.Int).SetUint64(x.compact)
-			if z.quoBig(m, xb, x.form, yb, y.form) {
+			if z.quoBig(m, xb, x.form, yb, y.form, xb) && expadj > 0 {
 				c.simpleReduce(z)
 			}
 			return z
 		}
-		if z.quo(m, x.compact, x.form, y.compact, y.form) {
+		if z.quo(m, x.compact, x.form, y.compact, y.form) && expadj > 0 {
 			c.simpleReduce(z)
 		}
 		return z
@@ -477,15 +482,20 @@ func (c Context) Quo(z, x, y *Big) *Big {
 
 	shift := zp + yp - x.Precision()
 	z.exp = (x.exp - y.exp) - shift
+
+	var tmp *big.Int
 	if shift > 0 {
-		tmp := alias(&z.unscaled, yb)
+		tmp = alias(&z.unscaled, yb)
 		xb = checked.MulBigPow10(tmp, xb, uint64(shift))
 	} else if shift < 0 {
-		tmp := alias(&z.unscaled, xb)
+		tmp = alias(&z.unscaled, xb)
 		yb = checked.MulBigPow10(tmp, yb, uint64(-shift))
+	} else {
+		tmp = new(big.Int)
 	}
 
-	if z.quoBig(m, xb, x.form, yb, y.form) {
+	expadj := ideal - z.exp
+	if z.quoBig(m, xb, x.form, yb, y.form, alias(tmp, &z.unscaled)) && expadj > 0 {
 		c.simpleReduce(z)
 	}
 	return z
@@ -540,11 +550,16 @@ func (z *Big) quo(m RoundingMode, x uint64, xneg form, y uint64, yneg form) bool
 	return false
 }
 
-func (z *Big) quoBig(m RoundingMode, x *big.Int, xneg form, y *big.Int, yneg form) bool {
+func (z *Big) quoBig(
+	m RoundingMode,
+	x *big.Int, xneg form,
+	y *big.Int, yneg form,
+	r *big.Int,
+) bool {
 	z.compact = cst.Inflated
 	z.form = xneg ^ yneg
 
-	q, r := z.unscaled.QuoRem(x, y, new(big.Int))
+	q, r := z.unscaled.QuoRem(x, y, r)
 	if r.Sign() == 0 {
 		z.norm()
 		return true
@@ -562,7 +577,7 @@ func (z *Big) quoBig(m RoundingMode, x *big.Int, xneg form, y *big.Int, yneg for
 	if arith.IsUint64(r) && arith.IsUint64(y) && rv <= math.MaxUint64/2 {
 		rc = arith.Cmp(rv*2, y.Uint64())
 	} else {
-		rc = compat.BigCmpAbs(new(big.Int).Mul(r, cst.TwoInt), y)
+		rc = compat.BigCmpAbs(r.Mul(r, cst.TwoInt), y)
 	}
 
 	if m == unnecessary {
@@ -575,8 +590,8 @@ func (z *Big) quoBig(m RoundingMode, x *big.Int, xneg form, y *big.Int, yneg for
 		z.precision = arith.BigLength(q)
 		arith.Add(q, q, 1)
 		if arith.BigLength(q) != z.precision {
-			z.exp++
 			q.Quo(q, cst.TenInt)
+			z.exp++
 		}
 	}
 	z.norm()
@@ -590,7 +605,7 @@ func (c Context) QuoInt(z, x, y *Big) *Big {
 		x.validate()
 		y.validate()
 	}
-	if z.validateContext(c) {
+	if z.invalidContext(c) {
 		return z
 	}
 
@@ -643,8 +658,8 @@ func (c Context) QuoRem(z, x, y, r *Big) (*Big, *Big) {
 		x.validate()
 		y.validate()
 	}
-	if z.validateContext(c) {
-		r.validateContext(c)
+	if z.invalidContext(c) {
+		r.invalidContext(c)
 		return z, r
 	}
 
@@ -875,7 +890,7 @@ func (c Context) Rem(z, x, y *Big) *Big {
 		x.validate()
 		y.validate()
 	}
-	if z.validateContext(c) {
+	if z.invalidContext(c) {
 		return z
 	}
 
@@ -929,7 +944,7 @@ func (c Context) Round(z *Big) *Big {
 	if debug {
 		z.validate()
 	}
-	if z.validateContext(c) {
+	if z.invalidContext(c) {
 		return z
 	}
 
@@ -969,14 +984,13 @@ func (c Context) shiftr(z *Big, n uint64) bool {
 	m := c.RoundingMode
 	if z.isCompact() {
 		if y, ok := arith.Pow10(n); ok {
-			z.quo(m, z.compact, z.form, y, 0)
-			return false
+			return z.quo(m, z.compact, z.form, y, 0)
 		}
 		z.unscaled.SetUint64(z.compact)
 		z.compact = cst.Inflated
 	}
-	z.quoBig(m, &z.unscaled, z.form, arith.BigPow10(n), 0)
-	return false
+	var r big.Int
+	return z.quoBig(m, &z.unscaled, z.form, arith.BigPow10(n), 0, &r)
 }
 
 func (c Context) round(z *Big) *Big {
@@ -1015,7 +1029,7 @@ func (c Context) Sub(z, x, y *Big) *Big {
 		x.validate()
 		y.validate()
 	}
-	if z.validateContext(c) {
+	if z.invalidContext(c) {
 		return z
 	}
 

@@ -39,7 +39,7 @@ func Log(z, x *decimal.Big) *decimal.Big {
 				return z.SetMantScale(0, 0)
 			case 10:
 				// Specialized function.
-				return ln10(z, precision(z), nil)
+				return ln10(z, precision(z))
 			}
 		}
 	}
@@ -142,7 +142,7 @@ func log(z, x *decimal.Big, ten bool) *decimal.Big {
 	ctx.Quo(z, ctx.Mul(y, y, two), Wallis(z, &g))
 
 	if p != 0 || ten {
-		t := ln10(y, ctx.Precision, &g.t) // recycle y, g.t
+		t := ln10_t(y, ctx.Precision) // recycle y
 
 		// Avoid doing unnecessary work.
 		switch p {

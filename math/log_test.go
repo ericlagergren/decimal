@@ -55,9 +55,36 @@ var log_X, _ = new(decimal.Big).SetString("123456.789")
 func BenchmarkLog(b *testing.B) {
 	for _, prec := range benchPrecs {
 		b.Run(fmt.Sprintf("%d", prec), func(b *testing.B) {
+			b.ReportAllocs()
 			z := decimal.WithPrecision(prec)
 			for j := 0; j < b.N; j++ {
 				Log(z, log_X)
+			}
+			gB = z
+		})
+	}
+}
+
+func BenchmarkLn10_CF(b *testing.B) {
+	for _, prec := range benchPrecs {
+		b.Run(fmt.Sprintf("%d", prec), func(b *testing.B) {
+			b.ReportAllocs()
+			z := decimal.WithPrecision(prec)
+			for j := 0; j < b.N; j++ {
+				ln10(z, prec)
+			}
+			gB = z
+		})
+	}
+}
+
+func BenchmarkLn10_Taylor(b *testing.B) {
+	for _, prec := range benchPrecs {
+		b.Run(fmt.Sprintf("%d", prec), func(b *testing.B) {
+			b.ReportAllocs()
+			z := decimal.WithPrecision(prec)
+			for j := 0; j < b.N; j++ {
+				ln10_t(z, prec)
 			}
 			gB = z
 		})

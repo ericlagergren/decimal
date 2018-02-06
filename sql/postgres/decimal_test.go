@@ -62,7 +62,6 @@ func TestDecimal_Value(t *testing.T) {
 			if i := strings.LastIndexAny(vs, "eE"); i > 0 {
 				ev, _ := strconv.ParseInt(vs[i+1:], 10, 32)
 				e -= int(ev)
-				vs = vs[:i]
 			}
 			if len(parts[1])+e > MaxFractionalDigits {
 				t.Fatalf("#%d: frac part too long: %d", i, len(parts[1]))

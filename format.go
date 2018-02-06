@@ -106,7 +106,7 @@ func formatUnscaled(unscaled *big.Int) []byte {
 const (
 	// noWidth indicates the width of a formatted number wasn't set.
 	noWidth = -1
-	// noPrec indicats the precision of a formatted number wasn't set.
+	// noPrec indicates the precision of a formatted number wasn't set.
 	noPrec = -1
 )
 

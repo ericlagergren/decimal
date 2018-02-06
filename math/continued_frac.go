@@ -164,7 +164,7 @@ var tiny = decimal.New(10, 60)
 // of Lentz is undefined.
 //
 // Note: the accuracy of the result may be affected by the precision of
-// intermedite results. If larger precision is desired it may be necessary for
+// intermediate results. If larger precision is desired it may be necessary for
 // the Generator to implement the Lentzer interface and set a higher precision
 // for f, Δ, C, and D.
 func Lentz(z *decimal.Big, g Generator) *decimal.Big {

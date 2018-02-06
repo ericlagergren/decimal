@@ -28,6 +28,9 @@ func (b *B) WriteString(s string) (int, error) {
 	return len(s), nil
 }
 
-func (b *B) WriteTo(w io.Writer) (int, error) { return w.Write(b.buf) }
+func (b *B) WriteTo(w io.Writer) (int64, error) {
+	n, err := w.Write(b.buf[:])
+	return int64(n), err
+}
 
 func (b *B) String() string { return *(*string)(unsafe.Pointer(&b.buf)) }

@@ -5,74 +5,40 @@ import "math/big"
 // Mul128 returns the 128-bit multiplication of x and y.
 func Mul128(x, y uint64) (z1, z0 uint64)
 
-// Add sets z to x + y and returns z.
+// Add sets z to x + y and returns z. x is assumed to be unsigned.
 func Add(z, x *big.Int, y uint64) *big.Int {
 	zw := z.Bits()
-	xw := x.Bits()
-	yw := big.Word(y)
-
-	neg := x.Sign() < 0
-	switch {
+	switch xw := x.Bits(); {
+	default:
+		zw = add(zw, xw, big.Word(y))
 	case len(xw) == 0:
-		neg = false
-		zw = setw(zw, yw)
+		zw = setw(zw, big.Word(y))
 	case y == 0:
 		zw = set(zw, xw)
-	case !neg:
-		zw = add(zw, xw, yw)
-	case len(xw) > 1, xw[0] >= yw:
-		zw = sub(zw, xw, yw)
-	default: // len(xw) == 1 && y < xw[0]
-		neg = !neg
-		zw = sub(zw, Words(y), xw[0])
 	}
-
-	z.SetBits(zw)
-	if neg {
-		z.Neg(z)
-	}
-	return z
+	return z.SetBits(zw)
 }
 
-// Sub sets z to x - y and returns z.
+// Sub sets z to x - y and returns z. x is assumed to be unsigned.
 func Sub(z, x *big.Int, y uint64) *big.Int {
 	zw := z.Bits()
-	xw := x.Bits()
-	yw := big.Word(y)
-
-	neg := x.Sign() < 0
-	switch {
-	case len(xw) == 0:
-		neg = true
-		zw = setw(zw, yw)
+	switch xw := x.Bits(); {
+	default:
+		zw = sub(zw, xw, big.Word(y))
 	case y == 0:
 		zw = set(zw, xw)
-	case neg:
-		zw = add(zw, xw, yw)
-	case len(xw) > 1, xw[0] >= yw:
-		zw = sub(zw, xw, yw)
-	default: // len(xw) == 1 && y < xw[0]
-		neg = !neg
-		zw = sub(zw, Words(y), xw[0])
+	case len(xw) == 0:
+		panic("underflow")
 	}
-
-	z.SetBits(zw)
-	if neg {
-		z.Neg(z)
-	}
-	return z
+	return z.SetBits(zw)
 }
 
-// MulUint64 sets z to x * y and returns z.
+// MulUint64 sets z to x * y and returns z. x is assumed to be unsigned.
 func MulUint64(z, x *big.Int, y uint64) *big.Int {
 	if y == 0 || x.Sign() == 0 {
 		return z.SetUint64(0)
 	}
-	z.SetBits(mulAddWW(z.Bits(), x.Bits(), big.Word(y)))
-	if x.Sign() < 0 { // no len check since x != 0 && y != 0
-		z.Neg(z)
-	}
-	return z
+	return z.SetBits(mulAddWW(z.Bits(), x.Bits(), big.Word(y)))
 }
 
 // The following is (mostly) copied from math/big/arith.go, licensed under the
@@ -144,15 +110,7 @@ func sub(z, x []big.Word, y big.Word) []big.Word {
 	m := len(x)
 	const n = 1
 
-	switch {
-	case m < n:
-		panic("underflow")
-	case m == 0:
-		return setw(z, y)
-	case y == 0:
-		return set(z, x)
-	}
-	// m > 0
+	// m > 0 && y > 0
 
 	z = makeWord(z, m)
 	// subVV(z[0:m], x, y) but WW since len(y) == 1

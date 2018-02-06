@@ -2,8 +2,10 @@ package math
 
 import (
 	"fmt"
+	"math/bits"
 
 	"github.com/ericlagergren/decimal"
+	"github.com/ericlagergren/decimal/misc"
 )
 
 func newDecimal(s string) *decimal.Big {
@@ -90,7 +92,7 @@ func pi(z *decimal.Big, ctx decimal.Context) *decimal.Big {
 	)
 
 	for s.Cmp(lasts) != 0 {
-		ctx.Set(lasts, s)
+		lasts.Copy(s)
 		ctx.Add(n, n, na)
 		ctx.Add(na, na, eight)
 		ctx.Add(d, d, da)
@@ -102,28 +104,28 @@ func pi(z *decimal.Big, ctx decimal.Context) *decimal.Big {
 	return ctx.Round(z) // z == s
 }
 
+var (
+	ln10a  = newDecimal("1.4360573020587301752033212906469383371246630026184531659185638124515220890810166584189189826878143700998749441E+607")
+	ln10a1 = newDecimal("4.2399815932911889242059158735151988435177457542942071167510037282690700246623645385275840847141051700837030455E+603")
+	ln10b  = newDecimal("1.8370245202253775405487319321030025382101104547987359483887452959003861882150667180530049048200888857995519796E+606")
+	ln10b1 = newDecimal("5.4238435618230190194216072058866583729475644598545868875595095679667528345666695673735346541298171159483689862E+602")
+)
+
 // ln10 sets z to log(10) and returns z.
-func ln10(z *decimal.Big, prec int, t *Term) *decimal.Big {
-	ctx := decimal.Context{Precision: prec}
-	if ctx.Precision <= constPrec {
-		return ctx.Set(z, _Ln10)
+func ln10(z *decimal.Big, prec int) *decimal.Big {
+	if prec <= constPrec {
+		// Copy takes 1/2 the time as ctx.Set since there's no rounding and in
+		// most of our algorithms we just need >= prec.
+		return z.Copy(_Ln10)
 	}
 
-	// TODO(eric): we can speed this up by selecting a log10 constant that's
-	// some truncation of our continued fraction and setting the starting term
-	// to that position in our continued fraction.
-
-	ctx.Precision += 3
+	ctx := decimal.Context{Precision: prec + 10}
 	g := lgen{
 		ctx: ctx,
 		pow: eightyOne, // 9 * 9
 		z2:  eleven,    // 9 + 2
 		k:   -1,
-	}
-	if t != nil {
-		g.t = *t
-	} else {
-		g.t = makeTerm()
+		t:   Term{A: new(decimal.Big), B: new(decimal.Big)},
 	}
 	ctx.Quo(z, eighteen /* 9 * 2 */, Wallis(z, &g))
 	ctx.Precision = prec
@@ -137,4 +139,29 @@ func sqrt3(z *decimal.Big, ctx decimal.Context) *decimal.Big {
 	}
 	// TODO(eric): get rid of this allocation.
 	return ctx.Set(z, Sqrt(decimal.WithContext(ctx), three))
+}
+
+func ln10_t(z *decimal.Big, prec int) *decimal.Big {
+	z.Copy(_Ln10)
+	if prec <= constPrec {
+		return z
+	}
+	var (
+		tmp  decimal.Big
+		tctx = &tmp.Context
+		uctx = decimal.ContextUnlimited
+	)
+	// N[ln(10), 25] = N[ln(10), 5] + (exp(-N[ln(10), 5]) * 10 - 1)
+	//   ln(10) + (exp(-ln(10)) * 10 - 1)
+	for p := bits.Len(uint(prec+2)) + 99; ; p *= 2 {
+		tctx.Precision = p + 5
+		misc.SetSignbit(z, true)
+		Exp(&tmp, z)
+		misc.SetSignbit(z, false)
+		uctx.Add(z, z, tctx.FMA(&tmp, ten, &tmp, negone))
+		if !z.IsFinite() || p >= prec+2 {
+			break
+		}
+	}
+	return z
 }

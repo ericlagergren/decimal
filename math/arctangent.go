@@ -44,7 +44,7 @@ func prepAtan(z, x *decimal.Big, ctx decimal.Context) (
 	// next we'll use argument halving technic
 	// atan(y) = 2 atan(y/(1+sqrt(1+y^2)))
 	// we'll repeat this up to a point
-	// we have compeating operations at some
+	// we have competing operations at some
 	// point the sqrt causes a problem
 	// note (http:// fredrikj.net/blog/2014/12/faster-high-ctx-Atangents/)
 	// suggests that r= 8 times is a good value for

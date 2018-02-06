@@ -2,9 +2,7 @@
 
 package compat
 
-import (
-	"math/big"
-)
+import "math/big"
 
 func BigCmpAbs(x, y *big.Int) int { return cmpBits(x.Bits(), y.Bits()) }
 

@@ -186,7 +186,6 @@ func (m RoundingMode) needsInc(odd bool, r int, pos bool) bool {
 	case ToNearestAway:
 		return r >= 0
 	default:
-		// TODO(eric): z.Context.Conditions |= InvalidContext
 		return false
 	}
 }

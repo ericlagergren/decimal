@@ -37,10 +37,10 @@ func main() {
 
 	for _, url := range urls {
 		resp, err := http.Get(url)
-		defer resp.Body.Close()
 		if err != nil {
 			log.Fatalln(err)
 		}
+		defer resp.Body.Close()
 		name := strings.TrimPrefix(url, prefix)
 		name = strings.Replace(name, "-", "", -1)
 		out, err := os.Create(filepath.Join(dir, name))

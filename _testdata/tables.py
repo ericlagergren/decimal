@@ -54,6 +54,12 @@ def rand_bool():
     return random.randint(0, 1) % 2 == 0
 
 
+def maybe_strip_sign(x):
+    if x.is_signed() and random.randint(0, 20) != 10:
+        return -x
+    return x
+
+
 def make_dec(nbits=5000):
     r = random.randint(0, 50)
     if r == 0:
@@ -146,146 +152,141 @@ def write_line(out, prec, op, mode, r, x, y=None, u=None, flags=None):
     out.write(str)
 
 
+def shrinkctx():
+    getcontext().prec = random.randint(1, 10000)
+
+
 def perform_op(op):
     r = None
     x = None
     y = None  # possibly unused
     u = None  # possibly unused
 
-    try:
-        # Binary
-        if op == "*":
-            x = rand_dec()
-            y = rand_dec()
-            r = x * y
-        elif op == "+":
-            x = rand_dec()
-            y = rand_dec()
-            r = x + y
-        elif op == "-":
-            x = rand_dec()
-            y = rand_dec()
-            r = x - y
-        elif op == "/":
-            x = rand_dec()
-            y = rand_dec()
-            r = x / y
-        elif op == "//":
-            x = rand_dec()
-            y = rand_dec()
-            r = x // y
-        elif op == "%":
-            x = rand_dec()
-            y = rand_dec()
-            r = x % y
-        elif op == "qC":
-            x = rand_dec()
-            y = rand_dec()
-            r = x.compare(y)
-        elif op == "quant":
-            x = rand_dec()
-            y = rand_dec(True)
-            r = x.quantize(y)
-            y = -y.as_tuple().exponent
-        elif op == "pow":
-            getcontext().prec += 11
-            getcontext().prec //= 10
-            x = rand_dec(nbits=64)
-            y = rand_dec(nbits=64)
-            #u = rand_dec(nbits=64)
-            # The error of Python's decimal power method is < 1 ULP + t, where
-            # t <= 0.1 ULP, but usually < 0.01 ULP.
-            getcontext().prec += 1
-            r = getcontext().power(x, y, u)
-            getcontext().prec -= 1
-            r = +r
-        elif op == "shift":
-            x = rand_dec()
-            y = Decimal(random.randint(-getcontext().prec, getcontext().prec))
-            r = x.shift(y)
+    # Binary
+    if op == "*":
+        x = rand_dec()
+        y = rand_dec()
+        r = x * y
+    elif op == "+":
+        x = rand_dec()
+        y = rand_dec()
+        r = x + y
+    elif op == "-":
+        x = rand_dec()
+        y = rand_dec()
+        r = x - y
+    elif op == "/":
+        x = rand_dec()
+        y = rand_dec()
+        r = x / y
+    elif op == "//":
+        x = rand_dec()
+        y = rand_dec()
+        r = x // y
+    elif op == "%":
+        x = rand_dec()
+        y = rand_dec()
+        r = x % y
+    elif op == "qC":
+        x = rand_dec()
+        y = rand_dec()
+        r = x.compare(y)
+    elif op == "quant":
+        x = rand_dec()
+        y = rand_dec(True)
+        r = x.quantize(y)
+        y = -y.as_tuple().exponent
+    elif op == "pow":
+        x = rand_dec(nbits=64)
+        y = rand_dec(nbits=64)
+        #u = rand_dec(nbits=64)
+        # The error of Python's decimal power method is < 1 ULP + t, where
+        # t <= 0.1 ULP, but usually < 0.01 ULP.
+        getcontext().prec += 1
+        r = getcontext().power(x, y, u)
+        getcontext().prec -= 1
+        r = +r
+    elif op == "shift":
+        x = rand_dec()
+        y = Decimal(random.randint(-getcontext().prec, getcontext().prec))
+        r = x.shift(y)
 
-        # Unary
-        elif op == "A":
-            x = rand_dec()
-            r = getcontext().abs(x)
-        elif op == "cfd":
-            x = rand_dec()
-            r = str(x)
-        elif op == "rat":
-            x = rand_dec()
-            while True:
-                try:
-                    x, y = x.as_integer_ratio()
-                    if y == 1:
-                        r = +Decimal(x)
-                    else:
-                        r = Decimal(x) / Decimal(y)
-                    break
-                except Exception:  # ValueError if nan, etc.
-                    x = rand_dec()
-        elif op == "sign":
-            x = rand_dec()
-            if x < 0:
-                r = -1
-            elif x > 0:
-                r = +1
-            else:
-                r = 0
-        elif op == "signbit":
-            x = rand_dec()
-            r = x.is_signed()
-        elif op == "~":
-            x = rand_dec()
-            r = -x
-        elif op == "exp":
-            if getcontext().prec >= 10:
-                getcontext().prec //= 10
-            x = rand_dec(nbits=100)
-            r = x.exp()
-        elif op == "log":
-            getcontext().prec += 11
-            getcontext().prec //= 10
-            x = rand_dec(nbits=128)
-            r = x.ln()
-        elif op == "L":
-            getcontext().prec += 11
-            getcontext().prec //= 10
-            x = rand_dec(nbits=128)
-            r = x.logb()
-        elif op == "log10":
-            getcontext().prec += 11
-            getcontext().prec //= 10
-            x = rand_dec(nbits=128)
-            r = x.log10()
-        elif op == "?":
-            x = rand_dec()
-            r = x.number_class()
-        elif op == "V":
-            x = rand_dec()
-            r = x.sqrt()
-        elif op == "norm":
-            x = rand_dec()
-            r = x.normalize()
-        elif op == "rtie":
-            x = rand_dec()
-            r = x.to_integral_exact()
-        elif op == "Nu":
-            x = rand_dec()
-            r = x.next_plus()
-        elif op == "Nd":
-            x = rand_dec()
-            r = x.next_minus()
-
-        # Ternary
-        elif op == "*-":
-            x = rand_dec()
-            y = rand_dec()
-            u = rand_dec()
-            r = x.fma(y, u)
+    # Unary
+    elif op == "A":
+        x = rand_dec()
+        r = getcontext().abs(x)
+    elif op == "cfd":
+        x = rand_dec()
+        r = str(x)
+    elif op == "rat":
+        x = rand_dec()
+        while True:
+            try:
+                x, y = x.as_integer_ratio()
+                if y == 1:
+                    r = +Decimal(x)
+                else:
+                    r = Decimal(x) / Decimal(y)
+                break
+            except Exception:  # ValueError if nan, etc.
+                x = rand_dec()
+    elif op == "sign":
+        x = rand_dec()
+        if x < 0:
+            r = -1
+        elif x > 0:
+            r = +1
         else:
-            raise ValueError("bad op {}".format(op))
-    except Exception as e:
-        raise e
+            r = 0
+    elif op == "signbit":
+        x = rand_dec()
+        r = x.is_signed()
+    elif op == "~":
+        x = rand_dec()
+        r = -x
+    elif op == "exp":
+        shrinkctx()
+        x = rand_dec(nbits=100)
+        r = x.exp()
+    elif op == "log":
+        shrinkctx()
+        x = maybe_strip_sign(rand_dec(nbits=128))
+        r = x.ln()
+    elif op == "L":
+        shrinkctx()
+        x = maybe_strip_sign(rand_dec(nbits=128))
+        r = x.logb()
+    elif op == "log10":
+        shrinkctx()
+        x = maybe_strip_sign(rand_dec(nbits=128))
+        r = x.log10()
+    elif op == "?":
+        x = rand_dec()
+        r = x.number_class()
+    elif op == "V":
+        x = maybe_strip_sign(rand_dec())
+        r = x.sqrt()
+    elif op == "norm":
+        x = rand_dec()
+        r = x.normalize()
+    elif op == "rtie":
+        x = rand_dec()
+        r = x.to_integral_exact()
+    elif op == "Nu":
+        x = rand_dec()
+        r = x.next_plus()
+    elif op == "Nd":
+        x = rand_dec()
+        r = x.next_minus()
+
+    # Ternary
+    elif op == "*-":
+        x = rand_dec()
+        y = rand_dec()
+        u = rand_dec()
+        r = x.fma(y, u)
+    else:
+        raise ValueError("bad op {}".format(op))
 
     return (r, x, y, u)
 
@@ -329,7 +330,7 @@ def make_tables(items):
                 ctx.Emax = MAX_EMAX
                 ctx.Emin = MIN_EMIN
                 ctx.rounding = modes[mode]
-                ctx.prec = random.randint(1, 5000)
+                ctx.prec = random.randint(1, 100000)
                 ctx.clear_traps()
                 ctx.clear_flags()
 

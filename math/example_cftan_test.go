@@ -23,6 +23,8 @@ func (t *tanGenerator) Term() math.Term {
 	return math.Term{A: t.a, B: t.b.SetUint64(t.k)}
 }
 
+func (t *tanGenerator) Context() decimal.Context { return t.ctx }
+
 // Tan sets z to the tangent of the radian argument x.
 func Tan(z, x *decimal.Big) *decimal.Big {
 	// Handle special cases like 0, Inf, and NaN.

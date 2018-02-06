@@ -90,7 +90,7 @@ func alias(z, x *big.Int) *big.Int {
 	return new(big.Int)
 }
 
-func (z *Big) validateContext(c Context) bool {
+func (z *Big) invalidContext(c Context) bool {
 	switch {
 	case c.Precision < 0:
 		z.setNaN(InvalidContext, qnan, invctxpltz)

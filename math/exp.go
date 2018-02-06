@@ -67,10 +67,10 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 
 	r := z.Copy(x).SetScale(x.Scale() + k)
 	g := expg{
-		prec: ctx.Precision,
-		z:    r,
-		pow:  ctx.Mul(new(decimal.Big), r, r),
-		t:    Term{A: decimal.WithContext(ctx), B: decimal.WithContext(ctx)},
+		ctx: ctx,
+		z:   r,
+		pow: ctx.Mul(new(decimal.Big), r, r),
+		t:   makeTerm(),
 	}
 
 	// TODO(eric): This library provides better performance than other libraries
@@ -86,7 +86,7 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 	Wallis(m, &g)
 
 	if k != 0 {
-		k, _ := arith.Pow10(uint64(k))
+		k, _ := arith.Pow10(uint64(k)) // k <= 19
 		fastPowUint(ctx, z, m, k)
 	}
 
@@ -96,26 +96,24 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 
 // expg is a Generator that computes exp(z).
 type expg struct {
-	prec int          // Precision
-	z    *decimal.Big // Input value
-	pow  *decimal.Big // z*z
-	m    uint64       // Term number
-	t    Term         // Term storage. Does not need to be manually set.
+	ctx decimal.Context
+	z   *decimal.Big // Input value
+	pow *decimal.Big // z*z
+	m   uint64       // Term number
+	t   Term         // Term storage. Does not need to be manually set.
 }
 
-func (e *expg) Context() decimal.Context {
-	return decimal.Context{Precision: e.prec}
-}
+func (e *expg) Context() decimal.Context { return e.ctx }
 
 func (e *expg) Next() bool { return true }
 
 func (e *expg) Wallis() (a, a1, b, b1, p, eps *decimal.Big) {
-	a = decimal.WithPrecision(e.prec)
-	a1 = decimal.WithPrecision(e.prec)
-	b = decimal.WithPrecision(e.prec)
-	b1 = decimal.WithPrecision(e.prec)
-	p = decimal.WithPrecision(e.prec)
-	eps = decimal.New(1, e.prec)
+	a = new(decimal.Big)
+	a1 = new(decimal.Big)
+	b = new(decimal.Big)
+	b1 = new(decimal.Big)
+	p = new(decimal.Big)
+	eps = decimal.New(1, e.ctx.Precision)
 	return a, a1, b, b1, p, eps
 }
 
@@ -170,11 +168,11 @@ func (e *expg) Term() Term {
 		e.t.B.SetUint64(1)
 	// [2z, 2-z]
 	case 1:
-		e.t.A.Mul(two, e.z)
-		e.t.B.Sub(two, e.z)
+		e.ctx.Mul(e.t.A, two, e.z)
+		e.ctx.Sub(e.t.B, two, e.z)
 	// [z^2/6, 1]
 	case 2:
-		e.t.A.Quo(e.pow, six)
+		e.ctx.Quo(e.t.A, e.pow, six)
 		e.t.B.SetUint64(1)
 	// [(1/(16((m-1)^2)-4))(z^2), 1]
 	default:
@@ -189,17 +187,17 @@ func (e *expg) Term() Term {
 			e.t.A.SetUint64(e.m - 1)
 
 			// (m-1)^2
-			e.t.A.Mul(e.t.A, e.t.A)
+			e.ctx.Mul(e.t.A, e.t.A, e.t.A)
 
 			// 16 * (m-1)^2 - 4 = 16 * (m-1)^2 + (-4)
-			e.t.A.FMA(sixteen, e.t.A, negfour)
+			e.ctx.FMA(e.t.A, sixteen, e.t.A, negfour)
 		}
 
 		// 1 / (16 * (m-1)^2 - 4)
-		e.t.A.Quo(one, e.t.A)
+		e.ctx.Quo(e.t.A, one, e.t.A)
 
-		// 1 / (16 * (m-1)^2 - 4) * (z^2)
-		e.t.A.Mul(e.t.A, e.pow)
+		// (1 / (16 * (m-1)^2 - 4)) * (z^2)
+		e.ctx.Mul(e.t.A, e.t.A, e.pow)
 
 		// e.t.B is set to 1 inside case 2.
 	}

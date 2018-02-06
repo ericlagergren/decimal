@@ -194,7 +194,7 @@ func calcPiGo(prec int) *decimal.Big {
 	)
 
 	for {
-		ctx.Set(lasts, s)
+		lasts.Copy(s)
 		ctx.Add(n, n, na)
 		ctx.Add(na, na, eight)
 		ctx.Add(d, d, da)
@@ -225,7 +225,7 @@ func calcPiGDA(prec int) *decimal.Big {
 	)
 
 	for s.Cmp(lasts) != 0 {
-		ctx.Set(lasts, s)
+		lasts.Copy(s)
 		ctx.Add(n, n, na)
 		ctx.Add(na, na, eight)
 		ctx.Add(d, d, da)

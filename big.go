@@ -1278,7 +1278,7 @@ func (z *Big) SetScale(scale int) *Big {
 	return z
 }
 
-// Regexp matches any valid string representing a decimal that can be pased to
+// Regexp matches any valid string representing a decimal that can be passed to
 // SetString.
 var Regexp = regexp.MustCompile(`(?i)(([+-]?(\d+\.\d*|\.?\d+)([eE][+-]?\d+)?)|(inf(infinity)?))|([+-]?([sq]?nan\d*))`)
 

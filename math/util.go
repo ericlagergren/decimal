@@ -4,6 +4,7 @@ import "github.com/ericlagergren/decimal"
 
 var (
 	negfour   = decimal.New(-4, 0)
+	negone    = decimal.New(-1, 0)
 	one       = decimal.New(1, 0)
 	onePtFour = decimal.New(14, 1)
 	two       = decimal.New(2, 0)
@@ -11,6 +12,7 @@ var (
 	four      = decimal.New(4, 0)
 	six       = decimal.New(6, 0)
 	eight     = decimal.New(8, 0)
+	ten       = decimal.New(10, 0)
 	eleven    = decimal.New(11, 0)
 	sixteen   = decimal.New(16, 0)
 	eighteen  = decimal.New(18, 0)
