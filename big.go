@@ -699,8 +699,6 @@ func (x *Big) Format(s fmt.State, c rune) {
 			io.CopyN(s, zeroReader{}, pad)
 		case lpSpace:
 			io.CopyN(s, spaceReader{}, pad)
-		default:
-			io.CopyN(s, zeroReader{}, pad)
 		}
 	}
 
