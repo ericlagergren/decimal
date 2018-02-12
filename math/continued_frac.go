@@ -100,7 +100,7 @@ func Wallis(z *decimal.Big, g Generator) *decimal.Big {
 		b_1.Copy(z)
 
 		ctx.Quo(z, a, b)
-		if ctx.Sub(p, z, p).CmpAbs(eps) < 0 {
+		if ctx.Sub(p, z, p).CmpAbs(eps) <= 0 {
 			break
 		}
 		p.Copy(z)

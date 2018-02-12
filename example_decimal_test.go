@@ -20,7 +20,7 @@ func ExampleBig_Format() {
 	// 12.3
 	// 12.3
 	// ` 500.4`
-	// '-404.040  '
+	// '-404      '
 }
 
 func ExampleBig_Precision() {

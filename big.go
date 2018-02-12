@@ -188,20 +188,18 @@ func (p Payload) String() string {
 
 // An ErrNaN is used when a decimal operation would lead to a NaN under IEEE-754
 // rules. An ErrNaN implements the error interface.
-type ErrNaN struct {
-	Msg string
-}
+type ErrNaN struct{ Msg string }
 
-func (e ErrNaN) Error() string {
-	return e.Msg
-}
+func (e ErrNaN) Error() string { return e.Msg }
 
 var _ error = ErrNaN{}
 
 // CheckNaNs checks if either x or y is NaN. If so, it follows the rules of NaN
 // handling set forth in the GDA specification. The second argument, y, may be
 // nil. It returns true if either condition is a NaN.
-func (z *Big) CheckNaNs(x, y *Big) bool { return z.checkNaNs(x, y, 0) }
+func (z *Big) CheckNaNs(x, y *Big) bool {
+	return z.invalidContext(z.Context) || z.checkNaNs(x, y, 0)
+}
 
 func (z *Big) checkNaNs(x, y *Big, op Payload) bool {
 	var yform form
@@ -276,7 +274,7 @@ func (z *Big) Abs(x *Big) *Big {
 	if debug {
 		x.validate()
 	}
-	if !z.checkNaNs(x, x, absvalue) {
+	if !z.invalidContext(z.Context) && !z.checkNaNs(x, x, absvalue) {
 		z.Context.round(z.copyAbs(x))
 	}
 	return z
@@ -363,7 +361,7 @@ func cmp(x, y *Big, abs bool) int {
 	// NaN cmp x
 	// z cmp NaN
 	// NaN cmp NaN
-	if x.checkNaNs(x, y, comparison) {
+	if (x.form|y.form)&nan != 0 {
 		return 0
 	}
 
@@ -643,14 +641,10 @@ func (x *Big) Format(s fmt.State, c rune) {
 		if f.prec == noPrec {
 			f.prec = 0
 		}
+		f.prec += x.Precision()
 		// %f's precision means "number of digits after the radix"
 		if x.exp < 0 {
-			f.prec -= x.exp
-			if trail := x.Precision() + x.exp; trail >= f.prec {
-				f.prec += trail
-			}
-		} else {
-			f.prec += x.Precision()
+			f.prec += x.exp
 		}
 		f.format(x, plain, noE)
 	case 'g':
@@ -705,6 +699,8 @@ func (x *Big) Format(s fmt.State, c rune) {
 			io.CopyN(s, zeroReader{}, pad)
 		case lpSpace:
 			io.CopyN(s, spaceReader{}, pad)
+		default:
+			io.CopyN(s, zeroReader{}, pad)
 		}
 	}
 
@@ -889,7 +885,6 @@ func (x *Big) MarshalText() ([]byte, error) {
 	if debug {
 		x.validate()
 	}
-
 	var (
 		b = buf.New(x.Precision())
 		f = formatter{w: b, prec: noPrec, width: noWidth}
@@ -909,8 +904,7 @@ func (z *Big) Neg(x *Big) *Big {
 	if debug {
 		x.validate()
 	}
-
-	if !z.checkNaNs(x, x, negation) {
+	if !z.invalidContext(z.Context) && !z.checkNaNs(x, x, negation) {
 		z.copyAbs(x)
 		if !z.IsFinite() || z.compact != 0 || z.Context.RoundingMode == ToNegativeInf {
 			z.form = x.form ^ signbit

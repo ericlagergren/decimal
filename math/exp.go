@@ -25,7 +25,7 @@ func Exp(z, x *decimal.Big) *decimal.Big {
 		return z.SetUint64(1)
 	}
 
-	k := x.Precision() + -x.Scale()
+	k := x.Precision() - x.Scale()
 	if k < 0 {
 		k = 0
 	}

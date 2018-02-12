@@ -1,6 +1,7 @@
 package decimal
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"math/big"
@@ -17,10 +18,12 @@ func allZeros(b []byte) bool {
 	return true
 }
 
+var zero = []byte{'0'}
+
 // roundString rounds the plain numeric string (e.g., "1234") b.
 func roundString(b []byte, mode RoundingMode, pos bool, prec int) []byte {
 	if prec >= len(b) {
-		return b
+		return append(b, bytes.Repeat(zero, prec-len(b))...)
 	}
 
 	// Trim zeros until prec. This is useful when we can round exactly by simply
