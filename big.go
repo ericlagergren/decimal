@@ -903,9 +903,10 @@ func (z *Big) Neg(x *Big) *Big {
 		x.validate()
 	}
 	if !z.invalidContext(z.Context) && !z.checkNaNs(x, x, negation) {
+		xform := x.form // copy in case z == x
 		z.copyAbs(x)
 		if !z.IsFinite() || z.compact != 0 || z.Context.RoundingMode == ToNegativeInf {
-			z.form = x.form ^ signbit
+			z.form = xform ^ signbit
 		}
 	}
 	return z.Context.round(z)

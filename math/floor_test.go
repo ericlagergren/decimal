@@ -48,7 +48,7 @@ func TestCeil(t *testing.T) {
 
 		z := Ceil(x, x)
 		if z.Cmp(r) != 0 {
-			t.Fatalf(`#%d: floor(%s)
+			t.Fatalf(`#%d: ceil(%s)
 wanted: %s
 got   : %s
 `, i, s.x, s.r, z)
