@@ -1,4 +1,4 @@
-// +build !purego unsafe
+// +build !purego
 
 package buf
 
