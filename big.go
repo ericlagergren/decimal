@@ -167,7 +167,7 @@ var payloads = [...]string{
 	quorem_:        "integer division or remainder has too many digits",
 	reminfy:        "remainder of infinity",
 	remx0:          "remainder by zero",
-	quotermexp:     "division with unlimitedprecision has a non-terminating decimal expansion",
+	quotermexp:     "division with unlimited precision has a non-terminating decimal expansion",
 	invctxpltz:     "operation with a precision less than zero",
 	invctxpgtu:     "operation with a precision greater than MaxPrecision",
 	invctxrmode:    "operation with an invalid RoundingMode",
