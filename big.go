@@ -14,9 +14,7 @@ import (
 
 	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/arith/checked"
-	"github.com/ericlagergren/decimal/internal/buf"
 	"github.com/ericlagergren/decimal/internal/c"
-	"github.com/ericlagergren/decimal/internal/compat"
 )
 
 // Big is a floating-point, arbitrary-precision decimal.
@@ -398,7 +396,7 @@ func cmpabs(x, y *Big) int {
 		if y.isCompact() {
 			return +1 // !x.isCompact
 		}
-		return compat.BigCmpAbs(&x.unscaled, &y.unscaled)
+		return x.unscaled.CmpAbs(&y.unscaled)
 	}
 
 	// Signs are the same and the scales differ. Compare the lengths of their
@@ -604,7 +602,9 @@ func (x *Big) Format(s fmt.State, c rune) {
 	// empty buffer.
 	tmpbuf := lpZero || lpSpace
 	if tmpbuf {
-		f.w = buf.New(x.Precision())
+		b := new(strings.Builder)
+		b.Grow(x.Precision())
+		f.w = b
 	} else {
 		f.w = stateWrapper{s}
 	}
@@ -703,7 +703,8 @@ func (x *Big) Format(s fmt.State, c rune) {
 	}
 
 	if tmpbuf {
-		f.w.(*buf.B).WriteTo(s)
+		// fmt's internal state type implements stringWriter I think.
+		io.WriteString(s, f.w.(*strings.Builder).String())
 	}
 }
 
@@ -792,7 +793,7 @@ func (x *Big) Uint64() (uint64, bool) {
 	// shrink it enough. See issue #20.
 	if !x.isCompact() {
 		xb := x.Int(nil)
-		return xb.Uint64(), arith.IsUint64(xb)
+		return xb.Uint64(), xb.IsUint64()
 	}
 
 	b := x.compact
@@ -884,10 +885,11 @@ func (x *Big) MarshalText() ([]byte, error) {
 		x.validate()
 	}
 	var (
-		b = buf.New(x.Precision())
+		b = new(bytes.Buffer)
 		f = formatter{w: b, prec: noPrec, width: noWidth}
 		e = sciE[x.Context.OperatingMode]
 	)
+	b.Grow(x.Precision())
 	f.format(x, normal, e)
 	return b.Bytes(), nil
 }
@@ -1081,7 +1083,7 @@ func (z *Big) SetBigMantScale(value *big.Int, scale int) *Big {
 	z.compact = c.Inflated
 	z.precision = arith.BigLength(value)
 
-	if arith.IsUint64(value) {
+	if value.IsUint64() {
 		if v := value.Uint64(); v != c.Inflated {
 			z.compact = v
 		}
@@ -1375,10 +1377,11 @@ func (x *Big) Signbit() bool {
 // OperatingMode.
 func (x *Big) String() string {
 	var (
-		b = buf.New(x.Precision())
+		b = new(strings.Builder)
 		f = formatter{w: b, prec: noPrec, width: noWidth}
 		e = sciE[x.Context.OperatingMode]
 	)
+	b.Grow(x.Precision())
 	f.format(x, normal, e)
 	return b.String()
 }
@@ -1419,7 +1422,7 @@ func (x *Big) validate() {
 	switch x.form {
 	case finite, finite | signbit:
 		if x.isInflated() {
-			if arith.IsUint64(&x.unscaled) && x.unscaled.Uint64() != c.Inflated {
+			if x.unscaled.IsUint64() && x.unscaled.Uint64() != c.Inflated {
 				panic(fmt.Sprintf("inflated but unscaled == %d", x.unscaled.Uint64()))
 			}
 			if x.unscaled.Sign() < 0 {

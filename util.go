@@ -9,7 +9,7 @@ import (
 )
 
 func (z *Big) norm() *Big {
-	if arith.IsUint64(&z.unscaled) {
+	if z.unscaled.IsUint64() {
 		if v := z.unscaled.Uint64(); v != cst.Inflated {
 			z.compact = v
 			z.precision = arith.Length(v)

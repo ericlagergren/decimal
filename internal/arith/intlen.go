@@ -3,13 +3,7 @@ package arith
 import (
 	"math/big"
 	"math/bits"
-
-	"github.com/ericlagergren/decimal/internal/compat"
 )
-
-func IsUint64(x *big.Int) bool {
-	return len(x.Bits()) <= 64/bits.UintSize
-}
 
 // Length returns the number of digits in x.
 func Length(x uint64) int {
@@ -51,7 +45,7 @@ func BigLength(x *big.Int) int {
 	// The more accurate approximation 0x268826A13EF3FE08/2^63 overflows.
 	m += ((nb + 1) * 0x268826A1) >> 31
 
-	if compat.BigCmpAbs(x, BigPow10(m)) < 0 {
+	if x.CmpAbs(BigPow10(m)) < 0 {
 		return int(m)
 	}
 	return int(m + 1)

@@ -1,7 +1,7 @@
 language: go
 
 go:
-  - 1.9.x
+  - "1.10.x"
   - master
 
 matrix:
@@ -28,4 +28,4 @@ before_script:
 
 script:
   - test -z $(gofmt -s -l $GO_FILES)
-  - go test -tags=ddebug -timeout=12h -short -race ./...
+  - go test -v tags=ddebug -timeout=12h -short -race ./...
