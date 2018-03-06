@@ -106,12 +106,8 @@ func formatUnscaled(unscaled *big.Int) []byte {
 	return b
 }
 
-const (
-	// noWidth indicates the width of a formatted number wasn't set.
-	noWidth = -1
-	// noPrec indicates the precision of a formatted number wasn't set.
-	noPrec = -1
-)
+// noWidth indicates the width of a formatted number wasn't set.
+const noWidth = -1
 
 type format byte
 
@@ -198,18 +194,24 @@ func (f *formatter) format(x *Big, format format, e byte) {
 		f.WriteByte(f.sign)
 	}
 
-	var b []byte
-	if x.isCompact() {
-		b = formatCompact(x.compact)
-	} else {
-		b = formatUnscaled(&x.unscaled)
-	}
-
-	exp := int(x.exp)
+	var (
+		b   []byte
+		exp int
+	)
 	if f.prec > 0 {
+		if x.isCompact() {
+			b = formatCompact(x.compact)
+		} else {
+			b = formatUnscaled(&x.unscaled)
+		}
 		orig := len(b)
 		b = roundString(b, x.Context.RoundingMode, !neg, f.prec)
-		exp += orig - len(b)
+		exp = int(x.exp) + orig - len(b)
+	} else if f.prec < 0 {
+		f.prec = -f.prec
+		exp = -f.prec
+	} else {
+		b = []byte{'0'}
 	}
 
 	// "Next, the adjusted exponent is calculated; this is the exponent, plus
@@ -279,7 +281,7 @@ func (f *formatter) formatPlain(b []byte, exp int) {
 		io.CopyN(f, zeroReader{}, -int64(radix))
 
 		end := len(b)
-		if f.prec > noPrec && f.prec < end {
+		if f.prec < end {
 			end = f.prec
 		}
 		f.Write(b[:end])

@@ -561,10 +561,10 @@ func (x *Big) Float(z *big.Float) *big.Float {
 // 	%f: -dddd.dd
 // 	%g: same as %f
 //
-// Precision and width are honored in the same manner as the fmt package. In
-// short, width is the minimum width of the formatted number. Given %f,
-// precision is the number of digits following the radix. Given %g, precision
-// is the number of significant digits.
+// While width is honored in the same manner as the fmt package (the minimum
+// width of the formatted number), precision is the number of significant digits
+// in the decimal number. Given %f, however, precision is the number of digits
+// following the radix.
 //
 // Format honors all flags (such as '+' and ' ') in the same manner as the fmt
 // package, except for '#'. Unless used in conjunction with %v, %q, or %p, the
@@ -578,12 +578,12 @@ func (x *Big) Format(s fmt.State, c rune) {
 		x.validate()
 	}
 
-	prec, ok := s.Precision()
-	if !ok {
-		prec = noPrec
+	prec, hasPrec := s.Precision()
+	if !hasPrec {
+		prec = x.Precision()
 	}
-	width, ok := s.Width()
-	if !ok {
+	width, hasWidth := s.Width()
+	if !hasWidth {
 		width = noWidth
 	}
 
@@ -627,7 +627,7 @@ func (x *Big) Format(s fmt.State, c rune) {
 		f.sign = 0
 
 		// Since no other escaping is needed we can do it ourselves and save
-		// whatever overhead running it through fmt.Fprintf would cause.
+		// whatever overhead running it through fmt.Fprintf would incur.
 		quote := byte('"')
 		if hash {
 			quote = '`'
@@ -637,17 +637,24 @@ func (x *Big) Format(s fmt.State, c rune) {
 		f.WriteByte(quote)
 	case 'e', 'E':
 		f.format(x, sci, byte(c))
-	case 'f':
-		if f.prec == noPrec {
-			f.prec = 0
+	case 'f', 'F':
+		if !hasPrec {
+			prec = 0
 		}
-		f.prec += x.Precision()
+
 		// %f's precision means "number of digits after the radix"
-		if x.exp < 0 {
-			f.prec += x.exp
+		if x.exp > 0 {
+			f.prec += x.Precision()
+		} else {
+			if adj := x.exp + x.Precision(); adj >= 0 {
+				f.prec += adj
+			} else {
+				f.prec = -f.prec
+			}
 		}
+
 		f.format(x, plain, noE)
-	case 'g':
+	case 'g', 'G':
 		// %g's precision means "number of significant digits"
 		f.format(x, plain, noE)
 
@@ -886,7 +893,7 @@ func (x *Big) MarshalText() ([]byte, error) {
 	}
 	var (
 		b = new(bytes.Buffer)
-		f = formatter{w: b, prec: noPrec, width: noWidth}
+		f = formatter{w: b, prec: x.Precision(), width: noWidth}
 		e = sciE[x.Context.OperatingMode]
 	)
 	b.Grow(x.Precision())
@@ -1083,8 +1090,8 @@ func (z *Big) SetBigMantScale(value *big.Int, scale int) *Big {
 	z.compact = c.Inflated
 	z.precision = arith.BigLength(value)
 
-	if value.IsUint64() {
-		if v := value.Uint64(); v != c.Inflated {
+	if z.unscaled.IsUint64() {
+		if v := z.unscaled.Uint64(); v != c.Inflated {
 			z.compact = v
 		}
 	}
@@ -1378,7 +1385,7 @@ func (x *Big) Signbit() bool {
 func (x *Big) String() string {
 	var (
 		b = new(strings.Builder)
-		f = formatter{w: b, prec: noPrec, width: noWidth}
+		f = formatter{w: b, prec: x.Precision(), width: noWidth}
 		e = sciE[x.Context.OperatingMode]
 	)
 	b.Grow(x.Precision())
