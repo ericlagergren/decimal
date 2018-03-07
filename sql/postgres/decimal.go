@@ -75,18 +75,21 @@ func (d *Decimal) Value() (driver.Value, error) {
 
 // Scan implements sql.Scanner.
 func (d *Decimal) Scan(val interface{}) error {
-	str, ok := val.(string)
-	if !ok {
-		return fmt.Errorf("Decimal.Scan: unknown value: %#v", val)
-	}
 	if d.V == nil {
 		d.V = new(decimal.Big)
 	}
-	if _, ok := d.V.SetString(str); !ok {
-		if err := d.V.Context.Err(); err != nil {
-			return err
+	switch t := val.(type) {
+	case string:
+		if _, ok := d.V.SetString(t); !ok {
+			if err := d.V.Context.Err(); err != nil {
+				return err
+			}
+			return fmt.Errorf("Decimal.Scan: invalid syntax: %q", t)
 		}
-		return fmt.Errorf("Decimal.Scan: invalid syntax: %q", str)
+		return nil
+	case []byte:
+		return d.V.UnmarshalText(t)
+	default:
+		return fmt.Errorf("Decimal.Scan: unknown value: %#v", val)
 	}
-	return nil
 }
