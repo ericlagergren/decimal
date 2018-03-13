@@ -1,6 +1,9 @@
 package decimal
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestRoundString(t *testing.T) {
 	type roundStringTest struct {
@@ -60,6 +63,27 @@ func TestRoundString(t *testing.T) {
 got   : %q
 wanted: %q
 `, i, test.input, test.mode, test.prec, got, test.expect)
+		}
+	}
+}
+
+func TestDecimal_Format(t *testing.T) {
+	for i, s := range [...]struct {
+		format string
+		input  string
+		want   string
+	}{
+		{"%.10f", "0.1234567891", "0.1234567891"},
+		{"%.10f", "0.01", "0.0100000000"},
+		{"%.10f", "0.0000000000000000000000000000000000000000000000000000000000001", "0.0000000000"},
+	} {
+		z, _ := new(Big).SetString(s.input)
+		got := fmt.Sprintf(s.format, z)
+		if got != s.want {
+			t.Fatalf(`#%d: printf(%s)
+got   : %s
+wanted: %s
+`, i, s.format, got, s.want)
 		}
 	}
 }
