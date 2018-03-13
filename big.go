@@ -640,16 +640,17 @@ func (x *Big) Format(s fmt.State, c rune) {
 	case 'f', 'F':
 		if !hasPrec {
 			prec = 0
-		}
-
-		// %f's precision means "number of digits after the radix"
-		if x.exp > 0 {
-			f.prec += x.Precision()
 		} else {
-			if adj := x.exp + x.Precision(); adj >= 0 {
-				f.prec += adj
+
+			// %f's precision means "number of digits after the radix"
+			if x.exp > 0 {
+				f.prec += x.Precision()
 			} else {
-				f.prec = -f.prec
+				if adj := x.exp + x.Precision(); adj > -f.prec {
+					f.prec += adj
+				} else {
+					f.prec = -f.prec
+				}
 			}
 		}
 
