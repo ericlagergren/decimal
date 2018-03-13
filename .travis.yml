@@ -4,6 +4,10 @@ go:
   - "1.10.x"
   - master
 
+cache:
+  directories:
+    - _testdata
+
 matrix:
   allow_failures:
     - go: master

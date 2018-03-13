@@ -262,12 +262,12 @@ func (f *formatter) formatPlain(b []byte, exp int) {
 	const zeroRadix = "0."
 
 	switch radix := len(b) + exp; {
-	// log10(b) == scale, so immediately before b.
+	// log10(b) == scale, so immediately before b: 0.123456
 	case radix == 0:
 		f.WriteString(zeroRadix)
 		f.Write(b)
 
-	// log10(b) > scale, so somewhere inside b.
+	// log10(b) > scale, so somewhere inside b: 123.456
 	case radix > 0:
 		f.Write(b[:radix])
 		if radix < len(b) {
@@ -275,7 +275,7 @@ func (f *formatter) formatPlain(b []byte, exp int) {
 			f.Write(b[radix:])
 		}
 
-	// log10(b) < scale, so before p "0s" and before b.
+	// log10(b) < scale, so before p "0s" and before b: 0.00000123456
 	default:
 		f.WriteString(zeroRadix)
 		io.CopyN(f, zeroReader{}, -int64(radix))
