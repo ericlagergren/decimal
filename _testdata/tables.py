@@ -153,7 +153,7 @@ def write_line(out, prec, op, mode, r, x, y=None, u=None, flags=None):
 
 
 def shrinkctx():
-    getcontext().prec = random.randint(1, 10000)
+    getcontext().prec = random.randint(1, 500)
 
 
 def perform_op(op):
@@ -197,6 +197,7 @@ def perform_op(op):
         r = x.quantize(y)
         y = -y.as_tuple().exponent
     elif op == "pow":
+        shrinkctx()
         x = rand_dec(nbits=64)
         y = rand_dec(nbits=64)
         #u = rand_dec(nbits=64)
@@ -321,6 +322,7 @@ N = int(sys.argv[1])
 
 def make_tables(items):
     for op, name in items:
+        print("generating {}".format(name))
         with gzip.open("{}-tables.gz".format(name), "wt") as f:
             for i in range(1, N):
                 mode = random.choice(list(modes.keys()))
@@ -330,7 +332,7 @@ def make_tables(items):
                 ctx.Emax = MAX_EMAX
                 ctx.Emin = MIN_EMIN
                 ctx.rounding = modes[mode]
-                ctx.prec = random.randint(1, 100000)
+                ctx.prec = random.randint(1, random.randint(100, 50000))
                 ctx.clear_traps()
                 ctx.clear_flags()
 
