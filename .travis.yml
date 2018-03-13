@@ -21,7 +21,7 @@ notifications:
 addons:
   apt:
     sources:
-      - deadsnakes # source required so it finds the package definition below
+      - deadsnakes # for python 3.6
     packages:
       - python3.6
 
@@ -32,4 +32,4 @@ before_script:
 
 script:
   - test -z $(gofmt -s -l $GO_FILES)
-  - go test -v -tags=ddebug -timeout=12h -short -race ./...
+  - travis_wait go test -tags=ddebug -timeout=20m -short -race ./...
