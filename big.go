@@ -480,11 +480,11 @@ func (z *Big) CopySign(x, y *Big) *Big {
 	return z
 }
 
-// Float64 returns x as a float64 and a bool indicating whether x can be exactly
-// represented as a float64. Special values are considered exact; however, special
-// values that occur because the magnitude of x is too large to be represented
-// as a float64 are not.
-func (x *Big) Float64() (f float64, exact bool) {
+// Float64 returns x as a float64 and a bool indicating whether x can fit into
+// a float64 without truncation, overflow, or underflow. Special values are
+// considered exact; however, special values that occur because the magnitude of
+// x is too large to be represented as a float64 are not.
+func (x *Big) Float64() (f float64, ok bool) {
 	if debug {
 		x.validate()
 	}
@@ -505,23 +505,22 @@ func (x *Big) Float64() (f float64, exact bool) {
 	switch {
 	case !x.isCompact():
 		f, _ = strconv.ParseFloat(x.String(), 64)
-		exact = false
-		//f, exact = math.Inf(0), false
+		ok = !math.IsInf(f, 0) && !math.IsNaN(f)
 	case x.compact == 0:
-		exact = true
+		ok = true
 	case x.exp == 0:
-		f, exact = float64(x.compact), true
+		f, ok = float64(x.compact), true
 	case x.exp > 0:
 		f = float64(x.compact) * math.Pow10(x.exp)
-		exact = x.compact < maxMantissa && x.exp < maxPow10
+		ok = x.compact < maxMantissa && x.exp < maxPow10
 	case x.exp < 0:
 		f = float64(x.compact) / math.Pow10(-x.exp)
-		exact = x.compact < maxMantissa && x.exp > -maxPow10
+		ok = x.compact < maxMantissa && x.exp > -maxPow10
 	}
 	if x.form&signbit != 0 {
 		f = math.Copysign(f, -1)
 	}
-	return f, exact
+	return f, ok
 }
 
 // Float sets z to x and returns z. z is allowed to be nil. The result is
@@ -1191,7 +1190,7 @@ func (z *Big) SetFloat64(x float64) *Big {
 	}
 
 	shift := 52 - exp
-	for mantissa&1 == 0 {
+	for mantissa&1 == 0 && shift > 0 {
 		mantissa >>= 1
 		shift--
 	}
@@ -1204,19 +1203,18 @@ func (z *Big) SetFloat64(x float64) *Big {
 		z.unscaled.Exp(c.FiveInt, &z.unscaled, nil)
 		arith.MulUint64(&z.unscaled, &z.unscaled, mantissa)
 		z.exp = -shift
-		return z.norm()
-	}
-
-	if s := uint(-shift); s < 64 {
-		z.compact = mantissa << s
-		z.precision = arith.Length(z.compact)
 	} else {
+		// TODO(eric): figure out why this doesn't work for _some_ numbers. See
+		// https://github.com/ericlagergren/decimal/issues/89
+		//
+		// z.compact = mantissa << uint(-shift)
+		// z.precision = arith.Length(z.compact)
+
 		z.compact = c.Inflated
 		z.unscaled.SetUint64(mantissa)
-		z.unscaled.Lsh(&z.unscaled, s)
-		z.norm()
+		z.unscaled.Lsh(&z.unscaled, uint(-shift))
 	}
-	return z
+	return z.norm()
 }
 
 // SetInf sets z to -Inf if signbit is set or +Inf is signbit is not set, and
