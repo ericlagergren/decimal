@@ -12,11 +12,7 @@ func Floor(z, x *decimal.Big) *decimal.Big {
 		return z
 	}
 	ctx := z.Context
-	if z.Signbit() {
-		ctx.RoundingMode = decimal.AwayFromZero
-	} else {
-		ctx.RoundingMode = decimal.ToZero
-	}
+	ctx.RoundingMode = decimal.ToNegativeInf
 	return ctx.RoundToInt(z.Copy(x))
 }
 
