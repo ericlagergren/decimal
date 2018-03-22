@@ -358,6 +358,9 @@ Loop:
 				z.exp = 0
 			}
 			z.precision = arith.Length(z.compact)
+			if z.compact == c.Inflated {
+				z.unscaled.SetUint64(c.Inflated)
+			}
 			return nil
 		}
 		err = err.(*strconv.NumError).Err
