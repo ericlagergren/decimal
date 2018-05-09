@@ -1,4 +1,4 @@
-// +build 386 mips mipsle arm
+// +build js 386 mips mipsle arm
 
 package c
 
