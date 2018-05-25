@@ -969,7 +969,7 @@ func (z *Big) QuoInt(x, y *Big) *Big { return z.Context.QuoInt(z, x, y) }
 // QuoRem sets z to the quotient x / y and r to the remainder x % y, such that
 // x = z * y + r, and returns the pair (z, r).
 func (z *Big) QuoRem(x, y, r *Big) (*Big, *Big) {
-	return z.Context.QuoRem(z, x, r, y)
+	return z.Context.QuoRem(z, x, y, r)
 }
 
 // Rat sets z to x returns z. z is allowed to be nil. The result is undefined if
