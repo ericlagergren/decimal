@@ -21,7 +21,7 @@ func Cmp(x, y uint64) int {
 func AbsCmp128(x, y, shift uint64) int {
 	y1, y0 := Mul128(y, shift)
 	if y1 != 0 {
-		return +1
+		return -1
 	}
 	return Cmp(x, y0)
 }
