@@ -53,7 +53,7 @@ got   : %s
 	}
 }
 
-func TestMulTestIssue99(t *testing.T) {
+func TestIssue99(t *testing.T) {
 	bad := &Big{compact: 11234567890123457890, exp: -20, precision: 20}
 	ref := &Big{compact: 2, exp: -1, precision: 1}
 
