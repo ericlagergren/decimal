@@ -93,3 +93,28 @@ func (d *Decimal) Scan(val interface{}) error {
 		return fmt.Errorf("Decimal.Scan: unknown value: %#v", val)
 	}
 }
+
+// NullDecimal represents a nullable decimal with compatibility for
+// scanning null values from the database.
+type NullDecimal struct {
+	Decimal Decimal
+	Valid   bool
+}
+
+// Scan implements the sql.Scanner interface for database deserialization.
+func (d *NullDecimal) Scan(value interface{}) error {
+	if value == nil {
+		d.Valid = false
+		return nil
+	}
+	d.Valid = true
+	return d.Decimal.Scan(value)
+}
+
+// Value implements the driver.Valuer interface for database serialization.
+func (d NullDecimal) Value() (driver.Value, error) {
+	if !d.Valid {
+		return nil, nil
+	}
+	return d.Decimal.Value()
+}
