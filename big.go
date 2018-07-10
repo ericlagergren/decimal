@@ -1327,6 +1327,9 @@ func (z *Big) setZero(sign form, exp int) *Big {
 // SetUint64 is shorthand for SetMantScale(x, 0) for an unsigned integer.
 func (z *Big) SetUint64(x uint64) *Big {
 	z.compact = x
+	if x == c.Inflated {
+		z.unscaled.SetUint64(x)
+	}
 	z.precision = arith.Length(x)
 	z.exp = 0
 	z.form = finite

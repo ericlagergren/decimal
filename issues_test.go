@@ -1,6 +1,7 @@
 package decimal
 
 import (
+	"math"
 	"math/big"
 	"testing"
 )
@@ -64,5 +65,16 @@ func TestIssue99(t *testing.T) {
 	cmp = ref.Cmp(bad)
 	if cmp != 1 {
 		t.Errorf("expected %s larger than %s\n", ref.String(), bad.String())
+	}
+}
+
+func TestIssue104(t *testing.T) {
+	x := WithContext(Context128).SetUint64(math.MaxUint64)
+	y, ok := x.Uint64()
+	if !ok {
+		t.Error("failed to convert back")
+	}
+	if y != math.MaxUint64 {
+		t.Errorf("conversion 'succeeded' but the value failed to make the round trip - got %d", y)
 	}
 }
