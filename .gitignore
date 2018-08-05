@@ -42,3 +42,4 @@ benchmarks/decbench
 *.gz
 internal/nat/
 x.bash
+tags

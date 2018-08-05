@@ -500,16 +500,27 @@ func (x *Big) Float64() (f float64, ok bool) {
 		}
 	}
 
-	const maxPow10 = 22         // largest exact power of 10
-	const maxMantissa = 1 << 52 // largest exact mantissa
-	switch {
+	const (
+		maxPow10    = 22        // largest exact power of 10
+		maxMantissa = 1<<53 + 1 // largest exact mantissa
+	)
+	switch xc := x.compact; {
 	case !x.isCompact():
+		fallthrough
+	default:
 		f, _ = strconv.ParseFloat(x.String(), 64)
 		ok = !math.IsInf(f, 0) && !math.IsNaN(f)
-	case x.compact == 0:
+	case xc == 0:
 		ok = true
+	case x.IsInt():
+		if xc, ok = x.Uint64(); !ok {
+			v, _ := x.Int64()
+			xc = uint64(v)
+		}
+		fallthrough
 	case x.exp == 0:
-		f, ok = float64(x.compact), true
+		f = float64(xc)
+		ok = xc < maxMantissa || (xc&(xc-1)) == 0
 	case x.exp > 0:
 		f = float64(x.compact) * math.Pow10(x.exp)
 		ok = x.compact < maxMantissa && x.exp < maxPow10
@@ -517,6 +528,7 @@ func (x *Big) Float64() (f float64, ok bool) {
 		f = float64(x.compact) / math.Pow10(-x.exp)
 		ok = x.compact < maxMantissa && x.exp > -maxPow10
 	}
+
 	if x.form&signbit != 0 {
 		f = math.Copysign(f, -1)
 	}
@@ -785,7 +797,7 @@ func (x *Big) Int64() (int64, bool) {
 	return 0, false
 }
 
-// Uint64 returns x as an int64, truncating towards zero. The returned boolean
+// Uint64 returns x as a uint64, truncating towards zero. The returned boolean
 // indicates whether the conversion to a uint64 was successful.
 func (x *Big) Uint64() (uint64, bool) {
 	if debug {

@@ -1,6 +1,7 @@
 package decimal
 
 import (
+	"log"
 	"math"
 	"math/big"
 	"testing"
@@ -76,5 +77,13 @@ func TestIssue104(t *testing.T) {
 	}
 	if y != math.MaxUint64 {
 		t.Errorf("conversion 'succeeded' but the value failed to make the round trip - got %d", y)
+	}
+}
+
+func TestIssue105(t *testing.T) {
+	var b Big
+	b.SetString("6190.000000000000")
+	if _, ok := b.Float64(); !ok {
+		log.Fatalf("6190 should fit in a float just fine")
 	}
 }
