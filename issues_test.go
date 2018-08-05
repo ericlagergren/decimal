@@ -1,7 +1,6 @@
 package decimal
 
 import (
-	"log"
 	"math"
 	"math/big"
 	"testing"
@@ -84,6 +83,6 @@ func TestIssue105(t *testing.T) {
 	var b Big
 	b.SetString("6190.000000000000")
 	if _, ok := b.Float64(); !ok {
-		log.Fatalf("6190 should fit in a float just fine")
+		t.Fatalf("6190 should fit in a float just fine")
 	}
 }
