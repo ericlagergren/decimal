@@ -14,7 +14,7 @@ library implementing the [General Decimal Arithmetic](http://speleotrove.com/dec
 
 ## Installation
 
-`go get github.com/ericlagergren/decimal`
+`go get github.com/grodriguez85/decimal`
 
 ## Documentation
 
@@ -22,7 +22,7 @@ library implementing the [General Decimal Arithmetic](http://speleotrove.com/dec
 
 ## Versioning
 
-`decimal` uses Semantic Versioning. The current version is 3.1.
+`decimal` uses Semantic Versioning. The current version is 3.2.
 
 ## License
 
