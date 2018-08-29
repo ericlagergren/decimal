@@ -7,6 +7,7 @@ import (
 	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/arith/checked"
 	cst "github.com/ericlagergren/decimal/internal/c"
+	"github.com/ericlagergren/decimal/internal/compat"
 )
 
 // Add sets z to x + y and returns z.
@@ -579,10 +580,10 @@ func (z *Big) quoBig(
 	var rc int
 	rv := r.Uint64()
 	// Drop into integers if possible.
-	if r.IsUint64() && y.IsUint64() && rv <= math.MaxUint64/2 {
+	if arith.IsUint64(r) && arith.IsUint64(y) && rv <= math.MaxUint64/2 {
 		rc = arith.Cmp(rv*2, y.Uint64())
 	} else {
-		rc = r.Mul(r, cst.TwoInt).CmpAbs(y)
+		rc = compat.BigCmpAbs(r.Mul(r, cst.TwoInt), y)
 	}
 
 	if m == unnecessary {
