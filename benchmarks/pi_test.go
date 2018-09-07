@@ -1,6 +1,7 @@
 package benchmarks
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -11,21 +12,26 @@ import (
 	"gopkg.in/inf.v0"
 )
 
-const pi = "3.141592653589793238462643383279502884197169399375105820974944592307816406286208998628034825342117067982148086513282306647093844609550582231725359408128481117450284102701938521105559644622948954930381964428810975665933446128475648233786783165271201909145648566923460348610454326648213394"
+const pi = "3.14159265358979323846264338327950288419716939937510582097494459230" +
+	"78164062862089986280348253421170679821480865132823066470938446095505822317" +
+	"25359408128481117450284102701938521105559644622948954930381964428810975665" +
+	"933446128475648233786783165271201909145648566923460348610454326648213394"
 
 func adjustPrecision(prec int) int { return int(math.Ceil(float64(prec) * 1.1)) }
 
 type testFunc func(prec int) string
 
+// TestPiBenchmarks tests the correctness of the Pi benchmarks. It only tests
+// the benchmarks that can be calculated out to a specific precision.
 func TestPiBenchmarks(t *testing.T) {
 	for _, test := range [...]struct {
 		name string
 		fn   testFunc
 	}{
-		{"dec-Go", func(prec int) string {
+		{"decimal (Go)", func(prec int) string {
 			return calcPiGo(prec).String()
 		}},
-		{"dec-GDA", func(prec int) string {
+		{"decimal (GDA)", func(prec int) string {
 			return calcPiGDA(prec).String()
 		}},
 		{"apd", func(prec int) string {
@@ -40,24 +46,26 @@ func TestPiBenchmarks(t *testing.T) {
 	} {
 		var ctx decimal.Context
 		for _, prec := range [...]int{9, 19, 38, 100} {
-			ctx.Precision = prec
+			t.Run(fmt.Sprintf("%s/%d", test.name, prec), func(t *testing.T) {
+				ctx.Precision = prec
 
-			str := test.fn(prec)
-			name := test.name
+				str := test.fn(prec)
+				name := test.name
 
-			var x decimal.Big
-			if _, ok := ctx.SetString(&x, str); !ok {
-				t.Fatalf("%s (%d): bad input: %q", name, prec, str)
-			}
+				var x decimal.Big
+				if _, ok := ctx.SetString(&x, str); !ok {
+					t.Fatalf("%s (%d): bad input: %q", name, prec, str)
+				}
 
-			var act decimal.Big
-			ctx.SetString(&act, pi)
-			if act.Cmp(&x) != 0 {
-				t.Fatalf(`%s (%d): bad output:
+				var act decimal.Big
+				ctx.SetString(&act, pi)
+				if act.Cmp(&x) != 0 {
+					t.Fatalf(`%s (%d): bad output:
 want: %q
 got : %q
 `, name, prec, &act, &x)
-			}
+				}
+			})
 		}
 	}
 }
@@ -67,8 +75,8 @@ var (
 	thirtyTwo      = decimal.New(32, 0)
 	apdEight       = apd.New(8, 0)
 	apdThirtyTwo   = apd.New(32, 0)
-	dnumEight      = dnum.NewDnum(false, 8, 0)
-	dnumThirtyTwo  = dnum.NewDnum(false, 32, 0)
+	dnumEight      = dnum.New(+1, 8, 0)
+	dnumThirtyTwo  = dnum.New(+1, 32, 0)
 	ssdecEight     = ssdec.New(8, 0)
 	ssdecThirtyTwo = ssdec.New(32, 0)
 	infEight       = inf.NewDec(8, 0)
@@ -131,16 +139,16 @@ func calcPi_shopSpring(prec int32) ssdec.Decimal {
 
 func calcPi_dnum() dnum.Dnum {
 	var (
-		lasts = dnum.NewDnum(false, 0, 0)
-		t     = dnum.NewDnum(false, 3, 0)
-		s     = dnum.NewDnum(false, 3, 0)
-		n     = dnum.NewDnum(false, 1, 0)
-		na    = dnum.NewDnum(false, 0, 0)
-		d     = dnum.NewDnum(false, 0, 0)
-		da    = dnum.NewDnum(false, 24, 0)
+		lasts = dnum.New(+1, 0, 0)
+		t     = dnum.New(+1, 3, 0)
+		s     = dnum.New(+1, 3, 0)
+		n     = dnum.New(+1, 1, 0)
+		na    = dnum.New(+1, 0, 0)
+		d     = dnum.New(+1, 0, 0)
+		da    = dnum.New(+1, 24, 0)
 	)
 
-	for dnum.Cmp(s, lasts) != 0 {
+	for dnum.Compare(s, lasts) != 0 {
 		lasts = s
 		n = dnum.Add(n, na)
 		na = dnum.Add(na, dnumEight)
