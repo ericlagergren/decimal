@@ -3,6 +3,7 @@ package decimal
 import (
 	"bytes"
 	"encoding"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -1411,6 +1412,16 @@ var _ fmt.Stringer = (*Big)(nil)
 
 // Sub sets z to x - y and returns z.
 func (z *Big) Sub(x, y *Big) *Big { return z.Context.Sub(z, x, y) }
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (z *Big) UnmarshalJSON(data []byte) error {
+	if len(data) >= 2 && data[0] == '"' && data[len(data)-1] == '"' {
+		data = data[1 : len(data)-1]
+	}
+	return z.UnmarshalText(data)
+}
+
+var _ json.Unmarshaler = (*Big)(nil)
 
 // UnmarshalText implements encoding.TextUnmarshaler.
 func (z *Big) UnmarshalText(data []byte) error {
