@@ -904,6 +904,9 @@ func (x *Big) MarshalText() ([]byte, error) {
 	if debug {
 		x.validate()
 	}
+	if x == nil {
+		return []byte("<nil>"), nil
+	}
 	var (
 		b = new(bytes.Buffer)
 		f = formatter{w: b, prec: x.Precision(), width: noWidth}
@@ -1398,6 +1401,9 @@ func (x *Big) Signbit() bool {
 // discussed in the Format method's documentation. Special cases depend on the
 // OperatingMode.
 func (x *Big) String() string {
+	if x == nil {
+		return "<nil>"
+	}
 	var (
 		b = new(strings.Builder)
 		f = formatter{w: b, prec: x.Precision(), width: noWidth}
