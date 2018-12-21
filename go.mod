@@ -1,4 +1,4 @@
-module github.com/ericlagergren/decimal/v3
+module github.com/ericlagergren/decimal
 
 require (
 	github.com/apmckinlay/gsuneido v0.0.0-20180907175622-1f10244968e3
