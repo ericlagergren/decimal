@@ -514,11 +514,12 @@ func (x *Big) Float64() (f float64, ok bool) {
 	case xc == 0:
 		ok = true
 	case x.IsInt():
-		if xc, ok = x.Uint64(); !ok {
-			v, _ := x.Int64()
-			xc = uint64(v)
+		if xc, ok := x.Int64(); ok {
+			f = float64(xc)
+		} else if xc, ok := x.Uint64(); ok {
+			f = float64(xc)
 		}
-		fallthrough
+		ok = xc < maxMantissa || (xc&(xc-1)) == 0
 	case x.exp == 0:
 		f = float64(xc)
 		ok = xc < maxMantissa || (xc&(xc-1)) == 0

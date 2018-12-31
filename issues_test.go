@@ -83,6 +83,17 @@ func TestIssue105(t *testing.T) {
 	var b Big
 	b.SetString("6190.000000000000")
 	if _, ok := b.Float64(); !ok {
-		t.Fatalf("6190 should fit in a float just fine")
+		t.Fatal("6190 should fit in a float just fine")
+	}
+}
+
+func TestIssue114(t *testing.T) {
+	val := New(-1, 0)
+	f, ok := val.Float64()
+	if !ok {
+		t.Fatal("expected true, got false")
+	}
+	if f != -1 {
+		t.Fatalf("expected -1, got %f", f)
 	}
 }
