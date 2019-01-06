@@ -989,7 +989,7 @@ func (z *Big) QuoRem(x, y, r *Big) (*Big, *Big) {
 	return z.Context.QuoRem(z, x, y, r)
 }
 
-// Rat sets z to x returns z. z is allowed to be nil. The result is undefined if
+// Rat sets z to x and returns z. z is allowed to be nil. The result is undefined if
 // x is an infinity or NaN value.
 func (x *Big) Rat(z *big.Rat) *big.Rat {
 	if debug {
