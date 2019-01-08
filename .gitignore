@@ -43,3 +43,4 @@ benchmarks/decbench
 internal/nat/
 x.bash
 tags
+*.decTest
