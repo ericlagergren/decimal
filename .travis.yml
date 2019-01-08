@@ -26,6 +26,7 @@ addons:
       - python3.6
 
 before_script:
+  - ./_dectest/generate.bash
   - ./_testdata/generate.bash
   - GO_FILES=$(find . -type f -iname '*.go')
   - go get -u -t ./...
