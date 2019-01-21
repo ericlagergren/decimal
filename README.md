@@ -22,7 +22,7 @@ library implementing the [General Decimal Arithmetic](http://speleotrove.com/dec
 
 ## Versioning
 
-`decimal` uses Semantic Versioning. The current version is 3.1.
+`decimal` uses Semantic Versioning. The current version is 3.3.1.
 
 ## License
 
