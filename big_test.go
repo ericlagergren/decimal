@@ -72,7 +72,7 @@ func TestBig_Float(t *testing.T) {
 		fv := new(big.Float).SetPrec(flt.Prec())
 		xf := new(decimal.Big).SetFloat(flt).Float(fv)
 		if xf.String() != flt.String() {
-			t.Fatalf("#%d: wanted %f, got %f", i, flt, xf)
+			t.Fatalf("#%d: wanted %s, got %f", i, flt, xf)
 		}
 	}
 }

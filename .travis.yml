@@ -2,11 +2,12 @@ language: go
 
 go:
   - "1.10.x"
+  - "1.11.x"
   - master
 
 cache:
   directories:
-    - _testdata
+    - testdata
 
 matrix:
   allow_failures:
@@ -26,7 +27,7 @@ addons:
       - python3.6
 
 before_script:
-  - ./_testdata/generate.bash
+  - ./testdata/pytables/generate.bash
   - GO_FILES=$(find . -type f -iname '*.go')
   - go get -u -t ./...
 
