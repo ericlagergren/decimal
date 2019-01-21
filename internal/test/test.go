@@ -167,7 +167,7 @@ got   : %q (%s:%d)
 }
 
 func open(name string) (c *scanner) {
-	fpath := filepath.Join("_testdata", fmt.Sprintf("%s-tables.gz", name))
+	fpath := filepath.Join("testdata", fmt.Sprintf("%s-tables.gz", name))
 	file, err := os.Open(fpath)
 	if err != nil {
 		panic(err)
