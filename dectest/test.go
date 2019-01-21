@@ -22,9 +22,7 @@ func Test(t *testing.T, file string) {
 		if !isSupported(c) {
 			continue
 		}
-		t.Run(c.ID, func(t *testing.T) {
-			execute(t, c)
-		})
+		execute(t, c)
 	}
 	if err := s.Err(); err != nil {
 		t.Error(err)
@@ -278,7 +276,7 @@ got   : %q (%s:%d)
 			r, flags, -r.Scale(),
 			z, z.Context.Conditions, -z.Scale(),
 		)
-		t.Error(str)
+		t.Log(str)
 	}
 }
 

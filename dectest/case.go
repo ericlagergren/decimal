@@ -40,25 +40,40 @@ func trunc(d Data, l int) Data {
 	return d[:l/2] + "..." + d[len(d)-(l/2):]
 }
 
-func join(a []Data, sep Data, l int) Data {
+func writeTrunc(b *strings.Builder, d Data, maxLen int) {
+	if maxLen <= 0 || len(d) < maxLen {
+		b.WriteString(string(d))
+	} else {
+		b.WriteString(string(d[:maxLen/2]))
+		b.WriteString("...")
+		b.WriteString(string(d[len(d)-(maxLen/2):]))
+	}
+}
+
+func join(a []Data, sep string, maxLen int) Data {
 	if len(a) == 0 {
 		return ""
 	}
 	if len(a) == 1 {
-		return trunc(a[0], l)
+		return trunc(a[0], maxLen)
 	}
 	n := len(sep) * (len(a) - 1)
-	for i := 0; i < len(a); i++ {
-		n += len(trunc(a[i], l))
+	for _, s := range a {
+		if len(s) > maxLen {
+			n += maxLen + len("...")
+		} else {
+			n += len(s)
+		}
 	}
 
-	b := make([]byte, n)
-	bp := copy(b, trunc(a[0], l))
+	var b strings.Builder
+	b.Grow(n)
+	writeTrunc(&b, a[0], maxLen)
 	for _, s := range a[1:] {
-		bp += copy(b[bp:], sep)
-		bp += copy(b[bp:], trunc(s, l))
+		b.WriteString(sep)
+		writeTrunc(&b, s, maxLen)
 	}
-	return Data(b)
+	return Data(b.String())
 }
 
 // Data is input or output from a test case.

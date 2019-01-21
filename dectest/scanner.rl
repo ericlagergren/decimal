@@ -125,7 +125,7 @@ func (s *Scanner) parse(data []byte) (err error) {
 		min_exponent = ( digit+ ) >mark %set_min_exponent;
 
 		rounding = (
-			'ceiling'i
+			  'ceiling'i
 			| 'down'i
 			| 'floor'i
 			| 'half_down'i
@@ -138,7 +138,7 @@ func (s *Scanner) parse(data []byte) (err error) {
 		id = ( alpha{3,} digit{3,} ) >mark %set_id;
 
 		op = (
-			'abs'i
+			  'abs'i
 			| 'add'i
 			| 'and'i
 			| 'apply'i
@@ -191,29 +191,29 @@ func (s *Scanner) parse(data []byte) (err error) {
 			| 'xor'i
 		) >mark %set_op;
 
-		quote = '\'' | '"';
+		quote      = '\'' | '"';
 		sign	   = '+' | '-';
 		indicator  = 'e' | 'E';
 		exponent   = indicator? sign? digit+;
-		number	 = (digit+ '.' digit* | '.' digit+ | digit+ | digit) exponent?;
+		number	   = (digit+ '.' digit* | '.' digit+ | digit+ | digit) exponent?;
 		nan_prefix = [sSqQ];
-		nan		= (nan_prefix? 'nan'i digit* | '?');
-		class	  = (nan_prefix? 'nan'i | sign? (
+		nan		   = (nan_prefix? 'nan'i digit* | '?');
+		class	   = (nan_prefix? 'nan'i | sign? (
 				  'Subnormal'
 				| 'Normal'
 				| 'Zero'
 				| 'Infinity')
 		);
 		numeric_string = sign? (
-			  nan				  # S, Q, NaN, sNaN, ...
+			  nan				   # S, Q, NaN, sNaN, ...
 			| ('inf'i 'inity'i?)   # +inf, -inf, ...
 			| number			   # 10, 10.1, +0e-392, ...
 		);
-		input =  ( numeric_string | '#') >mark %add_input;
+		input  = ( numeric_string | '#') >mark %add_input;
 		output = ( numeric_string | class | '#') >mark %set_output;
 
 		condition = (
-			'Clamped'i
+			  'Clamped'i
 			| 'Conversion_syntax'i
 			| 'Division_by_zero'i
 			| 'Division_impossible'i
@@ -230,14 +230,13 @@ func (s *Scanner) parse(data []byte) (err error) {
 		) >mark %add_condition;
 
 		main := (
-			('precision:' space+ precision space* any*)
+			  ('precision:' space+ precision space* any*)
 			| ('clamp:' space+ clamp space* any*)
 			| ('maxexponent:' space+ max_exponent space* any*)
 			| ('minexponent:' space+ min_exponent space* any*)
 			| ('rounding:' space+ rounding space* any*)
 			| (id space+ op space+ (quote? input quote? space+)+ '->' space+ quote? output quote? (space+ condition)*)
 		);
-
 
 		write data;
 		write init;
