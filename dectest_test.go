@@ -1,24 +1,28 @@
 package decimal_test
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/ericlagergren/decimal/dectest"
 )
 
+// TestDecTests runs the dectest test suite.
 func TestDecTests(t *testing.T) {
-	files, err := filepath.Glob("_dectest/*.decTest")
+	path := filepath.Join("testdata", "dectest")
+	files, err := filepath.Glob(filepath.Join(path, "*.decTest"))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	if len(files) == 0 {
-		t.Skip("No .detect files found, please run _dectests/generate.bash")
+		t.Fatalf("no .detect files found inside %[1]q, re-run %[1]s%cgenerate.bash",
+			path, os.PathSeparator)
 	}
 
 	for _, file := range files {
-		file := file // shadow range variable
+		file := file
 		t.Run(filepath.Base(file), func(t *testing.T) {
 			dectest.Test(t, file)
 		})
