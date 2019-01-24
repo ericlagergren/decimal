@@ -173,6 +173,9 @@ func execute(t *testing.T, c *Case) {
 		case SameQuantum:
 			rv := misc.SameQuantum(x, y)
 			assert(t, c, rv, c.Output == Data("1"))
+		case ToSci:
+			rv := fmt.Sprintf("%E", x)
+			assert(t, c, rv, string(c.Output))
 		default:
 			t.Fatalf("unknown op: " + c.Op.String())
 		}
@@ -203,7 +206,7 @@ func isSupported(c *Case) bool {
 		opSupported = true
 	} else {
 		switch c.Op {
-		case Class, Compare, CompareTotal, CompareTotMag, Max, Min, Quantize, SameQuantum:
+		case Class, Compare, CompareTotal, CompareTotMag, Max, Min, Quantize, SameQuantum, ToSci:
 			opSupported = true
 		}
 	}
