@@ -1040,7 +1040,6 @@ func (s *Scanner) parse(data []byte) (err error) {
 		goto st0
 	tr11:
 //line scanner.rl:69
-
 		s.c = &Case{ID: string(data[mark:p])}
 
 		goto st8
@@ -1177,7 +1176,6 @@ func (s *Scanner) parse(data []byte) (err error) {
 		goto st0
 	tr33:
 //line scanner.rl:79
-
 		if s.c.Op, ok = operations[strings.ToLower(string(data[mark:p]))]; !ok {
 			return fmt.Errorf("dectest: invalid op: %q", data[mark:p])
 		}
@@ -1835,7 +1833,6 @@ func (s *Scanner) parse(data []byte) (err error) {
 		goto st38
 	tr441:
 //line scanner.rl:114
-
 		cond, ok = conditions[strings.ToLower(string(data[mark:p]))]
 		if !ok {
 			return fmt.Errorf("unknown condition: %q", data[mark:p])
@@ -5988,7 +5985,6 @@ func (s *Scanner) parse(data []byte) (err error) {
 		goto st417
 	tr445:
 //line scanner.rl:73
-
 		if s.clamp, err = strconv.Atoi(string(data[mark:p])); err != nil {
 			return err
 		}
@@ -6006,7 +6002,6 @@ func (s *Scanner) parse(data []byte) (err error) {
 		goto tr444
 	tr444:
 //line scanner.rl:73
-
 		if s.clamp, err = strconv.Atoi(string(data[mark:p])); err != nil {
 			return err
 		}
@@ -6014,7 +6009,6 @@ func (s *Scanner) parse(data []byte) (err error) {
 		goto st418
 	tr447:
 //line scanner.rl:92
-
 		s.maxExponent, err = strconv.Atoi(string(data[mark:p]))
 		if err != nil {
 			return err
@@ -6023,7 +6017,6 @@ func (s *Scanner) parse(data []byte) (err error) {
 		goto st418
 	tr449:
 //line scanner.rl:99
-
 		s.minExponent, err = strconv.Atoi(string(data[mark:p]))
 		if err != nil {
 			return err
@@ -6032,7 +6025,6 @@ func (s *Scanner) parse(data []byte) (err error) {
 		goto st418
 	tr451:
 //line scanner.rl:85
-
 		s.precision, err = strconv.Atoi(string(data[mark:p]))
 		if err != nil {
 			return err
@@ -6041,7 +6033,6 @@ func (s *Scanner) parse(data []byte) (err error) {
 		goto st418
 	tr453:
 //line scanner.rl:106
-
 		if s.rounding, ok = roundingModes[strings.ToLower(string(data[mark:p]))]; !ok {
 			return fmt.Errorf("unknown rounding mode: %q", data[mark:p])
 		}
@@ -6320,7 +6311,6 @@ func (s *Scanner) parse(data []byte) (err error) {
 		goto st419
 	tr448:
 //line scanner.rl:92
-
 		s.maxExponent, err = strconv.Atoi(string(data[mark:p]))
 		if err != nil {
 			return err
@@ -6578,7 +6568,6 @@ func (s *Scanner) parse(data []byte) (err error) {
 		goto st420
 	tr450:
 //line scanner.rl:99
-
 		s.minExponent, err = strconv.Atoi(string(data[mark:p]))
 		if err != nil {
 			return err
@@ -6816,7 +6805,6 @@ func (s *Scanner) parse(data []byte) (err error) {
 		goto st421
 	tr452:
 //line scanner.rl:85
-
 		s.precision, err = strconv.Atoi(string(data[mark:p]))
 		if err != nil {
 			return err
@@ -8631,14 +8619,12 @@ func (s *Scanner) parse(data []byte) (err error) {
 			switch cs {
 			case 417:
 //line scanner.rl:73
-
 				if s.clamp, err = strconv.Atoi(string(data[mark:p])); err != nil {
 					return err
 				}
 
 			case 421:
 //line scanner.rl:85
-
 				s.precision, err = strconv.Atoi(string(data[mark:p]))
 				if err != nil {
 					return err
@@ -8646,7 +8632,6 @@ func (s *Scanner) parse(data []byte) (err error) {
 
 			case 419:
 //line scanner.rl:92
-
 				s.maxExponent, err = strconv.Atoi(string(data[mark:p]))
 				if err != nil {
 					return err
@@ -8654,7 +8639,6 @@ func (s *Scanner) parse(data []byte) (err error) {
 
 			case 420:
 //line scanner.rl:99
-
 				s.minExponent, err = strconv.Atoi(string(data[mark:p]))
 				if err != nil {
 					return err
@@ -8662,7 +8646,6 @@ func (s *Scanner) parse(data []byte) (err error) {
 
 			case 422:
 //line scanner.rl:106
-
 				if s.rounding, ok = roundingModes[strings.ToLower(string(data[mark:p]))]; !ok {
 					return fmt.Errorf("unknown rounding mode: %q", data[mark:p])
 				}
@@ -8672,7 +8655,6 @@ func (s *Scanner) parse(data []byte) (err error) {
 				s.c.Output = Data(data[mark:p])
 			case 411:
 //line scanner.rl:114
-
 				cond, ok = conditions[strings.ToLower(string(data[mark:p]))]
 				if !ok {
 					return fmt.Errorf("unknown condition: %q", data[mark:p])
@@ -8689,6 +8671,5 @@ func (s *Scanner) parse(data []byte) (err error) {
 	}
 
 //line scanner.rl:244
-
 	return nil
 }
