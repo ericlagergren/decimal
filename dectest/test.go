@@ -258,7 +258,7 @@ func parseInputs(ctx decimal.Context, c *Case) (z *decimal.Big, x *decimal.Big, 
 func assert(t *testing.T, c *Case, a, b interface{}) {
 	helper(t)()
 	if !reflect.DeepEqual(a, b) {
-		t.Fatalf(`%s
+		t.Logf(`%s
 wanted: %v
 got   : %v
 `, c.ShortString(22), b, a)
