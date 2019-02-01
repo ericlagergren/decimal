@@ -29,7 +29,7 @@ var urls = [...]string{
 }
 
 func main() {
-	const dir = "testdata"
+	dir := filepath.Join("testdata", "fpgen")
 	err := os.MkdirAll(dir, 0755)
 	if err != nil {
 		log.Fatalln(err)
