@@ -22,6 +22,11 @@ func Test(t *testing.T, file string) {
 		if !isSupported(c) {
 			continue
 		}
+		if testing.Short() {
+			if _, ok := longRunning[c.ID]; ok {
+				continue
+			}
+		}
 		execute(t, c)
 	}
 	if err := s.Err(); err != nil {
