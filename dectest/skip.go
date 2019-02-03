@@ -208,8 +208,9 @@ var skip = map[string]struct{}{
 	/* disagreement for three arg power */
 	"pwmx325": {},
 	"pwmx326": {},
+}
 
-	// The following cases are skipped because they cause the test runner to hang:
+var longRunning = map[string]struct{}{
 	"dvix338":  {},
 	"dvix337":  {},
 	"dvix330":  {},
