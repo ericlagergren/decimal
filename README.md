@@ -24,6 +24,8 @@ library implementing the [General Decimal Arithmetic](http://speleotrove.com/dec
 
 `decimal` uses Semantic Versioning. The current version is 3.3.1.
 
+`decimal` only explicitly supports the two most recent major Go 1.X versions.
+
 ## License
 
 The [BSD 3-clause](https://github.com/ericlagergren/decimal/blob/master/LICENSE)

@@ -26,6 +26,8 @@ précision arbitrarie que mettre en œuvre la spécification
 `decimal` utilise la gestion sémantique de la version. La version actuelle est
 3.3.1.
 
+`decimal` ne prend en charge que le deux versions plus récentes.
+
 ## Licence
 
 La [BSD 3-clause](https://github.com/ericlagergren/decimal/blob/master/LICENSE)
