@@ -22,12 +22,13 @@ const (
 )
 
 var (
-	_E     = newDecimal("2.718281828459045235360287471352662497757247093699959574966967627724076630353547594571382178525166427")
-	_Ln10  = newDecimal("2.302585092994045684017991454684364207601101488628772976033327900967572609677352480235997205089598298")
-	_Pi    = newDecimal("3.141592653589793238462643383279502884197169399375105820974944592307816406286208998628034825342117068")
-	_Pi2   = newDecimal("1.570796326794896619231321691639751442098584699687552910487472296153908203143104499314017412671058534")
-	_Sqrt3 = newDecimal("1.732050807568877293527446341505872366942805253810380628055806979451933016908800037081146186757248576")
-
+	_E                  = newDecimal("2.718281828459045235360287471352662497757247093699959574966967627724076630353547594571382178525166427")
+	_Ln10               = newDecimal("2.302585092994045684017991454684364207601101488628772976033327900967572609677352480235997205089598298")
+	_Pi                 = newDecimal("3.141592653589793238462643383279502884197169399375105820974944592307816406286208998628034825342117068")
+	_Pi2                = newDecimal("1.570796326794896619231321691639751442098584699687552910487472296153908203143104499314017412671058534")
+	_Sqrt3              = newDecimal("1.732050807568877293527446341505872366942805253810380628055806979451933016908800037081146186757248576")
+	_Pi_cache           *decimal.Big
+	_Pi_cache_precision = 0
 	//_Gamma = newDecimal("0.577215664901532860606512090082402431042159335939923598805767234884867726777664670936947063291746749")
 	//_Ln2   = newDecimal("0.693147180559945309417232121458176568075500134360255254120680009493393621969694715605863326996418687")
 )
@@ -77,31 +78,29 @@ func Pi(z *decimal.Big) *decimal.Big {
 
 // pi sets z to the mathematical constant pi and returns z.
 func pi(z *decimal.Big, ctx decimal.Context) *decimal.Big {
+	//Since most of the time repeated calls to pi should
+	// have the same precision we cache the result and use that
+	if _Pi_cache_precision == ctx.Precision {
+		return _Pi_cache
+	}
+
+	//if not the same of the cache we
+	// check if it's something smaller than our
+	// saved const if so it's faster to truncate it
 	if ctx.Precision <= constPrec {
-		return ctx.Set(z, _Pi)
+		//we'll cache the resultant pi for later
+		_Pi_cache = ctx.Set(z, _Pi)
+	} else {
+		//else we have a value that is large than constPrec
+		// so we'll use a reasonably fast single threaded method
+		// to determine pi and we'll cache it
+		_Pi_cache = piChudnovskyBrothers(z, ctx)
 	}
+	//update the cache's precision
+	_Pi_cache_precision = ctx.Precision
 
-	var (
-		lasts = new(decimal.Big)
-		t     = new(decimal.Big).SetUint64(3)
-		s     = z.SetUint64(3)
-		n     = new(decimal.Big).SetUint64(1)
-		na    = new(decimal.Big)
-		d     = new(decimal.Big)
-		da    = new(decimal.Big).SetUint64(24)
-	)
-
-	for s.Cmp(lasts) != 0 {
-		lasts.Copy(s)
-		ctx.Add(n, n, na)
-		ctx.Add(na, na, eight)
-		ctx.Add(d, d, da)
-		ctx.Add(da, da, thirtyTwo)
-		ctx.Mul(t, t, n)
-		ctx.Quo(t, t, d)
-		ctx.Add(s, s, t)
-	}
-	return ctx.Round(z) // z == s
+	//and return the value
+	return _Pi_cache
 }
 
 // ln10 sets z to log(10) and returns z.
