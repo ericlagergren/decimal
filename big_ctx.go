@@ -307,6 +307,8 @@ func (c Context) mul(z, x, y *Big) *Big {
 }
 
 // Quantize sets z to the number equal in value and sign to z with the scale, n.
+//
+// Other decimal libraries may refer to Quantize as Truncate.
 func (c Context) Quantize(z *Big, n int) *Big {
 	if debug {
 		z.validate()

@@ -974,6 +974,8 @@ func (x *Big) Precision() int {
 }
 
 // Quantize sets z to the number equal in value and sign to z with the scale, n.
+//
+// Other decimal libraries may refer to Quantize as Truncate.
 func (z *Big) Quantize(n int) *Big { return z.Context.Quantize(z, n) }
 
 // Quo sets z to x / y and returns z.
