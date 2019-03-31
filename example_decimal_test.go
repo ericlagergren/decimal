@@ -1,12 +1,14 @@
-package decimal
+package decimal_test
 
 import (
 	"fmt"
+
+	"github.com/ericlagergren/decimal"
 )
 
 func ExampleBig_Format() {
 	print := func(format, xs string) {
-		x, _ := new(Big).SetString(xs)
+		x, _ := new(decimal.Big).SetString(xs)
 		fmt.Printf(format+"\n", x)
 	}
 
@@ -24,10 +26,10 @@ func ExampleBig_Format() {
 }
 
 func ExampleBig_Precision() {
-	a := New(12, 0)
-	b := New(42, -2)
-	c := New(12345, 3)
-	d := New(3, 5)
+	a := decimal.New(12, 0)
+	b := decimal.New(42, -2)
+	c := decimal.New(12345, 3)
+	d := decimal.New(3, 5)
 
 	fmt.Printf(`
 %s has a precision of %d
@@ -44,10 +46,10 @@ func ExampleBig_Precision() {
 }
 
 func ExampleBig_Round() {
-	a, _ := new(Big).SetString("1234")
-	b, _ := new(Big).SetString("54.4")
-	c, _ := new(Big).SetString("60")
-	d, _ := new(Big).SetString("0.0022")
+	a, _ := new(decimal.Big).SetString("1234")
+	b, _ := new(decimal.Big).SetString("54.4")
+	c, _ := new(decimal.Big).SetString("60")
+	d, _ := new(decimal.Big).SetString("0.0022")
 
 	fmt.Println(a.Round(2))
 	fmt.Println(b.Round(2))
@@ -61,10 +63,10 @@ func ExampleBig_Round() {
 }
 
 func ExampleBig_Quantize() {
-	a, _ := WithContext(Context32).SetString("2.17")
-	b, _ := WithContext(Context64).SetString("217")
-	c, _ := WithContext(Context128).SetString("-0.1")
-	d, _ := WithContext(Context{OperatingMode: GDA}).SetString("-0")
+	a, _ := decimal.WithContext(decimal.Context32).SetString("2.17")
+	b, _ := decimal.WithContext(decimal.Context64).SetString("217")
+	c, _ := decimal.WithContext(decimal.Context128).SetString("-0.1")
+	d, _ := decimal.WithContext(decimal.Context{OperatingMode: decimal.GDA}).SetString("-0")
 
 	fmt.Printf("A: %s\n", a.Quantize(3)) // 3 digits after radix
 	fmt.Printf("B: %s\n", b.Quantize(-2))
