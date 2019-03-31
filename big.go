@@ -1119,7 +1119,7 @@ func (z *Big) SetBigMantScale(value *big.Int, scale int) *Big {
 	return z
 }
 
-// SetFloat sets z to x and returns z.
+// SetFloat sets z to exactly x and returns z.
 func (z *Big) SetFloat(x *big.Float) *Big {
 	if x.IsInf() {
 		if x.Signbit() {
