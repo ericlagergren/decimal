@@ -419,9 +419,9 @@ func cmpabs(x, y *Big) int {
 	if arith.Safe(shift) && x.isCompact() && y.isCompact() {
 		p, _ := arith.Pow10(shift)
 		if diff < 0 {
-			return arith.AbsCmp128(x.compact, y.compact, p)
+			return arith.AbsCmp(x.compact, y.compact, p)
 		}
-		return -arith.AbsCmp128(y.compact, x.compact, p)
+		return -arith.AbsCmp(y.compact, x.compact, p)
 	}
 
 	xw, yw := x.unscaled.Bits(), y.unscaled.Bits()
@@ -1220,7 +1220,7 @@ func (z *Big) SetFloat64(x float64) *Big {
 	if shift > 0 {
 		z.unscaled.SetUint64(uint64(shift))
 		z.unscaled.Exp(c.FiveInt, &z.unscaled, nil)
-		arith.MulUint64(&z.unscaled, &z.unscaled, mantissa)
+		arith.Mul(&z.unscaled, &z.unscaled, mantissa)
 		z.exp = -shift
 	} else {
 		// TODO(eric): figure out why this doesn't work for _some_ numbers. See

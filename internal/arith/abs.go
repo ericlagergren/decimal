@@ -2,11 +2,18 @@ package arith
 
 import "math/big"
 
+// Abs returns the absolute value of x.
 func Abs(x int64) uint64 {
 	m := x >> 63
 	return uint64((x ^ m) - m)
 }
 
+// Cmp compares x and y and returns
+//
+//    -1 if x  < 0
+//     0 if x == 0
+//    +1 if x  > 0
+//
 func Cmp(x, y uint64) int {
 	if x != y {
 		if x > y {
@@ -17,15 +24,16 @@ func Cmp(x, y uint64) int {
 	return 0
 }
 
-// AbsCmp128 compares |x| and |y|*shift in 128 bits.
-func AbsCmp128(x, y, shift uint64) int {
-	y1, y0 := Mul128(y, shift)
+// CmpShift compares x and y*shift.
+func CmpShift(x, y, shift uint64) int {
+	y1, y0 := Mul64(y, shift)
 	if y1 != 0 {
 		return -1
 	}
 	return Cmp(x, y0)
 }
 
+// CmpBits compares x and y.
 func CmpBits(x, y []big.Word) (r int) {
 	// Copied from math/big.nat.go
 	m := len(x)

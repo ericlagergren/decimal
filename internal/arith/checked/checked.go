@@ -19,8 +19,10 @@ func Sub(x, y uint64) (diff uint64, ok bool) {
 	return diff, x >= y
 }
 
+// Mul returns x * y and a bool indicating whether the multiplication was
+// successful.
 func Mul(x, y uint64) (prod uint64, ok bool) {
-	hi, lo := arith.Mul128(x, y)
+	hi, lo := arith.Mul64(x, y)
 	return lo, hi == 0
 }
 
@@ -31,7 +33,7 @@ func MulPow10(x uint64, n uint64) (uint64, bool) {
 	if !ok {
 		return 0, x == 0
 	}
-	z1, z0 := arith.Mul128(x, p)
+	z1, z0 := arith.Mul64(x, p)
 	return z0, z1 == 0
 }
 

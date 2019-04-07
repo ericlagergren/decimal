@@ -110,14 +110,14 @@ func (c Context) addCompact(z *Big, hi uint64, hineg form, lo uint64, loneg form
 	sign = hineg
 	if hi, ok := checked.MulPow10(hi, shift); ok {
 		if loneg == hineg {
-			if z1, z0 := arith.Add128(hi, lo); z1 == 0 {
+			if z1, z0 := arith.Add64(hi, lo); z1 == 0 {
 				z.compact = z0
 				if z0 == cst.Inflated {
 					z.unscaled.SetUint64(cst.Inflated)
 				}
 				z.precision = arith.Length(z.compact)
 			} else {
-				arith.Set128(&z.unscaled, z1, z0)
+				arith.Set(&z.unscaled, z1, z0)
 				z.precision = 20
 				z.compact = cst.Inflated
 			}
@@ -264,7 +264,7 @@ func (c Context) mul(z, x, y *Big) *Big {
 		// Multiplication is simple, so inline it.
 		if x.isCompact() {
 			if y.isCompact() {
-				z1, z0 := arith.Mul128(x.compact, y.compact)
+				z1, z0 := arith.Mul64(x.compact, y.compact)
 				if z1 == 0 {
 					z.compact = z0
 					if z0 == cst.Inflated {
@@ -273,12 +273,12 @@ func (c Context) mul(z, x, y *Big) *Big {
 					z.precision = arith.Length(z0)
 					return z
 				}
-				arith.Set128(&z.unscaled, z1, z0)
+				arith.Set(&z.unscaled, z1, z0)
 			} else { // y.isInflated
-				arith.MulUint64(&z.unscaled, &y.unscaled, x.compact)
+				arith.Mul(&z.unscaled, &y.unscaled, x.compact)
 			}
 		} else if y.isCompact() { // x.isInflated
-			arith.MulUint64(&z.unscaled, &x.unscaled, y.compact)
+			arith.Mul(&z.unscaled, &x.unscaled, y.compact)
 		} else {
 			z.unscaled.Mul(&x.unscaled, &y.unscaled)
 		}
