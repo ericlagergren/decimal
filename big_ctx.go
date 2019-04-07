@@ -106,58 +106,80 @@ func (c Context) tryTinyAdd(z *Big, hi *Big, hineg form, lo *Big, loneg form) (s
 	return sign, true
 }
 
-func (c Context) addCompact(z *Big, hi uint64, hineg form, lo uint64, loneg form, shift uint64) (sign form) {
-	sign = hineg
-	if hi, ok := checked.MulPow10(hi, shift); ok {
-		if loneg == hineg {
-			if z1, z0 := arith.Add64(hi, lo); z1 == 0 {
-				z.compact = z0
-				if z0 == cst.Inflated {
-					z.unscaled.SetUint64(cst.Inflated)
-				}
-				z.precision = arith.Length(z.compact)
-			} else {
-				arith.Set(&z.unscaled, z1, z0)
-				z.precision = 20
-				z.compact = cst.Inflated
-			}
-			return sign
+// addCompact sets z to X + Y where
+//
+//    X = X0 * 10^shift
+//
+// and returns the resulting signbit.
+func (c Context) addCompact(z *Big, X0 uint64, Xsign form, Y uint64, Ysign form, shift uint64) form {
+	// Test whether X0 * 10^shift fits inside a uint64. If not, fall back to
+	// big.Ints.
+	X, ok := checked.MulPow10(X0, shift)
+	if !ok {
+		X0 := z.unscaled.SetUint64(X0)
+		X := checked.MulBigPow10(X0, X0, shift)
+		// Because hi was promoted to a big.Int, it by definition is larger than
+		// lo.
+		//
+		// Therefore, the resulting signbit is the same as hi's signbit.
+		//
+		// Furthermore, we do not need to check if the result of the operation
+		// is zero.
+		if Xsign == Ysign {
+			z.precision = arith.BigLength(arith.Add(&z.unscaled, X, Y))
+			z.compact = cst.Inflated
+		} else {
+			arith.Sub(&z.unscaled, X, Y)
+			z.norm()
 		}
+		return Xsign
+	}
 
-		if z.compact, ok = checked.Sub(hi, lo); !ok {
-			sign ^= signbit
-			z.compact = lo - hi
-		}
-
-		// "Otherwise, the sign of a zero result is 0 unless either both
-		// operands were negative or the signs of the operands were different
-		// and the rounding is round-floor."
-		if z.compact == 0 {
-			z.precision = 1
-			if (hineg&loneg == signbit) ||
-				(hineg^loneg == signbit && c.RoundingMode == ToNegativeInf) {
-				return signbit
+	// If the signs are the same, then X op Y = ℤ≠0.
+	if Ysign == Xsign {
+		if sum, c := arith.Add64(X, Y); c == 0 {
+			z.compact = sum
+			if sum == cst.Inflated {
+				z.unscaled.SetUint64(cst.Inflated)
 			}
-			return 0
+			z.precision = arith.Length(z.compact)
+		} else {
+			arith.Set(&z.unscaled, c, sum)
+			z.precision = 20
+			z.compact = cst.Inflated
 		}
+		return Xsign
+	}
+
+	sign := Xsign
+	// X + (-Y) == X - Y == -(Y - X)
+	// (-X) + Y == Y - X == -(X - Y)
+	diff, b := arith.Sub64(X, Y)
+	if b != 0 {
+		sign ^= signbit
+		diff = Y - X
+	}
+
+	if diff != 0 {
+		z.compact = diff
 		z.precision = arith.Length(z.compact)
 		return sign
 	}
 
-	{
-		hi := z.unscaled.SetUint64(hi)
-		hi = checked.MulBigPow10(hi, hi, shift)
-		if hineg == loneg {
-			z.precision = arith.BigLength(arith.Add(&z.unscaled, hi, lo))
-			z.compact = cst.Inflated
-		} else {
-			arith.Sub(&z.unscaled, hi, lo)
-			z.norm()
-		}
-		// hi had to be promoted to a big.Int, so by definition it'll be larger
-		// than lo. Therefore, we do not need to negate neg in the above else
-		// case, nor do we need to check to see if the result == 0.
+	// On a zero result:
+	//
+	//    Otherwise, the sign of a zero result is 0 unless either both operands
+	//    were negative or the signs of the operands were different and the
+	//    rounding is round-floor.
+	//
+	// - http://speleotrove.com/decimal/daops.html#refaddsub
+	if c.RoundingMode == ToNegativeInf {
+		sign = finite | (Xsign ^ Ysign)
+	} else {
+		sign = finite | (Xsign & Ysign)
 	}
+	z.compact = 0
+	z.precision = 1
 	return sign
 }
 

@@ -16,6 +16,15 @@ func Add64(x, y uint64) (sum, carryOut uint64) {
 	return
 }
 
+func Sub64(x, y, borrow uint64) (diff, borrowOut uint64) {
+	yb := y + borrow
+	diff = x - yb
+	if diff > x || yb < y {
+		borrowOut = 1
+	}
+	return
+}
+
 func Mul64(x, y uint64) (hi, lo uint64) {
 	const mask32 = 1<<32 - 1
 	x0 := x & mask32

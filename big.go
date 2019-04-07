@@ -24,7 +24,7 @@ import (
 // the number of decimal digits after the radix. Otherwise, the number is
 // multiplied by 10 to the power of the negation of the scale. More formally,
 //
-//   Big = number × 10**-scale
+//    Big = number × 10**-scale
 //
 // with MinScale <= scale <= MaxScale. A Big may also be ±0, ±Infinity, or ±NaN
 // (either quiet or signaling). Non-NaN Big values are ordered, defined as the
@@ -46,7 +46,8 @@ type Big struct {
 
 	// exp is the negated scale, meaning
 	//
-	//   number × 10**exp = number ×  10**-scale
+	//   number × 10**exp = number × 10**-scale
+	//
 	exp int
 
 	// precision is the current precision.
@@ -419,9 +420,9 @@ func cmpabs(x, y *Big) int {
 	if arith.Safe(shift) && x.isCompact() && y.isCompact() {
 		p, _ := arith.Pow10(shift)
 		if diff < 0 {
-			return arith.AbsCmp(x.compact, y.compact, p)
+			return arith.CmpShift(x.compact, y.compact, p)
 		}
-		return -arith.AbsCmp(y.compact, x.compact, p)
+		return -arith.CmpShift(y.compact, x.compact, p)
 	}
 
 	xw, yw := x.unscaled.Bits(), y.unscaled.Bits()
@@ -1372,11 +1373,12 @@ func (x *Big) ord(abs bool) int {
 
 // Sign returns:
 //
-//	-1 if x <  0
-//	 0 if x == 0
-//	+1 if x >  0
+//    -1 if x <  0
+//     0 if x == 0
+//    +1 if x >  0
 //
-// The result is undefined if x is a NaN value.
+// No distinction is made between +0 and -0. The result is undefined if x is a
+// NaN value.
 func (x *Big) Sign() int {
 	if debug {
 		x.validate()
@@ -1391,7 +1393,7 @@ func (x *Big) Sign() int {
 	return 1
 }
 
-// Signbit returns true if x is negative, negative infinity, negative zero, or
+// Signbit reports whether x is negative, negative zero, negative infinity, or
 // negative NaN.
 func (x *Big) Signbit() bool {
 	if debug {

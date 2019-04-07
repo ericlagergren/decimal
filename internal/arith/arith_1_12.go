@@ -7,33 +7,15 @@ import (
 	"math/bits"
 )
 
-func Add64(x, y uint64) (z1, z0 uint64) {
-	z0 = x + y
-	z1 = (x&y | (x|y)&^z0) >> 63
-	return z1, z0
+func Add64(x, y uint64) (sum, carryOut uint64) {
 	return bits.Add64(x, y, 0)
 }
 
-func Mul64(x, y uint64) (z1, z0 uint64) {
-	const mask = 0xFFFFFFFF
+func Sub64(x, y uint64) (diff, borrowOut uint64) {
+	return bits.Sub64(x, y, 0)
+}
 
-	x1 := x & mask
-	y1 := y & mask
-	t := x1 * y1
-	w3 := t & mask
-	k := t >> 32
-
-	x >>= 32
-	t = (x * y1) + k
-	k = (t & mask)
-	w1 := t >> 32
-
-	y >>= 32
-	t = (x1 * y) + k
-
-	z1 = (x * y) + w1 + (t >> 32)
-	z0 = (t << 32) + w3
-	return z1, z0
+func Mul64(x, y uint64) (hi, lo uint64) {
 	return bits.Mul64(x, y)
 }
 
