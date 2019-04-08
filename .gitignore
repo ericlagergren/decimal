@@ -19,28 +19,39 @@ _cgo_export.*
 
 _testmain.go
 
+# Artifacts, profiles, etc.
 *.exe
 *.test
 *.prof
-
 *.tags
-
 .git
 *.swp
 *.txt
 *.tags
-old.*
+tags
 *.test
 *.out
+*.zip
+*.gz
+
+# Internal
 literature/
 j/
-*.txt
-fuzz/
+
+# Fuzzing
+fuzz/**/corpus
+fuzz/**/crashers
+fuzz/**/suppressions
+
+# Benchmark artifacts
 benchmarks/decbench
 *.xml
 *.class
-*.gz
+.idea/
+
+# Development
 internal/nat/
+
+# Testing
 x.bash
-tags
 *.decTest
