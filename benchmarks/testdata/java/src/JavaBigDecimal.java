@@ -35,7 +35,7 @@ public class JavaBigDecimal {
                     throw new IllegalArgumentException("bad argument " + args);
             }
 
-            for (int i = 0; i < 10000; ++i) {
+            for (int i = 0; i < 0; ++i) {
                 r = fn.apply(new MathContext(precs[i % precs.length]));
             }
 

@@ -243,7 +243,6 @@ func calcPiGDA(prec int) *decimal.Big {
 		ctx.Add(s, s, t)
 	}
 	return s.Round(prec)
-
 }
 
 func calcPi_apd(prec uint32) *apd.Decimal {

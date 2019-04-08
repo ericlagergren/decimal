@@ -1,7 +1,7 @@
 // Package suite provides a simple API for parsing and using IBM Labs'
 // "Floating-Point Test-Suite for IEEE"
 //
-// Deprecated.
+// This package is deprecated and will be removed in the next major version.
 package suite
 
 import (

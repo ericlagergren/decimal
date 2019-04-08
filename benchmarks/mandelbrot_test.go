@@ -8,9 +8,7 @@ import (
 
 const mbrotiters = 10000000
 
-var (
-	two = decimal.New(2, 0)
-)
+var two = decimal.New(2, 0)
 
 func BenchmarkMandelbrot_float64(b *testing.B) {
 	var lf float64
