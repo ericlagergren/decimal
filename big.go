@@ -57,6 +57,14 @@ type Big struct {
 	form form
 }
 
+var (
+	_ fmt.Formatter            = (*Big)(nil)
+	_ fmt.Scanner              = (*Big)(nil)
+	_ fmt.Stringer             = (*Big)(nil)
+	_ json.Unmarshaler         = (*Big)(nil)
+	_ encoding.TextUnmarshaler = (*Big)(nil)
+)
+
 // form indicates whether a decimal is a finite number, an infinity, or a nan
 // value and whether it's signed or not.
 type form uint8
@@ -114,76 +122,39 @@ func (f form) String() string {
 // Payload is a NaN value's payload.
 type Payload uint64
 
+//go:generate stringer -type Payload -linecomment
+
 const (
-	addinfinf Payload = iota + 1
-	mul0inf
-	quo00
-	quoinfinf
-	quantinf
-	quantminmax
-	quantprec
-	subinfinf
-	absvalue
-	addition
-	comparison
-	multiplication
-	negation
-	division
-	quantization
-	subtraction
-	quorem_
-	reminfy
-	remx0
-	quotermexp
-	invctxpltz
-	invctxpgtu
-	invctxrmode
-	invctxomode
-	invctxsltu
-	invctxsgtu
-	reduction
-	quointprec
-	remprec
+	addinfinf      Payload = iota + 1 // addition of infinities with opposing signs
+	mul0inf                           // multiplication of zero with infinity
+	quo00                             // division of zero by zero
+	quoinfinf                         // division of infinity by infinity
+	quantinf                          // quantization of an infinity
+	quantminmax                       // quantization exceeds minimum or maximum scale
+	quantprec                         // quantization exceeds working precision
+	subinfinf                         // subtraction of infinities with opposing signs
+	absvalue                          // absolute value of NaN
+	addition                          // addition with NaN as an operand
+	comparison                        // comparison with NaN as an operand
+	multiplication                    // multiplication with NaN as an operand
+	negation                          // negation with NaN as an operand
+	division                          // division with NaN as an operand
+	quantization                      // quantization with NaN as an operand
+	subtraction                       // subtraction with NaN as an operand
+	quorem_                           // integer division or remainder has too many digits
+	reminfy                           // remainder of infinity
+	remx0                             // remainder by zero
+	quotermexp                        // division with unlimited precision has a non-terminating decimal expansion
+	invctxpltz                        // operation with a precision less than zero
+	invctxpgtu                        // operation with a precision greater than MaxPrecision
+	invctxrmode                       // operation with an invalid RoundingMode
+	invctxomode                       // operation with an invalid OperatingMode
+	invctxsltu                        // operation with a scale lesser than MinScale
+	invctxsgtu                        // operation with a scale greater than MaxScale
+	reduction                         // reduction with NaN as an operand
+	quointprec                        // result of integer division was larger than the desired precision
+	remprec                           // result of remainder operation was larger than the desired precision
 )
-
-var payloads = [...]string{
-	addinfinf:      "addition of infinities with opposing signs",
-	mul0inf:        "multiplication of zero with infinity",
-	quo00:          "division of zero by zero",
-	quoinfinf:      "division of infinity by infinity",
-	quantinf:       "quantization of an infinity",
-	quantminmax:    "quantization exceeds minimum or maximum scale",
-	quantprec:      "quantization exceeds working precision",
-	subinfinf:      "subtraction of infinities with opposing signs",
-	absvalue:       "absolute value of NaN",
-	addition:       "addition with NaN as an operand",
-	comparison:     "comparison with NaN as an operand",
-	multiplication: "multiplication with NaN as an operand",
-	negation:       "negation with NaN as an operand",
-	division:       "division with NaN as an operand",
-	quantization:   "quantization with NaN as an operand",
-	subtraction:    "subtraction with NaN as an operand",
-	quorem_:        "integer division or remainder has too many digits",
-	reminfy:        "remainder of infinity",
-	remx0:          "remainder by zero",
-	quotermexp:     "division with unlimited precision has a non-terminating decimal expansion",
-	invctxpltz:     "operation with a precision less than zero",
-	invctxpgtu:     "operation with a precision greater than MaxPrecision",
-	invctxrmode:    "operation with an invalid RoundingMode",
-	invctxomode:    "operation with an invalid OperatingMode",
-	invctxsltu:     "operation with a scale lesser than MinScale",
-	invctxsgtu:     "operation with a scale greater than MaxScale",
-	reduction:      "reduction with NaN as an operand",
-	quointprec:     "result of integer division was larger than the desired precision",
-	remprec:        "result of remainder operation was larger than the desired precision",
-}
-
-func (p Payload) String() string {
-	if p < Payload(len(payloads)) {
-		return payloads[p]
-	}
-	return ""
-}
 
 // An ErrNaN is used when a decimal operation would lead to a NaN under IEEE-754
 // rules. An ErrNaN implements the error interface.
@@ -731,8 +702,6 @@ func (x *Big) Format(s fmt.State, c rune) {
 	}
 }
 
-var _ fmt.Formatter = (*Big)(nil)
-
 // FMA sets z to (x * y) + u without any intermediate rounding.
 func (z *Big) FMA(x, y, u *Big) *Big { return z.Context.FMA(z, x, y, u) }
 
@@ -1077,8 +1046,6 @@ func (z *Big) Scan(state fmt.ScanState, verb rune) error {
 	return z.scan(byteReader{state})
 }
 
-var _ fmt.Scanner = (*Big)(nil)
-
 // Set sets z to x and returns z. The result might be rounded depending on z's
 // Context, and even if z == x.
 func (z *Big) Set(x *Big) *Big { return z.Context.round(z.Copy(x)) }
@@ -1420,8 +1387,6 @@ func (x *Big) String() string {
 	return b.String()
 }
 
-var _ fmt.Stringer = (*Big)(nil)
-
 // Sub sets z to x - y and returns z.
 func (z *Big) Sub(x, y *Big) *Big { return z.Context.Sub(z, x, y) }
 
@@ -1433,14 +1398,10 @@ func (z *Big) UnmarshalJSON(data []byte) error {
 	return z.UnmarshalText(data)
 }
 
-var _ json.Unmarshaler = (*Big)(nil)
-
 // UnmarshalText implements encoding.TextUnmarshaler.
 func (z *Big) UnmarshalText(data []byte) error {
 	return z.scan(bytes.NewReader(data))
 }
-
-var _ encoding.TextUnmarshaler = (*Big)(nil)
 
 // validate ensures x's internal state is correct. There's no need for it to
 // have good performance since it's for debug == true only.
