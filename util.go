@@ -4,7 +4,6 @@ import (
 	"math/big"
 
 	"github.com/ericlagergren/decimal/internal/arith"
-	"github.com/ericlagergren/decimal/internal/arith/checked"
 	cst "github.com/ericlagergren/decimal/internal/c"
 )
 
@@ -27,7 +26,7 @@ func (c Context) fix(z *Big) *Big {
 	if adj > c.maxScale() {
 		prec := precision(c)
 
-		if z.compact == 0 {
+		if z.isZero() {
 			z.exp = c.maxScale()
 			z.Context.Conditions |= Clamped
 			return z
@@ -54,7 +53,7 @@ func (c Context) fix(z *Big) *Big {
 	if adj < c.minScale() {
 		tiny := c.etiny()
 
-		if z.compact == 0 {
+		if z.isZero() {
 			if z.exp < tiny {
 				z.setZero(z.form, tiny)
 				z.Context.Conditions |= Clamped
@@ -69,7 +68,7 @@ func (c Context) fix(z *Big) *Big {
 			}
 			z.Context.Conditions |= Underflow
 			z.exp = tiny
-			if z.compact == 0 {
+			if z.isZero() {
 				z.Context.Conditions |= Clamped
 			}
 		}
@@ -140,9 +139,9 @@ func cmpNorm(x uint64, xs int, y uint64, ys int) (ok bool) {
 	// xs, ys > 0, so no overflow
 	if diff := xs - ys; diff != 0 {
 		if diff < 0 {
-			x, goodx = checked.MulPow10(x, uint64(-diff))
+			x, goodx = arith.MulPow10(x, uint64(-diff))
 		} else {
-			y, goody = checked.MulPow10(y, uint64(diff))
+			y, goody = arith.MulPow10(y, uint64(diff))
 		}
 	}
 	if goodx {
@@ -160,9 +159,9 @@ func cmpNormBig(z, x *big.Int, xs int, y *big.Int, ys int) (ok bool) {
 	if xs != ys {
 		z = alias(alias(z, x), y)
 		if xs < ys {
-			x = checked.MulBigPow10(z, x, uint64(ys-xs))
+			x = arith.MulBigPow10(z, x, uint64(ys-xs))
 		} else {
-			y = checked.MulBigPow10(z, y, uint64(xs-ys))
+			y = arith.MulBigPow10(z, y, uint64(xs-ys))
 		}
 	}
 	// x and y are non-negative
@@ -173,7 +172,7 @@ func cmpNormBig(z, x *big.Int, xs int, y *big.Int, ys int) (ok bool) {
 // x = x / 10^-scale.
 func scalex(x uint64, scale int) (sx uint64, ok bool) {
 	if scale > 0 {
-		if sx, ok = checked.MulPow10(x, uint64(scale)); !ok {
+		if sx, ok = arith.MulPow10(x, uint64(scale)); !ok {
 			return 0, false
 		}
 		return sx, true
@@ -188,7 +187,7 @@ func scalex(x uint64, scale int) (sx uint64, ok bool) {
 // bigScalex sets z to the big.Int equivalient of scalex.
 func bigScalex(z, x *big.Int, scale int) *big.Int {
 	if scale > 0 {
-		return checked.MulBigPow10(z, x, uint64(scale))
+		return arith.MulBigPow10(z, x, uint64(scale))
 	}
 	return z.Quo(x, arith.BigPow10(uint64(-scale)))
 }

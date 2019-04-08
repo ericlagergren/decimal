@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	"github.com/ericlagergren/decimal/internal/arith"
-	"github.com/ericlagergren/decimal/internal/arith/checked"
 	"github.com/ericlagergren/decimal/internal/c"
 )
 
@@ -46,7 +45,7 @@ type Big struct {
 
 	// exp is the negated scale, meaning
 	//
-	//   number × 10**exp = number × 10**-scale
+	//    number × 10**exp = number × 10**-scale
 	//
 	exp int
 
@@ -265,6 +264,7 @@ func (z *Big) xflow(exp int, over, neg bool) *Big {
 func (x *Big) isCompact() bool  { return x.compact != c.Inflated }
 func (x *Big) isInflated() bool { return !x.isCompact() }
 func (x *Big) isSpecial() bool  { return x.form&(inf|nan) != 0 }
+func (x *Big) isZero() bool     { return x.compact == 0 }
 
 func (x *Big) adjusted() int { return (x.exp + x.Precision()) - 1 }
 func (c Context) etiny() int { return MinScale - (precision(c) - 1) }
@@ -307,7 +307,7 @@ func (x *Big) Class() string {
 		if x.IsInf(0) {
 			return "-Infinity"
 		}
-		if x.compact == 0 {
+		if x.isZero() {
 			return "-Zero"
 		}
 		if x.IsSubnormal() {
@@ -318,7 +318,7 @@ func (x *Big) Class() string {
 	if x.IsInf(0) {
 		return "+Infinity"
 	}
-	if x.compact == 0 {
+	if x.isZero() {
 		return "+Zero"
 	}
 	if x.IsSubnormal() {
@@ -435,9 +435,9 @@ func cmpabs(x, y *Big) int {
 
 	var tmp big.Int
 	if diff < 0 {
-		yw = checked.MulBigPow10(&tmp, tmp.SetBits(copybits(yw)), shift).Bits()
+		yw = arith.MulBigPow10(&tmp, tmp.SetBits(copybits(yw)), shift).Bits()
 	} else {
-		xw = checked.MulBigPow10(&tmp, tmp.SetBits(copybits(xw)), shift).Bits()
+		xw = arith.MulBigPow10(&tmp, tmp.SetBits(copybits(xw)), shift).Bits()
 	}
 	return arith.CmpBits(xw, yw)
 }
@@ -509,6 +509,7 @@ func (x *Big) Float64() (f float64, ok bool) {
 	switch xc := x.compact; {
 	case !x.isCompact():
 		fallthrough
+	//lint:ignore ST1015 convoluted, but on purpose
 	default:
 		f, _ = strconv.ParseFloat(x.String(), 64)
 		ok = !math.IsInf(f, 0) && !math.IsNaN(f)
@@ -551,7 +552,7 @@ func (x *Big) Float(z *big.Float) *big.Float {
 
 	switch x.form {
 	case finite, finite | signbit:
-		if x.compact == 0 {
+		if x.isZero() {
 			z.SetUint64(0)
 		} else {
 			z.SetRat(x.Rat(nil))
@@ -866,7 +867,7 @@ func (x *Big) IsInt() bool {
 	}
 
 	// 0, 5000, 40
-	if x.compact == 0 || x.exp >= 0 {
+	if x.isZero() || x.exp >= 0 {
 		return true
 	}
 
@@ -1023,7 +1024,7 @@ func (x *Big) Rat(z *big.Rat) *big.Rat {
 		num.Set(&x.unscaled)
 	}
 	if x.exp > 0 {
-		checked.MulBigPow10(num, num, uint64(x.exp))
+		arith.MulBigPow10(num, num, uint64(x.exp))
 	}
 	if x.Signbit() {
 		num.Neg(num)
@@ -1384,7 +1385,7 @@ func (x *Big) Sign() int {
 		x.validate()
 	}
 
-	if (x.IsFinite() && x.compact == 0) || x.IsNaN(0) {
+	if (x.IsFinite() && x.isZero()) || x.IsNaN(0) {
 		return 0
 	}
 	if x.form&signbit != 0 {

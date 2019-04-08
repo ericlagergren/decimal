@@ -11,8 +11,6 @@ import (
 func TestBig_NextMinus(t *testing.T) { test.NextMinus.Test(t) }
 func TestBig_NextPlus(t *testing.T)  { test.NextPlus.Test(t) }
 
-//func TestBig_Shift(t *testing.T)     { test.Shift.Test(t) }
-
 func TestCmpTotal(t *testing.T) {
 	for i, test := range [...]struct {
 		x, y string

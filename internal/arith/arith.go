@@ -1,17 +1,10 @@
+// Package arith provides performance-sensitive arithmetic operations.
 package arith
 
 import (
 	"math/big"
 	"math/bits"
 )
-
-func makeWord(z []big.Word, n int) []big.Word {
-	if n <= cap(z) {
-		return z[:n]
-	}
-	const e = 4
-	return make([]big.Word, n, n+e)
-}
 
 // Words returns a little-endian slice of big.Words representing the uint64.
 func Words(x uint64) []big.Word {
@@ -63,6 +56,30 @@ func Mul(z, x *big.Int, y uint64) *big.Int {
 	return z.SetBits(mulAddWW(z.Bits(), x.Bits(), big.Word(y), 0))
 }
 
+// MulPow10 computes x * 10**n and a bool indicating whether the multiplcation
+// was successful.
+func MulPow10(x uint64, n uint64) (uint64, bool) {
+	p, ok := Pow10(n)
+	if !ok {
+		// 0 * 10^n = 0.
+		return 0, x == 0
+	}
+	hi, lo := Mul64(x, p)
+	return lo, hi == 0
+}
+
+// MulBigPow10 sets z to x * 10**n and returns z.
+func MulBigPow10(z, x *big.Int, n uint64) *big.Int {
+	switch {
+	case x.Sign() == 0:
+		return z.SetUint64(0)
+	case n == 0:
+		return z.Set(x)
+	default:
+		return z.Mul(x, BigPow10(n))
+	}
+}
+
 // Set sets z to the 128-bit integer represented by z1 and z0.
 func Set(z *big.Int, z1, z0 uint64) *big.Int {
 	ww := makeWord(z.Bits(), 128/bits.UintSize)
@@ -81,17 +98,13 @@ func Set(z *big.Int, z1, z0 uint64) *big.Int {
 // The following is (mostly) copied from math/big/arith.go, licensed under the
 // BSD 3-clause license: https://github.com/golang/go/blob/master/LICENSE
 
-const (
-	_S = _W / 8 // word size in bytes
-
-	_W = bits.UintSize // word size in bits
-	_B = 1 << _W       // digit base
-	_M = _B - 1        // digit mask
-
-	_W2 = _W / 2   // half word size in bits
-	_B2 = 1 << _W2 // half digit base
-	_M2 = _B2 - 1  // half digit mask
-)
+func makeWord(z []big.Word, n int) []big.Word {
+	if n <= cap(z) {
+		return z[:n]
+	}
+	const e = 4
+	return make([]big.Word, n, n+e)
+}
 
 func norm(z []big.Word) []big.Word {
 	i := len(z)
@@ -180,7 +193,7 @@ func addVW(z, x []big.Word, y big.Word) (c big.Word) {
 	for i, xi := range x[:len(z)] {
 		zi := xi + c
 		z[i] = zi
-		c = xi &^ zi >> (_W - 1)
+		c = xi &^ zi >> (bits.UintSize - 1)
 	}
 	return c
 }
@@ -191,7 +204,7 @@ func subVW(z, x []big.Word, y big.Word) (c big.Word) {
 	for i, xi := range x[:len(z)] {
 		zi := xi - c
 		z[i] = zi
-		c = zi &^ xi >> (_W - 1)
+		c = zi &^ xi >> (bits.UintSize - 1)
 	}
 	return c
 }

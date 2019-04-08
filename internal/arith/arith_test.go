@@ -3,6 +3,7 @@ package arith
 import (
 	"math"
 	"math/big"
+	"strings"
 	"testing"
 )
 
@@ -18,6 +19,10 @@ var testCases = [...]struct {
 	{B("18446744073709551616"), 1},
 	{B("18446744073709551617"), 3},
 	{B("18446744073709551617"), math.MaxUint64},
+	{B("36893488147419103230"), math.MaxUint64},
+	{B("36893488147419103230"), 42},
+	{B("221360928884514619380432421349238409238490238423423"), math.MaxUint64},
+	{B(strings.Repeat("2", 500)), math.MaxUint64},
 }
 
 func testFn(t *testing.T,
@@ -47,7 +52,7 @@ r1: %s`, r, r1)
 
 func TestAdd(t *testing.T) { testFn(t, (*big.Int).Add, Add) }
 func TestSub(t *testing.T) { testFn(t, (*big.Int).Sub, Sub) }
-func TestMul(t *testing.T) { testFn(t, (*big.Int).Mul, MulUint64) }
+func TestMul(t *testing.T) { testFn(t, (*big.Int).Mul, Mul) }
 
 func benchmarkFn(b *testing.B, fn func(z, x *big.Int, y uint64) *big.Int) {
 	var z big.Int
@@ -59,4 +64,4 @@ func benchmarkFn(b *testing.B, fn func(z, x *big.Int, y uint64) *big.Int) {
 
 func BenchmarkAdd(b *testing.B) { benchmarkFn(b, Add) }
 func BenchmarkSub(b *testing.B) { benchmarkFn(b, Sub) }
-func BenchmarkMul(b *testing.B) { benchmarkFn(b, MulUint64) }
+func BenchmarkMul(b *testing.B) { benchmarkFn(b, Mul) }

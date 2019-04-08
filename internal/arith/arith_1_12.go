@@ -21,7 +21,7 @@ func Mul64(x, y uint64) (hi, lo uint64) {
 
 func mulWW(x, y big.Word) (z1, z0 big.Word) {
 	zz1, zz0 := bits.Mul(uint(x), uint(y))
-	return big.Word(zz0), big.Word(zz1)
+	return big.Word(zz1), big.Word(zz0)
 }
 
 func addWW(x, y, c big.Word) (z1, z0 big.Word) {
