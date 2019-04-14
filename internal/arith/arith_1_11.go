@@ -16,8 +16,8 @@ func Add64(x, y uint64) (sum, carryOut uint64) {
 	return
 }
 
-func Sub64(x, y, borrow uint64) (diff, borrowOut uint64) {
-	yb := y + borrow
+func Sub64(x, y uint64) (diff, borrowOut uint64) {
+	yb := y
 	diff = x - yb
 	if diff > x || yb < y {
 		borrowOut = 1
