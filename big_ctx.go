@@ -184,7 +184,7 @@ func (c Context) addCompact(z *Big, X0 uint64, Xsign form, Y uint64, Ysign form,
 	sign := Xsign
 	// X + (-Y) == X - Y == -(Y - X)
 	// (-X) + Y == Y - X == -(X - Y)
-	diff, b := arith.Sub64(X, Y)
+	diff, b := arith.Sub64(X, Y, 0)
 	if b != 0 {
 		sign ^= signbit
 		diff = Y - X
