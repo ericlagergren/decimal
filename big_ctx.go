@@ -356,16 +356,18 @@ func (c Context) mul(z, x, y *Big) *Big {
 		return z
 	}
 
-	// 0 * ±Inf
-	// ±Inf * 0
-	if y.isZero() || x.isZero() {
-		return z.setNaN(InvalidOperation, qnan, mul0inf)
+	if (x.IsInf(0) && !y.isZero()) ||
+		(y.IsInf(0) && !x.isZero()) ||
+		(y.IsInf(0) && x.IsInf(0)) {
+		// ±Inf * y
+		// x * ±Inf
+		// ±Inf * ±Inf
+		return z.SetInf(sign != 0)
 	}
 
-	// ±Inf * y
-	// x * ±Inf
-	// ±Inf * ±Inf
-	return z.SetInf(sign != 0)
+	// 0 * ±Inf
+	// ±Inf * 0
+	return z.setNaN(InvalidOperation, qnan, mul0inf)
 }
 
 // Quantize sets z to the number equal in value and sign to z with the scale, n.
