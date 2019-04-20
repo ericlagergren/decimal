@@ -29,18 +29,18 @@
 //
 //    |    Program (version)                 | 9 digits | 19 digits | 38 digits | 100 digits | average |
 //    |--------------------------------------|----------|-----------|-----------|------------|---------|
-//    | go-inf/inf[8]                        | 0.241    | 0.537     | 1.12      | 3.01       | 1.227   |
-//    | ericlagergren/decimal[1] (mode Go)   | 0.142    | 0.639     | 1.46      | 4.16       | 1.60    |
-//    | Python decimal[5] (Python 3.7.3)     | 0.38     | 0.791     | 1.77      | 6.21       | 2.29    |
-//    | JDK BigDecimal[4] (Java 1.8, warm)   | 0.156    | 0.717     | 1.957     | 7.252      | 2.52    |
-//    | ericlagergren/decimal[1] (mode GDA)  | 0.204    | 0.953     | 2.37      | 8.40       | 2.98    |
-//    | JDK BigDecimal[4] (Java 1.8, cold)   | 0.532    | 1.638     | 3.413     | 7.747      | 3.332   |
-//    | shopspring/decimal[7] decimal        | 0.83     | 1.78      | 4.00      | 10.90      | 4.37    |
-//    | cockroachdb/apd[2]                   | 1.54     | 7.50      | 43.6      | 237.00     | 72.41   |
+//    | go-inf/inf[8]                        | 0.0912   | 0.201     | 0.426     | 1.280      | 0.499   |
+//    | ericlagergren/decimal[1] (mode Go)   | 0.0477   | 0.234     | 0.522     | 1.690      | 0.623   |
+//    | Python decimal[5] (Python 3.7.3)     | 0.143    | 0.322     | 0.657     | 2.325      | 0.862   |
+//    | JDK BigDecimal[4] (Java 1.8, warm)   | 0.0570   | 0.196     | 0.721     | 3.060      | 1.008   |
+//    | ericlagergren/decimal[1] (mode GDA)  | 0.0510   | 0.333     | 0.922     | 3.550      | 1.214   |
+//    | JDK BigDecimal[4] (Java 1.8, cold)   | 0.302    | 0.854     | 1.308     | 3.100      | 1.391   |
+//    | shopspring/decimal[7] decimal        | 0.289    | 0.700     | 1.490     | 4.120      | 1.649   |
+//    | cockroachdb/apd[2]                   | 0.564    | 2.410     | 10.000    | 78.300     | 22.818  |
 //    | Python decimal[6] (Python 2.7.10)    | 31.81    | 74.502    | 161.71    | 460.00     | 182.00  |
-//    | float64                              | 0.125    | -         | -         | -          | -       |
+//    | float64                              | 0.0557   | -         | -         | -          | -       |
 //    | double (C LLVM 10.0.1 -O3)           | 0.0589   | -         | -         | -          | -       |
-//    | apmckinlay/dnum[3]                   | 0.078    | -         | -         | -          | -       |
+//    | apmckinlay/dnum[3]                   | 0.0456   | -         | -         | -          | -       |
 //    | float (Python 2.7.10, 3.7.3)         | 0.0923   | -         | -         | -          | -       |
 //
 // Mandelbrot

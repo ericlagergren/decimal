@@ -2,7 +2,6 @@ package benchmarks
 
 import (
 	"fmt"
-	"math"
 	"testing"
 
 	"github.com/apmckinlay/gsuneido/util/dnum"
@@ -17,40 +16,39 @@ const pi = "3.14159265358979323846264338327950288419716939937510582097494459230"
 	"25359408128481117450284102701938521105559644622948954930381964428810975665" +
 	"933446128475648233786783165271201909145648566923460348610454326648213394"
 
-func adjustPrecision(prec int) int { return int(math.Ceil(float64(prec) * 1.1)) }
-
 type testFunc func(prec int) string
 
 // TestPiBenchmarks tests the correctness of the Pi benchmarks. It only tests
 // the benchmarks that can be calculated out to a specific precision.
 func TestPiBenchmarks(t *testing.T) {
-	for _, test := range [...]struct {
+	for _, tc := range [...]struct {
 		name string
 		fn   testFunc
 	}{
-		{"decimal (Go)", func(prec int) string {
-			return calcPiGo(prec).String()
+		{"ericlagergren/decimal (Go)", func(prec int) string {
+			return PiDecimal_Go(prec).String()
 		}},
-		{"decimal (GDA)", func(prec int) string {
-			return calcPiGDA(prec).String()
+		{"ericlagergren/decimal (GDA)", func(prec int) string {
+			return PiDecimal_GDA(prec).String()
 		}},
-		{"apd", func(prec int) string {
-			return calcPi_apd(uint32(prec)).String()
+		{"cockroachdb/apd", func(prec int) string {
+			return PiAPD(uint32(prec)).String()
 		}},
-		{"shopSpring", func(prec int) string {
-			return calcPi_shopSpring(int32(prec)).String()
+		{"shopspring/decimal", func(prec int) string {
+			return PiShopSpring(int32(prec)).String()
 		}},
-		{"inf", func(prec int) string {
-			return calcPi_inf(prec).String()
+		{"go-inf/inf", func(prec int) string {
+			return PiInf(prec).String()
 		}},
 	} {
 		var ctx decimal.Context
 		for _, prec := range [...]int{9, 19, 38, 100} {
-			t.Run(fmt.Sprintf("%s/%d", test.name, prec), func(t *testing.T) {
+			ctx := ctx
+			t.Run(fmt.Sprintf("%s/%d", tc.name, prec), func(t *testing.T) {
 				ctx.Precision = prec
 
-				str := test.fn(prec)
-				name := test.name
+				str := tc.fn(prec)
+				name := tc.name
 
 				var x decimal.Big
 				if _, ok := ctx.SetString(&x, str); !ok {
@@ -70,310 +68,54 @@ got : %q
 	}
 }
 
-var (
-	eight          = decimal.New(8, 0)
-	thirtyTwo      = decimal.New(32, 0)
-	apdEight       = apd.New(8, 0)
-	apdThirtyTwo   = apd.New(32, 0)
-	dnumEight      = dnum.New(+1, 8, 0)
-	dnumThirtyTwo  = dnum.New(+1, 32, 0)
-	ssdecEight     = ssdec.New(8, 0)
-	ssdecThirtyTwo = ssdec.New(32, 0)
-	infEight       = inf.NewDec(8, 0)
-	infThirtyTwo   = inf.NewDec(32, 0)
-)
-
-func calcPi_inf(prec int) *inf.Dec {
-	var (
-		lasts = inf.NewDec(0, 0)
-		t     = inf.NewDec(3, 0)
-		s     = inf.NewDec(3, 0)
-		n     = inf.NewDec(1, 0)
-		na    = inf.NewDec(0, 0)
-		d     = inf.NewDec(0, 0)
-		da    = inf.NewDec(24, 0)
-
-		work = adjustPrecision(prec)
-	)
-
-	for s.Cmp(lasts) != 0 {
-		lasts.Set(s)
-		n.Add(n, na)
-		na.Add(na, infEight)
-		d.Add(d, da)
-		da.Add(da, infThirtyTwo)
-		t.Mul(t, n)
-		t.QuoRound(t, d, inf.Scale(work), inf.RoundHalfUp)
-		s.Add(s, t)
-	}
-	// -1 because inf's precision == digits after radix
-	return s.Round(s, inf.Scale(prec-1), inf.RoundHalfUp)
-}
-
-func calcPi_shopSpring(prec int32) ssdec.Decimal {
-	var (
-		lasts = ssdec.New(0, 0)
-		t     = ssdec.New(3, 0)
-		s     = ssdec.New(3, 0)
-		n     = ssdec.New(1, 0)
-		na    = ssdec.New(0, 0)
-		d     = ssdec.New(0, 0)
-		da    = ssdec.New(24, 0)
-
-		work = int32(adjustPrecision(int(prec)))
-	)
-
-	for s.Cmp(lasts) != 0 {
-		lasts = s
-		n = n.Add(na)
-		na = na.Add(ssdecEight)
-		d = d.Add(da)
-		da = da.Add(ssdecThirtyTwo)
-		t = t.Mul(n)
-		t = t.DivRound(d, work)
-		s = s.Add(t)
-	}
-	// -1 because shopSpring's prec == digits after radix
-	return s.Round(prec - 1)
-}
-
-func calcPi_dnum() dnum.Dnum {
-	var (
-		lasts = dnum.New(+1, 0, 0)
-		t     = dnum.New(+1, 3, 0)
-		s     = dnum.New(+1, 3, 0)
-		n     = dnum.New(+1, 1, 0)
-		na    = dnum.New(+1, 0, 0)
-		d     = dnum.New(+1, 0, 0)
-		da    = dnum.New(+1, 24, 0)
-	)
-
-	for dnum.Compare(s, lasts) != 0 {
-		lasts = s
-		n = dnum.Add(n, na)
-		na = dnum.Add(na, dnumEight)
-		d = dnum.Add(d, da)
-		da = dnum.Add(da, dnumThirtyTwo)
-		t = dnum.Mul(t, n)
-		t = dnum.Div(t, d)
-		s = dnum.Add(s, t)
-	}
-	return s
-}
-
-func calcPi_float() float64 {
-	var (
-		lasts = 0.0
-		t     = 3.0
-		s     = 3.0
-		n     = 1.0
-		na    = 0.0
-		d     = 0.0
-		da    = 24.0
-	)
-
-	for s != lasts {
-		lasts = s
-		n += na
-		na += 8
-		d += da
-		da += 32
-		t = (t * n) / d
-		s = t
-	}
-	return s
-}
-
-func calcPiGo(prec int) *decimal.Big {
-	var (
-		ctx = decimal.Context{
-			Precision:     adjustPrecision(prec),
-			OperatingMode: decimal.Go,
-		}
-
-		lasts = new(decimal.Big)
-		t     = decimal.New(3, 0)
-		s     = decimal.New(3, 0)
-		n     = decimal.New(1, 0)
-		na    = new(decimal.Big)
-		d     = new(decimal.Big)
-		da    = decimal.New(24, 0)
-		eps   = decimal.New(1, prec)
-	)
-
-	for {
-		lasts.Copy(s)
-		ctx.Add(n, n, na)
-		ctx.Add(na, na, eight)
-		ctx.Add(d, d, da)
-		ctx.Add(da, da, thirtyTwo)
-		ctx.Mul(t, t, n)
-		ctx.Quo(t, t, d)
-		ctx.Add(s, s, t)
-		if ctx.Sub(lasts, s, lasts).CmpAbs(eps) < 0 {
-			return s.Round(prec)
-		}
+func BenchmarkPi(b *testing.B) {
+	for _, pkg := range [...]struct {
+		pkg string
+		fn  func(prec int)
+	}{
+		{"ericlagergren (Go)", benchmarkPi_decimal_Go},
+		{"ericlagergren (GDA)", benchmarkPi_decimal_GDA},
+		{"cockroachdb/apd", benchmarkPi_apd},
+		{"shopspring", benchmarkPi_shopspring},
+		{"apmckinlay", benchmarkPi_dnum},
+		{"go-inf", benchmarkPi_inf},
+		{"float64", benchmarkPi_float64},
+	} {
+		pkg := pkg
+		b.Run(fmt.Sprintf("foo=%s", pkg.pkg), func(b *testing.B) {
+			for _, p := range [...]int{9, 19, 38, 100} {
+				p := p
+				b.Run(fmt.Sprintf("prec=%d", p), func(b *testing.B) {
+					for i := 0; i < b.N; i++ {
+						pkg.fn(p)
+					}
+				})
+			}
+		})
 	}
 }
 
-func calcPiGDA(prec int) *decimal.Big {
-	var (
-		ctx = decimal.Context{
-			Precision:     adjustPrecision(prec),
-			OperatingMode: decimal.GDA,
-		}
+var gdec *decimal.Big
 
-		lasts = new(decimal.Big)
-		t     = decimal.New(3, 0)
-		s     = decimal.New(3, 0)
-		n     = decimal.New(1, 0)
-		na    = new(decimal.Big)
-		d     = new(decimal.Big)
-		da    = decimal.New(24, 0)
-	)
+func benchmarkPi_decimal_Go(prec int)  { gdec = PiDecimal_Go(int(prec)) }
+func benchmarkPi_decimal_GDA(prec int) { gdec = PiDecimal_GDA(int(prec)) }
 
-	for s.Cmp(lasts) != 0 {
-		lasts.Copy(s)
-		ctx.Add(n, n, na)
-		ctx.Add(na, na, eight)
-		ctx.Add(d, d, da)
-		ctx.Add(da, da, thirtyTwo)
-		ctx.Mul(t, t, n)
-		ctx.Quo(t, t, d)
-		ctx.Add(s, s, t)
-	}
-	return s.Round(prec)
-}
+var gapd *apd.Decimal
 
-func calcPi_apd(prec uint32) *apd.Decimal {
-	var (
-		ctx   = apd.BaseContext.WithPrecision(uint32(adjustPrecision(int(prec))))
-		lasts = apd.New(0, 0)
-		t     = apd.New(3, 0)
-		s     = apd.New(3, 0)
-		n     = apd.New(1, 0)
-		na    = apd.New(0, 0)
-		d     = apd.New(0, 0)
-		da    = apd.New(24, 0)
-	)
+func benchmarkPi_apd(prec int) { gapd = PiAPD(uint32(prec)) }
 
-	for s.Cmp(lasts) != 0 {
-		lasts.Set(s)
-		ctx.Add(n, n, na)
-		ctx.Add(na, na, apdEight)
-		ctx.Add(d, d, da)
-		ctx.Add(da, da, apdThirtyTwo)
-		ctx.Mul(t, t, n)
-		ctx.Quo(t, t, d)
-		ctx.Add(s, s, t)
-	}
-	ctx.Precision = prec
-	ctx.Round(s, s)
-	return s
-}
+var gssdec ssdec.Decimal
 
-var (
-	gf      float64
-	gs      *decimal.Big
-	apdgs   *apd.Decimal
-	dnumgs  dnum.Dnum
-	ssdecgs ssdec.Decimal
-	infs    *inf.Dec
-)
+func benchmarkPi_shopspring(prec int) { gssdec = PiShopSpring(int32(prec)) }
 
-const rounds = 10000
+var ginf *inf.Dec
 
-func benchPiGo(b *testing.B, prec int) {
-	var ls *decimal.Big
-	for i := 0; i < b.N; i++ {
-		for j := 0; j < rounds; j++ {
-			ls = calcPiGo(prec)
-		}
-	}
-	gs = ls
-}
+func benchmarkPi_inf(prec int) { ginf = PiInf(int(prec)) }
 
-func benchPiGDA(b *testing.B, prec int) {
-	var ls *decimal.Big
-	for i := 0; i < b.N; i++ {
-		for j := 0; j < rounds; j++ {
-			ls = calcPiGDA(prec)
-		}
-	}
-	gs = ls
-}
+var gdnum dnum.Dnum
 
-func benchPi_apd(b *testing.B, prec uint32) {
-	var ls *apd.Decimal
-	for i := 0; i < b.N; i++ {
-		for j := 0; j < rounds; j++ {
-			ls = calcPi_apd(prec)
-		}
-	}
-	apdgs = ls
-}
+func benchmarkPi_dnum(_ int) { gdnum = PiDnum() }
 
-func BenchmarkPi_dnum(b *testing.B) {
-	var ls dnum.Dnum
-	for i := 0; i < b.N; i++ {
-		for j := 0; j < rounds; j++ {
-			ls = calcPi_dnum()
-		}
-	}
-	dnumgs = ls
-}
+var gf float64
 
-func benchPi_shopspring(b *testing.B, prec int32) {
-	var ls ssdec.Decimal
-	for i := 0; i < b.N; i++ {
-		for j := 0; j < rounds; j++ {
-			ls = calcPi_shopSpring(prec)
-		}
-	}
-	ssdecgs = ls
-}
-
-func benchPi_inf(b *testing.B, prec int) {
-	var ls *inf.Dec
-	for i := 0; i < b.N; i++ {
-		for j := 0; j < rounds; j++ {
-			ls = calcPi_inf(prec)
-		}
-	}
-	infs = ls
-}
-
-func BenchmarkPi_BaselineFloat64(b *testing.B) {
-	var lf float64
-	for i := 0; i < b.N; i++ {
-		for j := 0; j < rounds; j++ {
-			lf = calcPi_float()
-		}
-	}
-	gf = lf
-}
-
-func BenchmarkPi_decimal_Go_9(b *testing.B)   { benchPiGo(b, 9) }
-func BenchmarkPi_decimal_Go_19(b *testing.B)  { benchPiGo(b, 19) }
-func BenchmarkPi_decimal_Go_38(b *testing.B)  { benchPiGo(b, 38) }
-func BenchmarkPi_decimal_Go_100(b *testing.B) { benchPiGo(b, 100) }
-
-func BenchmarkPi_decimal_GDA_9(b *testing.B)   { benchPiGDA(b, 9) }
-func BenchmarkPi_decimal_GDA_19(b *testing.B)  { benchPiGDA(b, 19) }
-func BenchmarkPi_decimal_GDA_38(b *testing.B)  { benchPiGDA(b, 38) }
-func BenchmarkPi_decimal_GDA_100(b *testing.B) { benchPiGDA(b, 100) }
-
-func BenchmarkPi_apd_9(b *testing.B)   { benchPi_apd(b, 9) }
-func BenchmarkPi_apd_19(b *testing.B)  { benchPi_apd(b, 19) }
-func BenchmarkPi_apd_38(b *testing.B)  { benchPi_apd(b, 38) }
-func BenchmarkPi_apd_100(b *testing.B) { benchPi_apd(b, 100) }
-
-func BenchmarkPi_shopspring_9(b *testing.B)   { benchPi_shopspring(b, 9) }
-func BenchmarkPi_shopspring_19(b *testing.B)  { benchPi_shopspring(b, 19) }
-func BenchmarkPi_shopspring_38(b *testing.B)  { benchPi_shopspring(b, 38) }
-func BenchmarkPi_shopspring_100(b *testing.B) { benchPi_shopspring(b, 100) }
-
-func BenchmarkPi_inf_9(b *testing.B)   { benchPi_inf(b, 9) }
-func BenchmarkPi_inf_19(b *testing.B)  { benchPi_inf(b, 19) }
-func BenchmarkPi_inf_38(b *testing.B)  { benchPi_inf(b, 38) }
-func BenchmarkPi_inf_100(b *testing.B) { benchPi_inf(b, 100) }
+func benchmarkPi_float64(_ int) { gf = PiFloat64() }

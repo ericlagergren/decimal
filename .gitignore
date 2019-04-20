@@ -48,6 +48,7 @@ benchmarks/decbench
 *.xml
 *.class
 .idea/
+benchmarks/regen.go
 
 # Development
 internal/nat/

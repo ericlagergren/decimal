@@ -11,9 +11,10 @@ const mbrotiters = 10000000
 var two = decimal.New(2, 0)
 
 func BenchmarkMandelbrot_float64(b *testing.B) {
+	const x0, y0 = 0.222, 0.333
+
 	var lf float64
 	for i := 0; i < b.N; i++ {
-		x0, y0 := 0.222, 0.333
 		x, y := x0, y0
 		xx, yy := x*x, y*y
 		for j := 0; j < mbrotiters; j++ {
@@ -24,6 +25,7 @@ func BenchmarkMandelbrot_float64(b *testing.B) {
 			xx = x * x
 			yy = y * y
 		}
+		lf = x
 	}
 	gf = lf
 }
@@ -42,15 +44,15 @@ func BenchmarkMandelbrot_decimal_Go_38(b *testing.B) { benchMbrotGo(b, 38) }
 
 func benchMbrotGDA(b *testing.B, prec int) {
 	var (
-		ls  *decimal.Big
+		r   *decimal.Big
 		ctx = decimal.Context{Precision: prec, OperatingMode: decimal.GDA}
 		x0  = decimal.WithContext(ctx).SetMantScale(222, 3)
 		y0  = decimal.WithContext(ctx).SetMantScale(333, 3)
 	)
 	for i := 0; i < b.N; i++ {
-		ls = mbrotGDA(x0, y0, ctx, prec)
+		r = mbrotGDA(x0, y0, ctx, prec)
 	}
-	gs = ls
+	gdec = r
 }
 
 func mbrotGDA(x0, y0 *decimal.Big, ctx decimal.Context, prec int) *decimal.Big {
@@ -73,15 +75,15 @@ func mbrotGDA(x0, y0 *decimal.Big, ctx decimal.Context, prec int) *decimal.Big {
 
 func benchMbrotGo(b *testing.B, prec int) {
 	var (
-		ls  *decimal.Big
+		r   *decimal.Big
 		ctx = decimal.Context{Precision: prec, OperatingMode: decimal.GDA}
 		x0  = decimal.WithContext(ctx).SetMantScale(222, 3)
 		y0  = decimal.WithContext(ctx).SetMantScale(333, 3)
 	)
 	for i := 0; i < b.N; i++ {
-		ls = mbrotGo(x0, y0, ctx, prec)
+		r = mbrotGo(x0, y0, ctx, prec)
 	}
-	gs = ls
+	gdec = r
 }
 
 func mbrotGo(x0, y0 *decimal.Big, ctx decimal.Context, prec int) *decimal.Big {
