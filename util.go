@@ -193,8 +193,8 @@ func bigScalex(z, x *big.Int, scale int) *big.Int {
 }
 
 func min(x, y int) int {
-	if x < y {
-		return x
+	if y < x {
+		return y
 	}
-	return y
+	return x
 }

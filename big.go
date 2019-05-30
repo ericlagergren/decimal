@@ -43,7 +43,7 @@ type Big struct {
 	// digits this field will be used.
 	compact uint64
 
-	// exp is the negated scale, meaning
+	// exp is the negated scale. This means
 	//
 	//    number × 10**exp = number × 10**-scale
 	//
@@ -119,7 +119,7 @@ func (f form) String() string {
 	}
 }
 
-// Payload is a NaN value's payload.
+// Payload is a NaN value's payload. A zero value indicates no payload.
 type Payload uint64
 
 //go:generate stringer -type Payload -linecomment
@@ -156,13 +156,226 @@ const (
 	remprec                           // result of remainder operation was larger than the desired precision
 )
 
-// An ErrNaN is used when a decimal operation would lead to a NaN under IEEE-754
-// rules. An ErrNaN implements the error interface.
+// TODO(eric): if math.ErrNaN ever allows setting the msg field, perhaps we
+// should use that instead?
+
+// An ErrNaN is as the value passed to ``panic'' when the operating mode is set
+// to Go and a decimal operation occurs that would lead to a NaN under IEEE-754
+// rules.
+//
+// ErrNaN implements the error interface.
 type ErrNaN struct{ Msg string }
 
 func (e ErrNaN) Error() string { return e.Msg }
 
 var _ error = ErrNaN{}
+
+// Append appends x to buf using the specified format and returns the resulting
+// slice.
+//
+// The following verbs are recognized:
+//
+//    'e': -d.dddd±edd
+//    'E': -d.dddd±Edd
+//    'f': -dddd.dd
+//    'F': same as 'f'
+//    'g': same as 'f' or 'e', depending on x
+//    'G': same as 'F' or 'E', depending on x
+//    'z': same as 'g', but with trailing zeros and trailing decimal point
+//    'Z': same as 'G', but with trailing zeros and trailing decimal point
+//
+// Note that 'z' and 'Z' are analogous to the ``fmt'' package's verb-flag
+// combinations %#g and %#G, respectively.
+//
+// For every format except 'g' and 'G', the precision is the number of digits
+// following the radix. For 'g' and 'G', however, the precision is the number of
+// significant digits.
+func (x *Big) Append(buf []byte, fmt byte, prec int) []byte {
+	if x == nil {
+		return append(buf, "<nil>"...)
+	}
+
+	if x.isSpecial() {
+		switch x.Context.OperatingMode {
+		case GDA:
+			buf = append(buf, x.form.String()...)
+			if x.IsNaN(0) && x.compact != 0 {
+				buf = strconv.AppendUint(buf, x.compact, 10)
+			}
+		case Go:
+			if x.IsNaN(0) {
+				buf = append(buf, "NaN"...)
+			} else if x.IsInf(0) {
+				buf = append(buf, "+Inf"...)
+			} else {
+				buf = append(buf, "Inf"...)
+			}
+		default:
+			buf = append(buf, '?')
+		}
+		return buf
+	}
+
+	neg := x.Signbit()
+	if neg {
+		buf = append(buf, '-')
+	}
+
+	dec := make([]byte, 0, x.Precision())
+	if x.isCompact() {
+		dec = strconv.AppendUint(dec[0:0], uint64(x.compact), 10)
+	} else {
+		dec = x.unscaled.Append(dec[0:0], 10)
+	}
+
+	switch fmt {
+	case 'g', 'G', 'z', 'Z':
+		// "Next, the adjusted exponent is calculated; this is the exponent, plus
+		// the number of characters in the converted coefficient, less one. That
+		// is, exponent+(clength-1), where clength is the length of the coefficient
+		// in decimal digits.
+		adj := x.exp + (len(dec) - 1)
+		// "If the exponent is less than or equal to zero and the adjusted
+		// exponent is greater than or equal to -6 the number will be converted
+		// to a character form without using exponential notation."
+		//
+		// - http://speleotrove.com/decimal/daconvs.html#reftostr
+		if x.exp <= 0 && adj >= -6 {
+			if x.exp == 0 {
+				prec = 0
+			} else {
+				prec += x.exp
+			}
+			const z = 'z' & 'Z'
+			return fmtF(buf, fmt&z != z, x.exp, prec, dec)
+		}
+		return fmtE(buf, fmt+'e'-'g', adj, prec, dec)
+	case 'e', 'E':
+		return fmtE(buf, fmt, x.exp+(len(dec)-1), prec, dec)
+	case 'f', 'F':
+		return fmtF(buf, false, x.exp, prec, dec)
+	default:
+		if neg {
+			buf = buf[:len(buf)-1]
+		}
+		return append(buf, '%', fmt)
+	}
+}
+
+func fmtE(buf []byte, fmt byte, adj, prec int, dec []byte) []byte {
+	buf = append(buf, dec[0])
+	if prec > 0 {
+		buf = append(buf, '.')
+		buf = appendPad(buf, dec[1:], prec)
+	}
+	buf = append(buf, fmt)
+	if adj >= 0 {
+		buf = append(buf, '+')
+	} else {
+		buf = append(buf, '-')
+		adj = -adj
+	}
+	if adj < 10 {
+		buf = append(buf, '0') // 01, 02, ..., 09
+	}
+	return strconv.AppendUint(buf, uint64(adj), 10) // adj >= 0
+}
+
+func fmtF(buf []byte, strip bool, exp, prec int, dec []byte) []byte {
+	fmt.Printf("exp:%d, prec:%d, r:%d, n:%d, dec:%s\n", exp, prec, exp+len(dec), len(dec), dec)
+	if exp >= 0 {
+		buf = append(buf, dec...)
+		buf = appendZeros(buf, exp-len(dec))
+		if prec > exp {
+			buf = append(buf, '.')
+			buf = appendZeros(buf, prec-exp)
+		}
+		return buf
+	}
+	if radix := exp + len(dec); radix <= 0 {
+		buf = append(buf, "0."...)
+		m := min(-radix, prec)
+		buf = appendZeros(buf, m)
+		if m == 0 || m < prec {
+			buf = append(buf, dec...)
+		}
+		if n := -radix + len(dec); n < prec {
+			buf = appendZeros(buf, prec-n)
+		}
+	} else {
+		buf = append(buf, dec[:radix]...)
+		buf = append(buf, '.')
+		m := min(radix+prec, len(dec))
+		fmt.Println("m=", m, "p=", radix+prec, "r=", radix, "p=", prec)
+		buf = append(buf, dec[radix:m]...)
+		if (m - radix) < prec {
+			buf = appendZeros(buf, prec-(m-radix))
+		}
+	}
+	return buf
+
+	fmt.Println("r=", len(dec)+exp, "e=", exp, "p=", prec, strip, `"`+string(dec)+`"`)
+	switch radix := len(dec) + exp; {
+	// 123[.456]
+	case radix > 0:
+		buf = append(buf, dec[:radix]...)
+		println(prec != 0, !strip, !allzero(dec[radix:]))
+		if prec != 0 && (!strip || !allzero(dec[radix:])) {
+			buf = append(buf, '.')
+			buf = appendPad(buf, dec[radix:], prec)
+		}
+	// 0.00000123456
+	case radix < 0:
+		buf = append(buf, '0')
+		if min := min(-radix, prec); !strip || min >= prec {
+			buf = append(buf, '.')
+			buf = appendZeros(buf, min)
+			if min < prec {
+				buf = appendPad(buf, dec, prec-min)
+			}
+		}
+	// 0[.0000...] or 0.123456
+	default:
+		buf = append(buf, "0."...)
+		buf = appendPad(buf, dec, prec)
+	}
+	return buf
+}
+
+func allzero(p []byte) bool {
+	for _, c := range p {
+		if c != '0' {
+			return false
+		}
+	}
+	return true
+}
+
+// appendPad appends x up to x[:prec] to buf, right-padding with '0's if
+// len(x) < prec.
+func appendPad(buf, x []byte, prec int) []byte {
+	if n := prec - len(x); n > 0 {
+		buf = append(buf, x...)
+		buf = appendZeros(buf, n)
+	} else {
+		buf = append(buf, x[:prec]...)
+	}
+	return buf
+}
+
+// appeendZeros appends n '0's to buf.
+func appendZeros(buf []byte, n int) []byte {
+	const zeros = "0000000000000000"
+	for n >= 0 {
+		if n < len(zeros) {
+			buf = append(buf, zeros[:n]...)
+		} else {
+			buf = append(buf, zeros...)
+		}
+		n -= len(zeros)
+	}
+	return buf
+}
 
 // CheckNaNs checks if either x or y is NaN. If so, it follows the rules of NaN
 // handling set forth in the GDA specification. The second argument, y, may be
@@ -256,16 +469,16 @@ func (z *Big) Add(x, y *Big) *Big { return z.Context.Add(z, x, y) }
 
 // Class returns the ``class'' of x, which is one of the following:
 //
-//  sNaN
-//  NaN
-//  -Infinity
-//  -Normal
-//  -Subnormal
-//  -Zero
-//  +Zero
-//  +Subnormal
-//  +Normal
-//  +Infinity
+//    sNaN
+//    NaN
+//    -Infinity
+//    -Normal
+//    -Subnormal
+//    -Zero
+//    +Zero
+//    +Subnormal
+//    +Normal
+//    +Infinity
 //
 func (x *Big) Class() string {
 	if x.IsNaN(0) {
@@ -536,125 +749,52 @@ func (x *Big) Float(z *big.Float) *big.Float {
 	return z
 }
 
-// Format implements the fmt.Formatter interface. The following verbs are
-// supported:
+// Format implements the fmt.Formatter interface.
 //
-// 	%s: -dddd.dd or -d.dddd±edd, depending on x
-// 	%d: same as %s
-// 	%v: same as %s
-// 	%e: -d.dddd±edd
-// 	%E: -d.dddd±Edd
-// 	%f: -dddd.dd
-// 	%g: same as %f
+// Format recognizes the same format verbs as Append, as well as the following
+// aliases for %g:
 //
-// While width is honored in the same manner as the fmt package (the minimum
-// width of the formatted number), precision is the number of significant digits
-// in the decimal number. Given %f, however, precision is the number of digits
-// following the radix.
+//    %s, %d, and %v
 //
-// Format honors all flags (such as '+' and ' ') in the same manner as the fmt
-// package, except for '#'. Unless used in conjunction with %v, %q, or %p, the
-// '#' flag will be ignored; decimals have no defined hexadeximal or octal
-// representation.
+// Additionally, the verb %q is recognized as an alias of %s and is quoted
+// appropriately.
 //
-// %+v, %#v, %T, %#p, and %p all honor the formats specified in the fmt
-// package's documentation.
+// When used in conjunction with any of the recognized verbs, Format honors all
+// flags in the manner described for floating point numbers in the``fmt'' package.
+//
+// The default precision for %e, %f, and %g is the decimal's current precision.
+//
+// All other unrecognized format and flag combinations (such as %#v) are passed
+// through to the ``fmt'' package.
 func (x *Big) Format(s fmt.State, c rune) {
 	if debug {
 		x.validate()
 	}
 
-	prec, hasPrec := s.Precision()
-	if !hasPrec {
-		prec = x.Precision()
-	}
-	width, hasWidth := s.Width()
-	if !hasWidth {
-		width = noWidth
-	}
-
-	var (
-		hash    = s.Flag('#')
-		dash    = s.Flag('-')
-		lpZero  = s.Flag('0')
-		lpSpace = width != noWidth && !dash && !lpZero
-		plus    = s.Flag('+')
-		space   = s.Flag(' ')
-		f       = formatter{prec: prec, width: width}
-		e       = sciE[x.Context.OperatingMode]
-	)
-
-	// If we need to left pad then we need to first write our string into an
-	// empty buffer.
-	tmpbuf := lpZero || lpSpace
-	if tmpbuf {
-		b := new(strings.Builder)
-		b.Grow(x.Precision())
-		f.w = b
-	} else {
-		f.w = stateWrapper{s}
-	}
-
-	if plus {
-		f.sign = '+'
-	} else if space {
-		f.sign = ' '
-	}
-
-	// noE is a placeholder for formats that do not use scientific notation
-	// and don't require 'e' or 'E'
-	const noE = 0
+	var quote string // either `"` or ""
 	switch c {
-	case 's', 'd':
-		f.format(x, normal, e)
-	case 'q':
-		// The fmt package's docs specify that the '+' flag
-		// "guarantee[s] ASCII-only output for %q (%+q)"
-		f.sign = 0
-
-		// Since no other escaping is needed we can do it ourselves and save
-		// whatever overhead running it through fmt.Fprintf would incur.
-		quote := byte('"')
-		if hash {
-			quote = '`'
-		}
-		f.WriteByte(quote)
-		f.format(x, normal, e)
-		f.WriteByte(quote)
-	case 'e', 'E':
-		f.format(x, sci, byte(c))
-	case 'f', 'F':
-		if !hasPrec {
-			prec = 0
-		} else {
-			// %f's precision means "number of digits after the radix"
-			if x.exp > 0 {
-				f.prec += x.Precision()
-			} else {
-				if adj := x.exp + x.Precision(); adj > -f.prec {
-					f.prec += adj
-				} else {
-					f.prec = -f.prec
-				}
-			}
-		}
-
-		f.format(x, plain, noE)
+	case 'e', 'E', 'f', 'F':
+		// OK
 	case 'g', 'G':
-		// %g's precision means "number of significant digits"
-		f.format(x, plain, noE)
-
-	// Make sure we return from the following two cases.
+		if s.Flag('#') {
+			c += 'e' - 'g'
+		}
+	case 'q':
+		quote = `"`
+		if s.Flag('#') {
+			quote = "`"
+		}
+		c = 'g'
+	case 's', 'd':
+		c = 'g'
 	case 'v':
-		// %v == %s
-		if !hash && !plus {
-			f.format(x, normal, e)
+		if !s.Flag('#') {
+			c = 'g'
 			break
 		}
-
-		// This is the easiest way of doing it. Note we can't use type Big Big,
-		// even though it's declared inside a function. Go thinks it's recursive.
-		// At least the fields are checked at compile time.
+		// Handle %#v specially.
+		fallthrough
+	default:
 		type Big struct {
 			Context   Context
 			unscaled  big.Int
@@ -663,49 +803,108 @@ func (x *Big) Format(s fmt.State, c rune) {
 			precision int
 			form      form
 		}
-		specs := ""
-		if dash {
-			specs += "-"
-		} else if lpZero {
-			specs += "0"
-		}
-		if hash {
-			specs += "#"
-		} else if plus {
-			specs += "+"
-		} else if space {
-			specs += " "
-		}
-		fmt.Fprintf(s, "%"+specs+"v", (*Big)(x))
+		fmt.Fprintf(s, makeFormat(s, c), (*Big)(x))
 		return
+	}
+
+	prec, ok := s.Precision()
+	if !ok {
+		prec = x.Precision()
+	}
+	buf := make([]byte, 0, x.Precision()+1)
+	buf = x.Append(buf, byte(c), prec)
+
+	var sign string
+	switch {
+	case buf[0] == '-':
+		sign = "-"
+		buf = buf[1:]
+	case buf[0] == '+':
+		// +Inf
+		sign = "+"
+		if s.Flag(' ') {
+			sign = "  "
+		}
+		buf = buf[1:]
+	case s.Flag('+'):
+		sign = "+"
+	case s.Flag(' '):
+		sign = " "
+	}
+
+	var padding int
+	if width, ok := s.Width(); ok && width > len(sign)+len(buf) {
+		padding = width - len(sign) - len(buf)
+	}
+
+	switch {
+	case s.Flag('0') && !x.IsInf(0):
+		writeN(s, sign, 1)
+		writeN(s, "0", padding)
+		writeN(s, quote, 1)
+		s.Write(buf)
+		writeN(s, quote, 1)
+	case s.Flag('-'):
+		writeN(s, sign, 1)
+		writeN(s, quote, 1)
+		s.Write(buf)
+		writeN(s, quote, 1)
+		writeN(s, " ", padding)
 	default:
-		fmt.Fprintf(s, "%%!%c(*decimal.Big=%s)", c, x.String())
-		return
+		writeN(s, " ", padding)
+		writeN(s, sign, 1)
+		writeN(s, quote, 1)
+		s.Write(buf)
+		writeN(s, quote, 1)
 	}
+}
 
-	// Need padding out to width.
-	if f.n < int64(width) {
-		switch pad := int64(width) - f.n; {
-		case dash:
-			io.CopyN(s, spaceReader{}, pad)
-		case lpZero:
-			io.CopyN(s, zeroReader{}, pad)
-		case lpSpace:
-			io.CopyN(s, spaceReader{}, pad)
+// makeFormat recreates a format string.
+func makeFormat(s fmt.State, c rune) string {
+	var b strings.Builder
+	b.WriteByte('%')
+	for _, c := range "+-# 0" {
+		if s.Flag(int(c)) {
+			b.WriteRune(c)
 		}
 	}
+	if width, ok := s.Width(); ok {
+		b.WriteString(strconv.Itoa(width))
+	}
+	if prec, ok := s.Precision(); ok {
+		b.WriteByte('.')
+		b.WriteString(strconv.Itoa(prec))
+	}
+	b.WriteRune(c)
+	return b.String()
+}
 
-	if tmpbuf {
-		// fmt's internal state type implements stringWriter I think.
-		io.WriteString(s, f.w.(*strings.Builder).String())
+// writeN writes s to w n times, if s != "".
+func writeN(w io.Writer, s string, n int) {
+	if s == "" {
+		return
+	}
+	type stringWriter interface {
+		WriteString(string) (int, error)
+	}
+	if sw, ok := w.(stringWriter); ok {
+		for ; n > 0; n-- {
+			sw.WriteString(s)
+		}
+	} else {
+		tmp := []byte(s)
+		for ; n > 0; n-- {
+			w.Write(tmp)
+		}
 	}
 }
 
 // FMA sets z to (x * y) + u without any intermediate rounding.
 func (z *Big) FMA(x, y, u *Big) *Big { return z.Context.FMA(z, x, y, u) }
 
-// Int sets z to x, truncating the fractional portion (if any) and returns z. z
-// is allowed to be nil. If x is an infinity or a NaN value the result is
+// Int sets z to x, truncating the fractional portion (if any) and returns z.
+//
+// z is allowed to be nil. If x is an infinity or a NaN value the result is
 // undefined.
 func (x *Big) Int(z *big.Int) *big.Int {
 	if debug {
@@ -808,17 +1007,21 @@ func (x *Big) IsSubnormal() bool {
 }
 
 // IsInf returns true if x is an infinity according to sign.
-// If sign >  0, IsInf reports whether x is positive infinity.
-// If sign <  0, IsInf reports whether x is negative infinity.
-// If sign == 0, IsInf reports whether x is either infinity.
+//
+//    If sign >  0, IsInf reports whether x is positive infinity.
+//    If sign <  0, IsInf reports whether x is negative infinity.
+//    If sign == 0, IsInf reports whether x is either infinity.
+//
 func (x *Big) IsInf(sign int) bool {
 	return sign >= 0 && x.form == pinf || sign <= 0 && x.form == ninf
 }
 
 // IsNaN returns true if x is NaN.
-// If sign >  0, IsNaN reports whether x is quiet NaN.
-// If sign <  0, IsNaN reports whether x is signaling NaN.
-// If sign == 0, IsNaN reports whether x is either NaN.
+//
+//    If sign >  0, IsNaN reports whether x is quiet NaN.
+//    If sign <  0, IsNaN reports whether x is signaling NaN.
+//    If sign == 0, IsNaN reports whether x is either quiet or signaling NaN.
+//
 func (x *Big) IsNaN(quiet int) bool {
 	return quiet >= 0 && x.form&qnan == qnan || quiet <= 0 && x.form&snan == snan
 }
@@ -842,14 +1045,14 @@ func (x *Big) IsInt() bool {
 	xp := x.Precision()
 	exp := x.exp
 
-	// 0.001
-	// 0.5
+	// 0.00d
+	// 0.d
 	if -exp >= xp {
 		return false
 	}
 
-	// 44.00
-	// 1.000
+	// 44.dd
+	// 1.ddd
 	if x.isCompact() {
 		for v := x.compact; v%10 == 0; v /= 10 {
 			exp++
@@ -875,17 +1078,7 @@ func (x *Big) MarshalText() ([]byte, error) {
 	if debug {
 		x.validate()
 	}
-	if x == nil {
-		return []byte("<nil>"), nil
-	}
-	var (
-		b = new(bytes.Buffer)
-		f = formatter{w: b, prec: x.Precision(), width: noWidth}
-		e = sciE[x.Context.OperatingMode]
-	)
-	b.Grow(x.Precision())
-	f.format(x, normal, e)
-	return b.Bytes(), nil
+	return x.Append(nil, 's', -1), nil
 }
 
 // Mul sets z to x * y and returns z.
@@ -910,11 +1103,11 @@ func (z *Big) Neg(x *Big) *Big {
 
 // New creates a new Big decimal with the given value and scale. For example:
 //
-//  New(1234, 3) // 1.234
-//  New(42, 0)   // 42
-//  New(4321, 5) // 0.04321
-//  New(-1, 0)   // -1
-//  New(3, -10)  // 30 000 000 000
+//    New(1234, 3) // 1.234
+//    New(42, 0)   // 42
+//    New(4321, 5) // 0.04321
+//    New(-1, 0)   // -1
+//    New(3, -10)  // 30 000 000 000
 //
 func New(value int64, scale int) *Big {
 	return new(Big).SetMantScale(value, scale)
@@ -961,8 +1154,10 @@ func (z *Big) QuoRem(x, y, r *Big) (*Big, *Big) {
 	return z.Context.QuoRem(z, x, y, r)
 }
 
-// Rat sets z to x and returns z. z is allowed to be nil. The result is undefined if
-// x is an infinity or NaN value.
+// Rat sets z to x and returns z.
+//
+// z is allowed to be nil. The result is undefined if x is an infinity or NaN
+// value.
 func (x *Big) Rat(z *big.Rat) *big.Rat {
 	if debug {
 		x.validate()
@@ -1010,12 +1205,14 @@ func (x *Big) Rat(z *big.Rat) *big.Rat {
 	return z.SetFrac(num, denom)
 }
 
-// Raw directly returns x's raw compact and unscaled values. Caveat emptor:
-// Neither are guaranteed to be valid. Raw is intended to support missing
-// functionality outside this package and generally should be avoided.
+// Raw directly returns x's raw compact and unscaled values.
+//
+// Caveat emptor: Neither are guaranteed to be valid. Raw is intended to support
+// missing functionality outside this package and generally should be avoided.
+//
 // Additionally, Raw is the only part of this package's API which is not
-// guaranteed to remain stable. This means the function could change or
-// disappear at any time, even across minor version numbers.
+// guaranteed to remain stable. This means the function could change or disappear
+// without warning at any time, even across minor versions.
 func Raw(x *Big) (*uint64, *big.Int) { return &x.compact, &x.unscaled }
 
 // Reduce reduces a finite z to its most simplest form.
@@ -1373,17 +1570,7 @@ func (x *Big) Signbit() bool {
 // discussed in the Format method's documentation. Special cases depend on the
 // OperatingMode.
 func (x *Big) String() string {
-	if x == nil {
-		return "<nil>"
-	}
-	var (
-		b = new(strings.Builder)
-		f = formatter{w: b, prec: x.Precision(), width: noWidth}
-		e = sciE[x.Context.OperatingMode]
-	)
-	b.Grow(x.Precision())
-	f.format(x, normal, e)
-	return b.String()
+	return string(x.Append(nil, 's', -1))
 }
 
 // Sub sets z to x - y and returns z.
@@ -1411,15 +1598,7 @@ func (x *Big) validate() {
 			if caller := runtime.FuncForPC(pc); ok && caller != nil {
 				fmt.Println("called by:", caller.Name())
 			}
-			type Big struct {
-				Context   Context
-				unscaled  big.Int
-				compact   uint64
-				exp       int
-				precision int
-				form      form
-			}
-			fmt.Printf("%#v\n", (*Big)(x))
+			println(x)
 			panic(err)
 		}
 	}()
