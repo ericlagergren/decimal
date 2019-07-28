@@ -78,27 +78,8 @@ func pi(z *decimal.Big, ctx decimal.Context) *decimal.Big {
 		return ctx.Set(z, _Pi)
 	}
 
-	var (
-		lasts = new(decimal.Big)
-		t     = new(decimal.Big).SetUint64(3)
-		s     = z.SetUint64(3)
-		n     = new(decimal.Big).SetUint64(1)
-		na    = new(decimal.Big)
-		d     = new(decimal.Big)
-		da    = new(decimal.Big).SetUint64(24)
-	)
-
-	for s.Cmp(lasts) != 0 {
-		lasts.Copy(s)
-		ctx.Add(n, n, na)
-		ctx.Add(na, na, eight)
-		ctx.Add(d, d, da)
-		ctx.Add(da, da, thirtyTwo)
-		ctx.Mul(t, t, n)
-		ctx.Quo(t, t, d)
-		ctx.Add(s, s, t)
-	}
-	return ctx.Round(z) // z == s
+	//else we return a new pi const
+	return piChudnovskyBrothers(z, ctx)
 }
 
 // ln10 sets z to log(10) and returns z.
