@@ -150,6 +150,12 @@ func Atan(z, x *decimal.Big) *decimal.Big {
 		return z
 	}
 
+	//when x <-1 we use -atan(-x) instead
+	if x.Cmp(negone) < 0 {
+		Atan(z, new(decimal.Big).Neg(x))
+		return z.Neg(z)
+	}
+
 	y, ySq, ySqPlus1, segment, halfed := prepAtan(z, x, ctx) // z == y, maybe.
 	result := BinarySplitDynamic(ctx,
 		func(_ uint64) *decimal.Big { return y },
