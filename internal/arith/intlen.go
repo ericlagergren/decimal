@@ -37,7 +37,7 @@ func BigLength(x *big.Int) int {
 		// we can break nb into two factors: overflowCutoff and X.
 
 		// overflowCutoff / log10(2)
-		m = 4294967295
+		m = 1<<32 - 1
 		nb = (nb / overflowCutoff) + (nb % overflowCutoff)
 	}
 

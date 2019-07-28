@@ -39,8 +39,9 @@ const (
 	IsCanonical = true
 )
 
-// Canonical sets z to the canonical form of z. Since Big values are always
-// canonical, it's identical to Copy.
+// Canonical sets z to the canonical form of z.
+//
+// Since Big values are always canonical, it's identical to Copy.
 func Canonical(z, x *decimal.Big) *decimal.Big { return z.Copy(x) }
 
 // TODO(eric): do these...
@@ -59,24 +60,26 @@ func Canonical(z, x *decimal.Big) *decimal.Big { return z.Copy(x) }
 // func Xor(z, x, y *Big) *Big
 
 // CmpTotal compares x and y in a manner similar to the Big.Cmp, but allows
-// ordering of all abstract representations. In particular, this means NaN
-// values have a defined ordering. From lowest to highest the ordering is:
+// ordering of all abstract representations.
 //
-//  -NaN
-//  -sNaN
-//  -Infinity
-//  -127
-//  -1.00
-//  -1
-//  -0.000
-//  -0
-//  0
-//  1.2300
-//  1.23
-//  1E+9
-//  Infinity
-//  sNaN
-//  NaN
+// In particular, this means NaN values have a defined ordering. From lowest to
+// highest the ordering is:
+//
+//    -NaN
+//    -sNaN
+//    -Infinity
+//    -127
+//    -1.00
+//    -1
+//    -0.000
+//    -0
+//    +0
+//    +1.2300
+//    +1.23
+//    +1E+9
+//    +Infinity
+//    +sNaN
+//    +NaN
 //
 func CmpTotal(x, y *decimal.Big) int {
 	xs := ord(x, false)
@@ -93,7 +96,8 @@ func CmpTotal(x, y *decimal.Big) int {
 	return x.Cmp(y)
 }
 
-// CmpTotalAbs is like CmpTotal but instead compares |x| and |y|.
+// CmpTotalAbs is like CmpTotal but instead compares the absolute values of x
+// and y.
 func CmpTotalAbs(x, y *decimal.Big) int {
 	xs := ord(x, true)
 	ys := ord(y, true)
@@ -131,8 +135,9 @@ func Mantissa(x *decimal.Big) (uint64, bool) {
 	return *mp, x.IsFinite() && *mp != c.Inflated
 }
 
-// Max returns the greater of the provided values. The result is undefined if no
-// values are are provided.
+// Max returns the greater of the provided values.
+//
+// The result is undefined if no values are are provided.
 func Max(x ...*decimal.Big) *decimal.Big {
 	m := x[0]
 	for _, v := range x[1:] {
@@ -143,8 +148,9 @@ func Max(x ...*decimal.Big) *decimal.Big {
 	return m
 }
 
-// MaxAbs returns the greater of the absolute value of the provided values. The
-// result is undefined if no values are provided.
+// MaxAbs returns the greater of the absolute value of the provided values.
+//
+// The result is undefined if no values are provided.
 func MaxAbs(x ...*decimal.Big) *decimal.Big {
 	m := x[0]
 	for _, v := range x[1:] {
@@ -155,8 +161,9 @@ func MaxAbs(x ...*decimal.Big) *decimal.Big {
 	return m
 }
 
-// Min returns the lesser of the provided values. The result is undefined if no
-// values are are provided.
+// Min returns the lesser of the provided values.
+//
+// The result is undefined if no values are are provided.
 func Min(x ...*decimal.Big) *decimal.Big {
 	m := x[0]
 	for _, v := range x[1:] {
@@ -179,7 +186,7 @@ func MinAbs(x ...*decimal.Big) *decimal.Big {
 	return m
 }
 
-// maxfor sets z to 999...N with the provided sign.
+// maxfor sets z to 999...n with the provided sign.
 func maxfor(z *big.Int, n, sign int) {
 	arith.Sub(z, arith.BigPow10(uint64(n)), 1)
 	if sign < 0 {
@@ -271,68 +278,6 @@ func precision(z *decimal.Big) int {
 
 // SameQuantum returns true if x and y have the same exponent (scale).
 func SameQuantum(x, y *decimal.Big) bool { return x.Scale() == y.Scale() }
-
-/*
-// Shift sets z to the digit-wise shifted mantissa of x. A positive shift value
-// indicates a shift to the right; a negative shift value indicates a shift to
-// the left. The shift value must of equal or lesser magnitude than z's
-// precision; that is, it must be in the range [-precision, precision]. The
-// result is undefined if x's precision is decimal.UnlimitedPrecision.
-func Shift(z, x *decimal.Big, shift int) *decimal.Big {
-	// TODO(eric): allow shifts with a negative scale?
-
-	if !x.IsFinite() {
-		if z.CheckNaNs(x, nil) {
-			return z
-		}
-		return z.SetInf(x.IsInf(-1)) // inf
-	}
-
-	if x.Sign() == 0 {
-		return z.SetMantScale(0, 0) // zero
-	}
-
-	if shift == 0 {
-		return z.Set(x) // no shift
-	}
-
-	prec := precision(z)
-	if prec == decimal.UnlimitedPrecision {
-		return z.SetMantScale(0, 0) // undefined
-	}
-
-	if shift < 0 && uint64(-shift) >= uint64(x.Precision()) {
-		z.SetMantScale(0, x.Scale()) // zero-filled shift is too large
-		if x.Signbit() {
-			SetSignbit(z, true)
-		}
-		return z
-	}
-
-	z.Set(x)
-
-	// TODO(eric): add an implementation that uses x.compact and falls back to
-	// x.unscaled instead of calling x.Int.
-
-	_, zb := decimal.Raw(z)
-	if xc, xb := decimal.Raw(x); *xc != c.Inflated {
-		zb.SetUint64(*xc)
-	} else {
-		zb.Set(xb)
-	}
-
-	if shift < 0 {
-		zb.Quo(zb, arith.BigPow10(uint64(-shift))) // remove trailing N digits
-	} else {
-		zb.Rem(zb, arith.BigPow10(uint64(prec-shift))) // remove first N digits
-		zb.Mul(zb, arith.BigPow10(uint64(shift)))      // fill with zeros
-	}
-	if x.Signbit() {
-		zb.Neg(zb)
-	}
-	return z.SetBigMantScale(zb, x.Scale())
-}
-*/
 
 // SetSignbit sets z to -z if sign is true, otherwise to +z.
 func SetSignbit(z *decimal.Big, sign bool) *decimal.Big {

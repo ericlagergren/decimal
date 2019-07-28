@@ -1,5 +1,5 @@
-github.com/apmckinlay/gsuneido v0.0.0-20180907175622-1f10244968e3 h1:GGt+2fBzp83fE4DGSstL0K/crfQyXu7qOEKrvnwJRtU=
-github.com/apmckinlay/gsuneido v0.0.0-20180907175622-1f10244968e3/go.mod h1:hJnaqxrCRgMCTWtpNz9XUFkBCREiQdlcyK6YNmOfroM=
+github.com/apmckinlay/gsuneido v0.0.0-20190404155041-0b6cd442a18f h1:WwxMm9boNuaj5YW+qfRoORxLLJrSRiK1zovCfGNddY0=
+github.com/apmckinlay/gsuneido v0.0.0-20190404155041-0b6cd442a18f/go.mod h1:JU2DOj5Fc6rol0yaT79Csr47QR0vONGwJtBNGRD7jmc=
 github.com/cockroachdb/apd v1.1.0 h1:3LFP3629v+1aKXU5Q37mxmRxX/pIu1nijXydLShEq5I=
 github.com/cockroachdb/apd v1.1.0/go.mod h1:8Sl8LxpKi29FqWXR16WEFZRNSz3SoPzUzeMeY4+DwBQ=
 github.com/lib/pq v1.0.0 h1:X5PMW56eZitiTeO7tKzZxFCSpbFZJtkMMooicw2us9A=

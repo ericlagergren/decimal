@@ -4,6 +4,14 @@ package decimal
 
 import "strconv"
 
+func _() {
+	// An "invalid array index" compiler error signifies that the constant values have changed.
+	// Re-run the stringer command to generate them again.
+	var x [1]struct{}
+	_ = x[GDA-0]
+	_ = x[Go-1]
+}
+
 const _OperatingMode_name = "GDAGo"
 
 var _OperatingMode_index = [...]uint8{0, 3, 5}

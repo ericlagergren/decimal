@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	"github.com/ericlagergren/decimal/internal/arith"
-	"github.com/ericlagergren/decimal/internal/arith/checked"
 	"github.com/ericlagergren/decimal/internal/c"
 )
 
@@ -24,7 +23,7 @@ import (
 // the number of decimal digits after the radix. Otherwise, the number is
 // multiplied by 10 to the power of the negation of the scale. More formally,
 //
-//   Big = number × 10**-scale
+//    Big = number × 10**-scale
 //
 // with MinScale <= scale <= MaxScale. A Big may also be ±0, ±Infinity, or ±NaN
 // (either quiet or signaling). Non-NaN Big values are ordered, defined as the
@@ -46,7 +45,8 @@ type Big struct {
 
 	// exp is the negated scale, meaning
 	//
-	//   number × 10**exp = number ×  10**-scale
+	//    number × 10**exp = number × 10**-scale
+	//
 	exp int
 
 	// precision is the current precision.
@@ -56,6 +56,14 @@ type Big struct {
 	// NaN value and whether it's signed or not.
 	form form
 }
+
+var (
+	_ fmt.Formatter            = (*Big)(nil)
+	_ fmt.Scanner              = (*Big)(nil)
+	_ fmt.Stringer             = (*Big)(nil)
+	_ json.Unmarshaler         = (*Big)(nil)
+	_ encoding.TextUnmarshaler = (*Big)(nil)
+)
 
 // form indicates whether a decimal is a finite number, an infinity, or a nan
 // value and whether it's signed or not.
@@ -114,76 +122,39 @@ func (f form) String() string {
 // Payload is a NaN value's payload.
 type Payload uint64
 
+//go:generate stringer -type Payload -linecomment
+
 const (
-	addinfinf Payload = iota + 1
-	mul0inf
-	quo00
-	quoinfinf
-	quantinf
-	quantminmax
-	quantprec
-	subinfinf
-	absvalue
-	addition
-	comparison
-	multiplication
-	negation
-	division
-	quantization
-	subtraction
-	quorem_
-	reminfy
-	remx0
-	quotermexp
-	invctxpltz
-	invctxpgtu
-	invctxrmode
-	invctxomode
-	invctxsltu
-	invctxsgtu
-	reduction
-	quointprec
-	remprec
+	addinfinf      Payload = iota + 1 // addition of infinities with opposing signs
+	mul0inf                           // multiplication of zero with infinity
+	quo00                             // division of zero by zero
+	quoinfinf                         // division of infinity by infinity
+	quantinf                          // quantization of an infinity
+	quantminmax                       // quantization exceeds minimum or maximum scale
+	quantprec                         // quantization exceeds working precision
+	subinfinf                         // subtraction of infinities with opposing signs
+	absvalue                          // absolute value of NaN
+	addition                          // addition with NaN as an operand
+	comparison                        // comparison with NaN as an operand
+	multiplication                    // multiplication with NaN as an operand
+	negation                          // negation with NaN as an operand
+	division                          // division with NaN as an operand
+	quantization                      // quantization with NaN as an operand
+	subtraction                       // subtraction with NaN as an operand
+	quorem_                           // integer division or remainder has too many digits
+	reminfy                           // remainder of infinity
+	remx0                             // remainder by zero
+	quotermexp                        // division with unlimited precision has a non-terminating decimal expansion
+	invctxpltz                        // operation with a precision less than zero
+	invctxpgtu                        // operation with a precision greater than MaxPrecision
+	invctxrmode                       // operation with an invalid RoundingMode
+	invctxomode                       // operation with an invalid OperatingMode
+	invctxsltu                        // operation with a scale lesser than MinScale
+	invctxsgtu                        // operation with a scale greater than MaxScale
+	reduction                         // reduction with NaN as an operand
+	quointprec                        // result of integer division was larger than the desired precision
+	remprec                           // result of remainder operation was larger than the desired precision
 )
-
-var payloads = [...]string{
-	addinfinf:      "addition of infinities with opposing signs",
-	mul0inf:        "multiplication of zero with infinity",
-	quo00:          "division of zero by zero",
-	quoinfinf:      "division of infinity by infinity",
-	quantinf:       "quantization of an infinity",
-	quantminmax:    "quantization exceeds minimum or maximum scale",
-	quantprec:      "quantization exceeds working precision",
-	subinfinf:      "subtraction of infinities with opposing signs",
-	absvalue:       "absolute value of NaN",
-	addition:       "addition with NaN as an operand",
-	comparison:     "comparison with NaN as an operand",
-	multiplication: "multiplication with NaN as an operand",
-	negation:       "negation with NaN as an operand",
-	division:       "division with NaN as an operand",
-	quantization:   "quantization with NaN as an operand",
-	subtraction:    "subtraction with NaN as an operand",
-	quorem_:        "integer division or remainder has too many digits",
-	reminfy:        "remainder of infinity",
-	remx0:          "remainder by zero",
-	quotermexp:     "division with unlimited precision has a non-terminating decimal expansion",
-	invctxpltz:     "operation with a precision less than zero",
-	invctxpgtu:     "operation with a precision greater than MaxPrecision",
-	invctxrmode:    "operation with an invalid RoundingMode",
-	invctxomode:    "operation with an invalid OperatingMode",
-	invctxsltu:     "operation with a scale lesser than MinScale",
-	invctxsgtu:     "operation with a scale greater than MaxScale",
-	reduction:      "reduction with NaN as an operand",
-	quointprec:     "result of integer division was larger than the desired precision",
-	remprec:        "result of remainder operation was larger than the desired precision",
-}
-
-func (p Payload) String() string {
-	if p < Payload(len(payloads)) {
-		return payloads[p]
-	}
-	return ""
-}
 
 // An ErrNaN is used when a decimal operation would lead to a NaN under IEEE-754
 // rules. An ErrNaN implements the error interface.
@@ -264,6 +235,7 @@ func (z *Big) xflow(exp int, over, neg bool) *Big {
 func (x *Big) isCompact() bool  { return x.compact != c.Inflated }
 func (x *Big) isInflated() bool { return !x.isCompact() }
 func (x *Big) isSpecial() bool  { return x.form&(inf|nan) != 0 }
+func (x *Big) isZero() bool     { return x.compact == 0 }
 
 func (x *Big) adjusted() int { return (x.exp + x.Precision()) - 1 }
 func (c Context) etiny() int { return MinScale - (precision(c) - 1) }
@@ -306,7 +278,7 @@ func (x *Big) Class() string {
 		if x.IsInf(0) {
 			return "-Infinity"
 		}
-		if x.compact == 0 {
+		if x.isZero() {
 			return "-Zero"
 		}
 		if x.IsSubnormal() {
@@ -317,7 +289,7 @@ func (x *Big) Class() string {
 	if x.IsInf(0) {
 		return "+Infinity"
 	}
-	if x.compact == 0 {
+	if x.isZero() {
 		return "+Zero"
 	}
 	if x.IsSubnormal() {
@@ -419,9 +391,9 @@ func cmpabs(x, y *Big) int {
 	if arith.Safe(shift) && x.isCompact() && y.isCompact() {
 		p, _ := arith.Pow10(shift)
 		if diff < 0 {
-			return arith.AbsCmp128(x.compact, y.compact, p)
+			return arith.CmpShift(x.compact, y.compact, p)
 		}
-		return -arith.AbsCmp128(y.compact, x.compact, p)
+		return -arith.CmpShift(y.compact, x.compact, p)
 	}
 
 	xw, yw := x.unscaled.Bits(), y.unscaled.Bits()
@@ -434,9 +406,9 @@ func cmpabs(x, y *Big) int {
 
 	var tmp big.Int
 	if diff < 0 {
-		yw = checked.MulBigPow10(&tmp, tmp.SetBits(copybits(yw)), shift).Bits()
+		yw = arith.MulBigPow10(&tmp, tmp.SetBits(copybits(yw)), shift).Bits()
 	} else {
-		xw = checked.MulBigPow10(&tmp, tmp.SetBits(copybits(xw)), shift).Bits()
+		xw = arith.MulBigPow10(&tmp, tmp.SetBits(copybits(xw)), shift).Bits()
 	}
 	return arith.CmpBits(xw, yw)
 }
@@ -508,6 +480,7 @@ func (x *Big) Float64() (f float64, ok bool) {
 	switch xc := x.compact; {
 	case !x.isCompact():
 		fallthrough
+	//lint:ignore ST1015 convoluted, but on purpose
 	default:
 		f, _ = strconv.ParseFloat(x.String(), 64)
 		ok = !math.IsInf(f, 0) && !math.IsNaN(f)
@@ -550,7 +523,7 @@ func (x *Big) Float(z *big.Float) *big.Float {
 
 	switch x.form {
 	case finite, finite | signbit:
-		if x.compact == 0 {
+		if x.isZero() {
 			z.SetUint64(0)
 		} else {
 			z.SetRat(x.Rat(nil))
@@ -654,7 +627,6 @@ func (x *Big) Format(s fmt.State, c rune) {
 		if !hasPrec {
 			prec = 0
 		} else {
-
 			// %f's precision means "number of digits after the radix"
 			if x.exp > 0 {
 				f.prec += x.Precision()
@@ -728,8 +700,6 @@ func (x *Big) Format(s fmt.State, c rune) {
 		io.WriteString(s, f.w.(*strings.Builder).String())
 	}
 }
-
-var _ fmt.Formatter = (*Big)(nil)
 
 // FMA sets z to (x * y) + u without any intermediate rounding.
 func (z *Big) FMA(x, y, u *Big) *Big { return z.Context.FMA(z, x, y, u) }
@@ -865,7 +835,7 @@ func (x *Big) IsInt() bool {
 	}
 
 	// 0, 5000, 40
-	if x.compact == 0 || x.exp >= 0 {
+	if x.isZero() || x.exp >= 0 {
 		return true
 	}
 
@@ -974,6 +944,8 @@ func (x *Big) Precision() int {
 }
 
 // Quantize sets z to the number equal in value and sign to z with the scale, n.
+// The rounding of z is performed according to the rounding mode set in z.Context.RoundingMode.
+// In order to perform truncation, set z.Context.RoundingMode to ToZero.
 func (z *Big) Quantize(n int) *Big { return z.Context.Quantize(z, n) }
 
 // Quo sets z to x / y and returns z.
@@ -1020,7 +992,7 @@ func (x *Big) Rat(z *big.Rat) *big.Rat {
 		num.Set(&x.unscaled)
 	}
 	if x.exp > 0 {
-		checked.MulBigPow10(num, num, uint64(x.exp))
+		arith.MulBigPow10(num, num, uint64(x.exp))
 	}
 	if x.Signbit() {
 		num.Neg(num)
@@ -1073,8 +1045,6 @@ func (z *Big) Scan(state fmt.ScanState, verb rune) error {
 	return z.scan(byteReader{state})
 }
 
-var _ fmt.Scanner = (*Big)(nil)
-
 // Set sets z to x and returns z. The result might be rounded depending on z's
 // Context, and even if z == x.
 func (z *Big) Set(x *Big) *Big { return z.Context.round(z.Copy(x)) }
@@ -1117,7 +1087,7 @@ func (z *Big) SetBigMantScale(value *big.Int, scale int) *Big {
 	return z
 }
 
-// SetFloat sets z to x and returns z.
+// SetFloat sets z to exactly x and returns z.
 func (z *Big) SetFloat(x *big.Float) *Big {
 	if x.IsInf() {
 		if x.Signbit() {
@@ -1218,7 +1188,7 @@ func (z *Big) SetFloat64(x float64) *Big {
 	if shift > 0 {
 		z.unscaled.SetUint64(uint64(shift))
 		z.unscaled.Exp(c.FiveInt, &z.unscaled, nil)
-		arith.MulUint64(&z.unscaled, &z.unscaled, mantissa)
+		arith.Mul(&z.unscaled, &z.unscaled, mantissa)
 		z.exp = -shift
 	} else {
 		// TODO(eric): figure out why this doesn't work for _some_ numbers. See
@@ -1370,17 +1340,18 @@ func (x *Big) ord(abs bool) int {
 
 // Sign returns:
 //
-//	-1 if x <  0
-//	 0 if x == 0
-//	+1 if x >  0
+//    -1 if x <  0
+//     0 if x == 0
+//    +1 if x >  0
 //
-// The result is undefined if x is a NaN value.
+// No distinction is made between +0 and -0. The result is undefined if x is a
+// NaN value.
 func (x *Big) Sign() int {
 	if debug {
 		x.validate()
 	}
 
-	if (x.IsFinite() && x.compact == 0) || x.IsNaN(0) {
+	if (x.IsFinite() && x.isZero()) || x.IsNaN(0) {
 		return 0
 	}
 	if x.form&signbit != 0 {
@@ -1389,7 +1360,7 @@ func (x *Big) Sign() int {
 	return 1
 }
 
-// Signbit returns true if x is negative, negative infinity, negative zero, or
+// Signbit reports whether x is negative, negative zero, negative infinity, or
 // negative NaN.
 func (x *Big) Signbit() bool {
 	if debug {
@@ -1415,8 +1386,6 @@ func (x *Big) String() string {
 	return b.String()
 }
 
-var _ fmt.Stringer = (*Big)(nil)
-
 // Sub sets z to x - y and returns z.
 func (z *Big) Sub(x, y *Big) *Big { return z.Context.Sub(z, x, y) }
 
@@ -1428,14 +1397,10 @@ func (z *Big) UnmarshalJSON(data []byte) error {
 	return z.UnmarshalText(data)
 }
 
-var _ json.Unmarshaler = (*Big)(nil)
-
 // UnmarshalText implements encoding.TextUnmarshaler.
 func (z *Big) UnmarshalText(data []byte) error {
 	return z.scan(bytes.NewReader(data))
 }
-
-var _ encoding.TextUnmarshaler = (*Big)(nil)
 
 // validate ensures x's internal state is correct. There's no need for it to
 // have good performance since it's for debug == true only.

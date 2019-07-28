@@ -176,7 +176,7 @@ func (f *formatter) format(x *Big, format format, e byte) {
 		return
 	}
 
-	if x.compact == 0 && o == Go {
+	if x.isZero() && o == Go {
 		// Go mode prints zeros different than GDA.
 		if f.width == noWidth {
 			f.WriteByte('0')

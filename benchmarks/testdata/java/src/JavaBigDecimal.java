@@ -48,8 +48,8 @@ public class JavaBigDecimal {
                 }
                 final double end = (System.currentTimeMillis() - start) / 1000.0;
                 sum += end;
-                System.out.printf("time: %fs\n", end);
-                System.out.println(r.toString());
+                System.out.printf("%d: time: %fs\n", p, end);
+                //System.out.println(r.toString());
             }
             System.out.printf("average: %f\n", sum / precs.length);
         }

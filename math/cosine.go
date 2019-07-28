@@ -6,7 +6,6 @@ import (
 
 	"github.com/ericlagergren/decimal"
 	"github.com/ericlagergren/decimal/internal/arith"
-	"github.com/ericlagergren/decimal/internal/arith/checked"
 	"github.com/ericlagergren/decimal/misc"
 )
 
@@ -33,8 +32,8 @@ func prepCosine(z, x *decimal.Big, ctx decimal.Context) (*decimal.Big, int, bool
 		// Adjust so we have ceil(v/10) + ctx.Precision, but check for overflows.
 		// 1+((v-1)/10) will be wildly incorrect for v == 0, but x/y = 0 iff
 		// x = 0 and y != 0. In this case, -2pi <= x >= 2pi, so we're fine.
-		prec, ok := checked.Add(1+((uv-1)/10), uint64(ctx.Precision))
-		if !ok || prec > maxInt {
+		prec, c := arith.Add64(1+((uv-1)/10), uint64(ctx.Precision))
+		if c != 0 || prec > maxInt {
 			return nil, 0, false
 		}
 		pctx := decimal.Context{Precision: int(prec)}

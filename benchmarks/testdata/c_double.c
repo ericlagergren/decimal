@@ -16,7 +16,7 @@ int main(void) {
 		for (int j = 0; j < ROUNDS; ++j) {
 			ld = calcPifloat();
 		}
-		sum += (double)(clock() - start_clock)/(double)(CLOCKS_PER_SEC);
+		sum += (double)(clock() - start_clock) / (double)(CLOCKS_PER_SEC);
 	}
 	gd = ld;
 	printf("average: %f\n", sum / NITER);

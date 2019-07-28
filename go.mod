@@ -1,7 +1,7 @@
 module github.com/ericlagergren/decimal
 
 require (
-	github.com/apmckinlay/gsuneido v0.0.0-20180907175622-1f10244968e3
+	github.com/apmckinlay/gsuneido v0.0.0-20190404155041-0b6cd442a18f
 	github.com/cockroachdb/apd v1.1.0
 	github.com/lib/pq v1.0.0 // indirect
 	github.com/pkg/errors v0.8.0 // indirect

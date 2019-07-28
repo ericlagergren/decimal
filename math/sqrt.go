@@ -1,8 +1,6 @@
 package math
 
-import (
-	"github.com/ericlagergren/decimal"
-)
+import "github.com/ericlagergren/decimal"
 
 // Hypot sets z to Sqrt(p*p + q*q) and returns z.
 func Hypot(z, p, q *decimal.Big) *decimal.Big {

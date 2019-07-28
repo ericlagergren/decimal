@@ -1,4 +1,3 @@
-// Package pow implements basic power functions.
 package arith
 
 import (
