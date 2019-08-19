@@ -57,6 +57,10 @@ func roundString(b []byte, mode RoundingMode, pos bool, prec int) []byte {
 		if b[i+1] >= '5' {
 			b[i]++
 		}
+	case ToNearestTowardZero:
+		if b[i+1] > '5' {
+			b[i]++
+		}
 	}
 
 	if b[i] != '9'+1 {
