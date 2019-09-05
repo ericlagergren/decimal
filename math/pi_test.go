@@ -2,9 +2,10 @@ package math
 
 import (
 	"fmt"
-	"github.com/ericlagergren/decimal"
 	"strconv"
 	"testing"
+
+	"github.com/ericlagergren/decimal/v4"
 )
 
 func TestPiChudnovskyBrothers(t *testing.T) {

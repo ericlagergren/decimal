@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ericlagergren/decimal"
+	"github.com/ericlagergren/decimal/v4"
 )
 
 var exp_X, _ = new(decimal.Big).SetString("123.456")

@@ -1,8 +1,8 @@
 package math
 
 import (
-	"github.com/ericlagergren/decimal"
-	"github.com/ericlagergren/decimal/misc"
+	"github.com/ericlagergren/decimal/v4"
+	"github.com/ericlagergren/decimal/v4/misc"
 )
 
 // TODO(eric): Pow(z, x, y, m *decimal.Big) *decimal.Big

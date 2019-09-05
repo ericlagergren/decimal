@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"runtime/debug"
 
-	"github.com/ericlagergren/decimal"
+	"github.com/ericlagergren/decimal/v4"
 )
 
 func Fuzz(data []byte) int {

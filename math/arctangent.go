@@ -3,8 +3,8 @@ package math
 import (
 	stdMath "math"
 
-	"github.com/ericlagergren/decimal"
-	"github.com/ericlagergren/decimal/misc"
+	"github.com/ericlagergren/decimal/v4"
+	"github.com/ericlagergren/decimal/v4/misc"
 )
 
 var sqrt3_3 = decimal.New(577350, 6) // sqrt(3) / 3

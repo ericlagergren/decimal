@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ericlagergren/decimal"
+	"github.com/ericlagergren/decimal/v4"
 )
 
 const (

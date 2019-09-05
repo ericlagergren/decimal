@@ -3,8 +3,8 @@ package decimal
 import (
 	"math/big"
 
-	"github.com/ericlagergren/decimal/internal/arith"
-	cst "github.com/ericlagergren/decimal/internal/c"
+	"github.com/ericlagergren/decimal/v4/internal/arith"
+	cst "github.com/ericlagergren/decimal/v4/internal/c"
 )
 
 func (z *Big) norm() *Big {

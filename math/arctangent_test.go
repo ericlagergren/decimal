@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ericlagergren/decimal"
+	"github.com/ericlagergren/decimal/v4"
 )
 
 func TestAtan(t *testing.T) {

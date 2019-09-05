@@ -4,8 +4,8 @@ import (
 	"math"
 	"math/big"
 
-	"github.com/ericlagergren/decimal/internal/arith"
-	cst "github.com/ericlagergren/decimal/internal/c"
+	"github.com/ericlagergren/decimal/v4/internal/arith"
+	cst "github.com/ericlagergren/decimal/v4/internal/c"
 )
 
 // Add sets z to x + y and returns z.

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/ericlagergren/decimal/internal/c"
+	"github.com/ericlagergren/decimal/v4/internal/c"
 )
 
 func TestBigTen(t *testing.T) {

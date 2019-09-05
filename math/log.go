@@ -1,9 +1,9 @@
 package math
 
 import (
-	"github.com/ericlagergren/decimal"
-	"github.com/ericlagergren/decimal/internal/arith"
-	"github.com/ericlagergren/decimal/internal/c"
+	"github.com/ericlagergren/decimal/v4"
+	"github.com/ericlagergren/decimal/v4/internal/arith"
+	"github.com/ericlagergren/decimal/v4/internal/c"
 )
 
 // Log10 sets z to the common logarithm of x and returns z.

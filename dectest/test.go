@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/ericlagergren/decimal"
-	"github.com/ericlagergren/decimal/math"
-	"github.com/ericlagergren/decimal/misc"
+	"github.com/ericlagergren/decimal/v4"
+	"github.com/ericlagergren/decimal/v4/math"
+	"github.com/ericlagergren/decimal/v4/misc"
 )
 
 func Test(t *testing.T, file string) {

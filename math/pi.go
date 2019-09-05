@@ -3,7 +3,7 @@ package math
 import (
 	"math"
 
-	"github.com/ericlagergren/decimal"
+	"github.com/ericlagergren/decimal/v4"
 )
 
 var (

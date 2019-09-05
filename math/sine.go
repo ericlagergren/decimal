@@ -1,6 +1,6 @@
 package math
 
-import "github.com/ericlagergren/decimal"
+import "github.com/ericlagergren/decimal/v4"
 
 // Sin returns the sine, in radians, of x.
 //

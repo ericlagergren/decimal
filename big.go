@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ericlagergren/decimal/internal/arith"
-	"github.com/ericlagergren/decimal/internal/c"
+	"github.com/ericlagergren/decimal/v4/internal/arith"
+	"github.com/ericlagergren/decimal/v4/internal/c"
 )
 
 // Big is a floating-point, arbitrary-precision decimal.

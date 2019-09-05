@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ericlagergren/decimal"
+	"github.com/ericlagergren/decimal/v4"
 )
 
 func ExampleBig_reversePolishNotationCalculator() {

@@ -3,8 +3,8 @@ package math_test
 import (
 	"fmt"
 
-	"github.com/ericlagergren/decimal"
-	"github.com/ericlagergren/decimal/math"
+	"github.com/ericlagergren/decimal/v4"
+	"github.com/ericlagergren/decimal/v4/math"
 )
 
 type tanGenerator struct {

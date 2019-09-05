@@ -1,9 +1,9 @@
 package math
 
 import (
-	"github.com/ericlagergren/decimal"
-	"github.com/ericlagergren/decimal/internal/arith"
-	"github.com/ericlagergren/decimal/misc"
+	"github.com/ericlagergren/decimal/v4"
+	"github.com/ericlagergren/decimal/v4/internal/arith"
+	"github.com/ericlagergren/decimal/v4/misc"
 )
 
 func prepTan(z, x *decimal.Big, ctx decimal.Context) (*decimal.Big, bool) {
