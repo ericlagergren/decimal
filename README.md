@@ -35,7 +35,7 @@ the [General Decimal Arithmetic](http://speleotrove.com/decimal/) specification.
 
 ## Versioning
 
-`decimal` uses Semantic Versioning. The current version is 3.3.1.
+`decimal` uses Semantic Versioning. The current version is 4.0.0.
 
 `decimal` only explicitly supports the two most recent major Go 1.X versions.
 
