@@ -152,12 +152,13 @@ type RoundingMode uint8
 
 // The following rounding modes are supported.
 const (
-	ToNearestEven RoundingMode = iota // == IEEE 754-2008 roundTiesToEven
-	ToNearestAway                     // == IEEE 754-2008 roundTiesToAway
-	ToZero                            // == IEEE 754-2008 roundTowardZero
-	AwayFromZero                      // no IEEE 754-2008 equivalent
-	ToNegativeInf                     // == IEEE 754-2008 roundTowardNegative
-	ToPositiveInf                     // == IEEE 754-2008 roundTowardPositive
+	ToNearestEven       RoundingMode = iota // == IEEE 754-2008 roundTiesToEven
+	ToNearestAway                           // == IEEE 754-2008 roundTiesToAway
+	ToZero                                  // == IEEE 754-2008 roundTowardZero
+	AwayFromZero                            // no IEEE 754-2008 equivalent
+	ToNegativeInf                           // == IEEE 754-2008 roundTowardNegative
+	ToPositiveInf                           // == IEEE 754-2008 roundTowardPositive
+	ToNearestTowardZero                     // no IEEE 754-2008 equivalent
 
 	unnecessary // placeholder for x / y with UnlimitedPrecision.
 )
@@ -185,6 +186,8 @@ func (m RoundingMode) needsInc(odd bool, r int, pos bool) bool {
 		return odd
 	case ToNearestAway:
 		return r >= 0
+	case ToNearestTowardZero:
+		return r > 0
 	default:
 		return false
 	}

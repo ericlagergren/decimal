@@ -33,7 +33,7 @@ func (c Context) fix(z *Big) *Big {
 		}
 
 		switch m := c.RoundingMode; m {
-		case ToNearestAway, ToNearestEven:
+		case ToNearestAway, ToNearestEven, ToNearestTowardZero:
 			z.SetInf(z.Signbit())
 		case AwayFromZero:
 			// OK
