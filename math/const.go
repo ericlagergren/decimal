@@ -77,8 +77,6 @@ func pi(z *decimal.Big, ctx decimal.Context) *decimal.Big {
 	if ctx.Precision <= constPrec {
 		return ctx.Set(z, _Pi)
 	}
-
-	//else we return a new pi const
 	return piChudnovskyBrothers(z, ctx)
 }
 
