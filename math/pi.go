@@ -1,8 +1,9 @@
 package math
 
 import (
-	"github.com/ericlagergren/decimal"
 	"math"
+
+	"github.com/ericlagergren/decimal"
 )
 
 var (
@@ -12,32 +13,6 @@ var (
 	_545140134         = decimal.New(545140134, 0)
 	_10939058860032000 = decimal.New(10939058860032000, 0)
 )
-
-/*
-piChudnovskyBrothers() return PI using binary splitting on the series definition of
-Chudnovsky Brothers
-
-                426880*sqrt(10005)
-	Pi = --------------------------------
-		  13591409*aSum + 545140134*bSum
-
-	where
-		           24(6n-5)(2n-1)(6n-1)
-			a_n = ----------------------
-					 (640320^3)*n^3
-
-	and
-			 aSum = sum_(n=0)^n a_n
-			 bSum = sum_(n=0)^n a_n*n
-
-
-
-a(n) = 1,
-b(n) = 1,
-p(0) = 1, p(n) = (13591409 + 545140134n)(5 − 6n)(2n − 1)(6n − 1),
-q(0) = 1, q(n) = (n^3)(640320^3)/24 for n > 0
-
-*/
 
 func getPiA(ctx decimal.Context) func(n uint64) *decimal.Big {
 	return func(n uint64) *decimal.Big {
@@ -97,13 +72,13 @@ func getPiQ(ctx decimal.Context) func(n uint64) *decimal.Big {
 		}
 
 		var nn, tmp decimal.Big
-		//when n is super small we can be super fast
+		// When n is super small we can be super fast.
 		if n < 12 {
 			tmp.SetUint64(n * n * n * 10939058860032000)
 			return &tmp
 		}
 
-		// and until bit larger we can still speed up a portion
+		// And until bit larger we can still speed up a portion.
 		if n < 2642246 {
 			tmp.SetUint64(n * n * n)
 		} else {
@@ -117,21 +92,42 @@ func getPiQ(ctx decimal.Context) func(n uint64) *decimal.Big {
 	}
 }
 
+// piChudnovskyBrothers calculates PI using binary splitting on the series
+// definition of the Chudnovsky Brothers' algorithm for computing pi.
+//
+//                426880*sqrt(10005)
+//    Pi = --------------------------------
+// 		    13591409*aSum + 545140134*bSum
+//
+//    where
+// 		           24(6n-5)(2n-1)(6n-1)
+// 			a_n = ----------------------
+// 					 (640320^3)*n^3
+//
+//    and
+// 			aSum = sum_(n=0)^n a_n
+// 			bSum = sum_(n=0)^n a_n*n
+//
+//    a(n) = 1,
+//    b(n) = 1,
+//    p(0) = 1, p(n) = (13591409 + 545140134n)(5 − 6n)(2n − 1)(6n − 1),
+//    q(0) = 1, q(n) = (n^3)(640320^3)/24 for n > 0
+//
 func piChudnovskyBrothers(z *decimal.Big, ctx decimal.Context) *decimal.Big {
-	//since this algorithm's rate of convergence is static calculating the number of
-	// iteration required will always be faster than the dynamic method of binarysplit
+	// Since this algorithm's rate of convergence is static, calculating the
+	// number of iteration required will always be faster than the dynamic
+	// method of binarysplit.
+
+	calcPrec := ctx.Precision + 16
+	niters := uint64(math.Ceil(float64(calcPrec)/14)) + 1
+	ctx2 := decimal.Context{Precision: calcPrec}
+
 	var value decimal.Big
-	extraPrecision := 16
-	calculatingPrecision := ctx.Precision + extraPrecision
-	iterationNeeded := uint64(math.Ceil(float64(calculatingPrecision/14.0))) + 1
-	ctx2 := decimal.Context{Precision: calculatingPrecision}
+	BinarySplit(&value, ctx2, 0, niters, getPiA(ctx2), getPiP(ctx2), getPiB(), getPiQ(ctx2))
+	s := Sqrt(decimal.WithPrecision(calcPrec), _10005)
 
 	var tmp decimal.Big
-
-	BinarySplit(&value, ctx2, 0, iterationNeeded, getPiA(ctx2), getPiP(ctx2), getPiB(), getPiQ(ctx2))
-	s := Sqrt(decimal.WithPrecision(calculatingPrecision), _10005)
 	ctx2.Mul(&tmp, _426880, s)
 	ctx2.Quo(z, &tmp, &value)
-
 	return z.Round(ctx.Precision)
 }
