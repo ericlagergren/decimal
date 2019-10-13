@@ -64,7 +64,7 @@ func MulPow10(x uint64, n uint64) (uint64, bool) {
 		// 0 * 10^n = 0.
 		return 0, x == 0
 	}
-	hi, lo := Mul64(x, p)
+	hi, lo := bits.Mul64(x, p)
 	return lo, hi == 0
 }
 
@@ -124,6 +124,21 @@ func norm(z []big.Word) []big.Word {
 		i--
 	}
 	return z[0:i]
+}
+
+func mulWW(x, y big.Word) (z1, z0 big.Word) {
+	zz1, zz0 := bits.Mul(uint(x), uint(y))
+	return big.Word(zz1), big.Word(zz0)
+}
+
+func addWW(x, y, c big.Word) (z1, z0 big.Word) {
+	zz1, zz0 := bits.Add(uint(x), uint(y), uint(c))
+	return big.Word(zz0), big.Word(zz1)
+}
+
+func subWW(x, y, c big.Word) (z1, z0 big.Word) {
+	zz1, zz0 := bits.Sub(uint(x), uint(y), uint(c))
+	return big.Word(zz0), big.Word(zz1)
 }
 
 func mulAddWW(z, x []big.Word, y, r big.Word) []big.Word {

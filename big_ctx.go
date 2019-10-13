@@ -3,6 +3,7 @@ package decimal
 import (
 	"math"
 	"math/big"
+	"math/bits"
 
 	"github.com/ericlagergren/decimal/internal/arith"
 	cst "github.com/ericlagergren/decimal/internal/c"
@@ -167,7 +168,7 @@ func (c Context) addCompact(z *Big, X0 uint64, Xsign form, Y uint64, Ysign form,
 
 	// If the signs are the same, then X + Y = ℤ≠0.
 	if Ysign == Xsign {
-		if sum, c := arith.Add64(X, Y); c == 0 {
+		if sum, c := bits.Add64(X, Y, 0); c == 0 {
 			z.compact = sum
 			if sum == cst.Inflated {
 				z.unscaled.SetUint64(cst.Inflated)
@@ -184,7 +185,7 @@ func (c Context) addCompact(z *Big, X0 uint64, Xsign form, Y uint64, Ysign form,
 	sign := Xsign
 	// X + (-Y) == X - Y == -(Y - X)
 	// (-X) + Y == Y - X == -(X - Y)
-	diff, b := arith.Sub64(X, Y)
+	diff, b := bits.Sub64(X, Y, 0)
 	if b != 0 {
 		sign ^= signbit
 		diff = Y - X
@@ -328,7 +329,7 @@ func (c Context) mul(z, x, y *Big) *Big {
 		// Multiplication is simple, so inline it.
 		if x.isCompact() {
 			if y.isCompact() {
-				hi, lo := arith.Mul64(x.compact, y.compact)
+				hi, lo := bits.Mul64(x.compact, y.compact)
 				if hi == 0 {
 					z.compact = lo
 					if lo == cst.Inflated {
@@ -588,7 +589,7 @@ func (z *Big) quo(m RoundingMode, x uint64, xneg form, y uint64, yneg form) bool
 	}
 
 	rc := 1
-	if hi, lo := arith.Mul64(r, 2); hi == 0 {
+	if hi, lo := bits.Mul64(r, 2); hi == 0 {
 		rc = arith.Cmp(lo, y)
 	}
 

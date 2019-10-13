@@ -63,6 +63,7 @@ var (
 	_ fmt.Stringer             = (*Big)(nil)
 	_ json.Unmarshaler         = (*Big)(nil)
 	_ encoding.TextUnmarshaler = (*Big)(nil)
+	_ decomposer               = (*Big)(nil)
 )
 
 // form indicates whether a decimal is a finite number, an infinity, or a nan
@@ -185,10 +186,12 @@ var _ error = ErrNaN{}
 //    'Z': same as 'G', but with trailing zeros and trailing decimal point
 //
 // Note that 'z' and 'Z' are analogous to the ``fmt'' package's verb-flag
-// combinations %#g and %#G, respectively.
+// combinations %#g and %#G, respectively. Because they're non-standard, 'z' and
+// 'Z' may be removed or have their meaning changed depending on changes made to
+// the ``fmt'' package.
 //
-// For every format except 'g' and 'G', the precision is the number of digits
-// following the radix. For 'g' and 'G', however, the precision is the number of
+// For every format the precision is the number of digits following the radix,
+// except in the case of 'g' and 'G' where the precision is the number of
 // significant digits.
 func (x *Big) Append(buf []byte, fmt byte, prec int) []byte {
 	if x == nil {
@@ -282,7 +285,9 @@ func fmtE(buf []byte, fmt byte, adj, prec int, dec []byte) []byte {
 }
 
 func fmtF(buf []byte, strip bool, exp, prec int, dec []byte) []byte {
-	fmt.Printf("exp:%d, prec:%d, r:%d, n:%d, dec:%s\n", exp, prec, exp+len(dec), len(dec), dec)
+	fmt.Printf("exp:%d, prec:%d, r:%d, n:%d, dec:%s\n",
+		exp, prec, exp+len(dec), len(dec), dec)
+
 	if exp >= 0 {
 		buf = append(buf, dec...)
 		buf = appendZeros(buf, exp-len(dec))
@@ -760,7 +765,8 @@ func (x *Big) Float(z *big.Float) *big.Float {
 // appropriately.
 //
 // When used in conjunction with any of the recognized verbs, Format honors all
-// flags in the manner described for floating point numbers in the``fmt'' package.
+// flags in the manner described for floating point numbers in the ``fmt''
+// package.
 //
 // The default precision for %e, %f, and %g is the decimal's current precision.
 //
@@ -788,11 +794,11 @@ func (x *Big) Format(s fmt.State, c rune) {
 	case 's', 'd':
 		c = 'g'
 	case 'v':
+		// Handle %#v as a special case.
 		if !s.Flag('#') {
 			c = 'g'
 			break
 		}
-		// Handle %#v specially.
 		fallthrough
 	default:
 		type Big struct {

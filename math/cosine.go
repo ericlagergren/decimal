@@ -1,7 +1,7 @@
 package math
 
 import (
-	stdMath "math"
+	"math"
 	"math/bits"
 
 	"github.com/ericlagergren/decimal"
@@ -32,13 +32,13 @@ func prepCosine(z, x *decimal.Big, ctx decimal.Context) (*decimal.Big, int, bool
 		// Adjust so we have ceil(v/10) + ctx.Precision, but check for overflows.
 		// 1+((v-1)/10) will be wildly incorrect for v == 0, but x/y = 0 iff
 		// x = 0 and y != 0. In this case, -2pi <= x >= 2pi, so we're fine.
-		prec, c := arith.Add64(1+((uv-1)/10), uint64(ctx.Precision))
+		prec, c := bits.Add64(1+((uv-1)/10), uint64(ctx.Precision), 0)
 		if c != 0 || prec > maxInt {
 			return nil, 0, false
 		}
 		pctx := decimal.Context{Precision: int(prec)}
 
-		if uv <= stdMath.MaxInt64/2 {
+		if uv <= math.MaxInt64/2 {
 			tmp.SetMantScale(v, 0)
 		}
 
@@ -71,9 +71,9 @@ func prepCosine(z, x *decimal.Big, ctx decimal.Context) (*decimal.Big, int, bool
 	// We only need to do the calculation if xf >= 0.0004. Anything below that
 	// and we're <= 0.
 	var halved int
-	if xf = stdMath.Abs(xf); xf >= 0.0004 {
+	if xf = math.Abs(xf); xf >= 0.0004 {
 		// Originally: ceil(log(xf/0.0048828125) / ln2)
-		halved = int(stdMath.Ceil(1.4427*stdMath.Log(xf) + 11))
+		halved = int(math.Ceil(1.4427*math.Log(xf) + 11))
 		// The general case is halved > 0, since we only get 0 if xf is very
 		// close to 0.0004.
 		if halved > 0 {
