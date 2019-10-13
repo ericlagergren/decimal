@@ -1,14 +1,11 @@
-package math_test
+package math
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/ericlagergren/decimal"
 )
-
-var gB *decimal.Big
-
-var _E, _ = new(decimal.Big).SetString("2.718281828459045235360287471352662497757247093699959574966967627724076630353547594571382178525166427")
 
 // Test whether Set or Scan is faster for setting constants.
 
@@ -31,4 +28,16 @@ func BenchmarkScan(b *testing.B) {
 		lB.SetString(e[:i%100])
 	}
 	gB = &lB
+}
+
+func BenchmarkPi(b *testing.B) {
+	for _, prec := range benchPrecs {
+		b.Run(fmt.Sprintf("%d", prec), func(b *testing.B) {
+			z := decimal.WithPrecision(prec)
+			for j := 0; j < b.N; j++ {
+				Pi(z)
+			}
+			gB = z
+		})
+	}
 }

@@ -14,12 +14,13 @@ func _() {
 	_ = x[AwayFromZero-3]
 	_ = x[ToNegativeInf-4]
 	_ = x[ToPositiveInf-5]
-	_ = x[unnecessary-6]
+	_ = x[ToNearestTowardZero-6]
+	_ = x[unnecessary-7]
 }
 
-const _RoundingMode_name = "ToNearestEvenToNearestAwayToZeroAwayFromZeroToNegativeInfToPositiveInfunnecessary"
+const _RoundingMode_name = "ToNearestEvenToNearestAwayToZeroAwayFromZeroToNegativeInfToPositiveInfToNearestTowardZerounnecessary"
 
-var _RoundingMode_index = [...]uint8{0, 13, 26, 32, 44, 57, 70, 81}
+var _RoundingMode_index = [...]uint8{0, 13, 26, 32, 44, 57, 70, 89, 100}
 
 func (i RoundingMode) String() string {
 	if i >= RoundingMode(len(_RoundingMode_index)-1) {

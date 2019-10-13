@@ -81,6 +81,7 @@ var decRoundingModes = map[RoundingMode]decimal.RoundingMode{
 	Floor:    decimal.ToNegativeInf,
 	HalfEven: decimal.ToNearestEven,
 	HalfUp:   decimal.ToNearestAway,
+	HalfDown: decimal.ToNearestTowardZero,
 }
 
 var decConditions = map[Condition]decimal.Condition{

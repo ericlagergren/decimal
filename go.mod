@@ -8,3 +8,5 @@ require (
 	github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24
 	gopkg.in/inf.v0 v0.9.1
 )
+
+go 1.13
