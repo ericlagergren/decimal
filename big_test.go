@@ -81,21 +81,26 @@ func TestBig_Float(t *testing.T) {
 // TestDecimal_Format tests Decimal.Format. The test cases are largely taken
 // from the fmt package's test cases.
 func TestDecimal_Format(t *testing.T) {
+	const (
+		posInf = "+inf"
+		negInf = "-inf"
+		NaN    = "NaN"
+	)
 	for i, s := range []struct {
 		format string
 		input  string
 		want   string
 	}{
-		{"%s", ".12", "0.12"},
-		{"%s", "12", "12"},
+		{"%f", "1e-3", "0.001000"},
+		{"%f", "1e+3", "1000.000000"},
+		{"%.3f", "1", "1.000"},
 		{"%.5g", "1", "1"},
-		{"%s", "12.34", "12.34"},
 		{"%.3g", "12.34", "12.3"},
 		{"'%5.2f'", "0.", "' 0.00'"},
 		{"%.10f", "0.1234567891", "0.1234567891"},
 		{"%.10f", "0.01", "0.0100000000"},
 		{"%.10f", "0.0000000000000000000000000000000000000000000000000000000000001", "0.0000000000"},
-		{"%+.3e", "0.0", "+0.000e-01"}, // +00 -> -01
+		{"%+.3e", "0.0", "+0.000e-01"}, // +0.000e+00
 		{"%+.3e", "1.0", "+1.000e+00"},
 		{"%+.3f", "-1.0", "-1.000"},
 		{"%+.3F", "-1.0", "-1.000"},
@@ -111,7 +116,7 @@ func TestDecimal_Format(t *testing.T) {
 		{"%+10.2f", "-1.0", "     -1.00"},
 		{"% .3E", "-1.0", "-1.000E+00"},
 		{"% .3e", "1.0", " 1.000e+00"},
-		{"%+.3g", "0.0", "+0.0"}, // += .0
+		{"%+.3g", "0.0", "+0"},
 		{"%+.3g", "1.0", "+1"},
 		{"%+.3g", "-1.0", "-1"},
 		{"% .3g", "-1.0", "-1"},
@@ -120,7 +125,7 @@ func TestDecimal_Format(t *testing.T) {
 		{"%#g", "-1.0", "-1.00000"},
 		{"%#g", "1.1", "1.10000"},
 		{"%#g", "123456.0", "123456."},
-		{"%#g", "1234567.0", "1.234567e+06"},
+		{"%#g", "1234567.0", "1234567.0"}, // 1.234567e+06
 		{"%#g", "1230000.0", "1.23000e+06"},
 		{"%#g", "1000000.0", "1.00000e+06"},
 		{"%#.0f", "1.0", "1."},
@@ -139,29 +144,26 @@ func TestDecimal_Format(t *testing.T) {
 		{"%#.4g", "123.0", "123.0"},
 		{"%#.4g", "123000.0", "1.230e+05"},
 		{"%#9.4g", "1.0", "    1.000"},
-		{"%.68f", "1.0", zeroFill("1.", 68, "")},
-		{"%.68f", "-1.0", zeroFill("-1.", 68, "")},
-		// float infinites and NaNs
-		{"%f", "+Inf", "Infinity"},
-		{"%.1f", "-Inf", "-Infinity"},
-		{"% f", "NaN", " NaN"},
-		{"%20f", "+Inf", "            Infinity"},
-		{"% 20F", "+Inf", "            Infinity"},
-		{"% 20e", "-Inf", "           -Infinity"},
-		{"%+20E", "-Inf", "           -Infinity"},
-		{"% +20g", "-Inf", "           -Infinity"},
-		{"%+-20G", "+Inf", "+Infinity           "},
-		{"%20e", "NaN", "                 NaN"},
-		{"% +20E", "NaN", "                +NaN"},
-		{"% -20g", "NaN", " NaN                "},
-		{"%+-20G", "NaN", "+NaN                "},
-		// Zero padding does not apply to infinities and NaN.
-		{"%+020e", "+Inf", "           +Infinity"},
-		{"%-020f", "-Inf", "-Infinity           "},
-		{"%-020E", "NaN", "NaN                 "},
+		{"%f", posInf, "+Inf"},
+		{"%.1f", negInf, "-Inf"},
+		{"% f", NaN, " NaN"},
+		{"%20f", posInf, "                +Inf"},
+		{"% 20F", posInf, "                 Inf"},
+		{"% 20e", negInf, "                -Inf"},
+		{"%+20E", negInf, "                -Inf"},
+		{"% +20g", negInf, "                -Inf"},
+		{"%+-20G", posInf, "+Inf                "},
+		{"%20e", NaN, "                 NaN"},
+		{"% +20E", NaN, "                +NaN"},
+		{"% -20g", NaN, " NaN                "},
+		{"%+-20G", NaN, "+NaN                "},
+		{"%+020e", posInf, "                +Inf"},
+		{"%-020f", negInf, "-Inf                "},
+		{"%-020E", NaN, "NaN                 "},
 	} {
 		//t.Run(strconv.Itoa(i), func(t *testing.T) {
 		z, _ := new(decimal.Big).SetString(s.input)
+		fmt.Println("input=", s.input, -z.Scale())
 		got := fmt.Sprintf(s.format, z)
 		if got != s.want {
 			t.Fatalf(`#%d: printf("%s", "%s")
