@@ -559,7 +559,7 @@ func (x *Big) Float(z *big.Float) *big.Float {
 //
 // %+v, %#v, %T, %#p, and %p all honor the formats specified in the fmt
 // package's documentation.
-func (x *Big) Format(s fmt.State, c rune) {
+func (x Big) Format(s fmt.State, c rune) {
 	if debug {
 		x.validate()
 	}
@@ -606,7 +606,7 @@ func (x *Big) Format(s fmt.State, c rune) {
 	const noE = 0
 	switch c {
 	case 's', 'd':
-		f.format(x, normal, e)
+		f.format(&x, normal, e)
 	case 'q':
 		// The fmt package's docs specify that the '+' flag
 		// "guarantee[s] ASCII-only output for %q (%+q)"
@@ -619,10 +619,10 @@ func (x *Big) Format(s fmt.State, c rune) {
 			quote = '`'
 		}
 		f.WriteByte(quote)
-		f.format(x, normal, e)
+		f.format(&x, normal, e)
 		f.WriteByte(quote)
 	case 'e', 'E':
-		f.format(x, sci, byte(c))
+		f.format(&x, sci, byte(c))
 	case 'f', 'F':
 		if !hasPrec {
 			prec = 0
@@ -639,16 +639,16 @@ func (x *Big) Format(s fmt.State, c rune) {
 			}
 		}
 
-		f.format(x, plain, noE)
+		f.format(&x, plain, noE)
 	case 'g', 'G':
 		// %g's precision means "number of significant digits"
-		f.format(x, plain, noE)
+		f.format(&x, plain, noE)
 
 	// Make sure we return from the following two cases.
 	case 'v':
 		// %v == %s
 		if !hash && !plus {
-			f.format(x, normal, e)
+			f.format(&x, normal, e)
 			break
 		}
 
@@ -676,7 +676,7 @@ func (x *Big) Format(s fmt.State, c rune) {
 		} else if space {
 			specs += " "
 		}
-		fmt.Fprintf(s, "%"+specs+"v", (*Big)(x))
+		fmt.Fprintf(s, "%"+specs+"v", Big(x))
 		return
 	default:
 		fmt.Fprintf(s, "%%!%c(*decimal.Big=%s)", c, x.String())
@@ -871,12 +871,9 @@ func (x *Big) IsInt() bool {
 }
 
 // MarshalText implements encoding.TextMarshaler.
-func (x *Big) MarshalText() ([]byte, error) {
+func (x Big) MarshalText() ([]byte, error) {
 	if debug {
 		x.validate()
-	}
-	if x == nil {
-		return []byte("<nil>"), nil
 	}
 	var (
 		b = new(bytes.Buffer)
@@ -884,7 +881,7 @@ func (x *Big) MarshalText() ([]byte, error) {
 		e = sciE[x.Context.OperatingMode]
 	)
 	b.Grow(x.Precision())
-	f.format(x, normal, e)
+	f.format(&x, normal, e)
 	return b.Bytes(), nil
 }
 
@@ -1372,17 +1369,14 @@ func (x *Big) Signbit() bool {
 // String returns the string representation of x. It's equivalent to the %s verb
 // discussed in the Format method's documentation. Special cases depend on the
 // OperatingMode.
-func (x *Big) String() string {
-	if x == nil {
-		return "<nil>"
-	}
+func (x Big) String() string {
 	var (
 		b = new(strings.Builder)
 		f = formatter{w: b, prec: x.Precision(), width: noWidth}
 		e = sciE[x.Context.OperatingMode]
 	)
 	b.Grow(x.Precision())
-	f.format(x, normal, e)
+	f.format(&x, normal, e)
 	return b.String()
 }
 
