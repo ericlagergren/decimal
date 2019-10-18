@@ -30,7 +30,7 @@ before_script:
   - ./testdata/dectest/generate.bash
   - ./testdata/pytables/generate.bash
   - GO_FILES=$(find . -type f -iname '*.go')
-  - go get -u -t ./...
+  - go mod download
 
 script:
   - test -z $(gofmt -s -l $GO_FILES)
