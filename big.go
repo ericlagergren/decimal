@@ -211,30 +211,77 @@ func (x *Big) Append(buf []byte, fmt byte, prec int) []byte {
 		dec = x.unscaled.Append(dec[:0], 10)
 	}
 
+	// Normalize x such that 0 <= x < 1.
+	//
+	//    actual     decimal        normalized      exp+len
+	//    ---------- -------------- --------------- ---------
+	//    123400     1234*10^2      0.1234*10^6      2+4=6
+	//    12340      1234*10^1      0.1234*10^5      1+4=5
+	//    1234       1234*10^0      0.1234*10^4      0+4=4
+	//    1234.0     12340*10^-1    0.12340*10^4    -1+5=4
+	//    1234.00    123400*10^-2   0.123400*10^4   -2+6=4
+	//    123.4      1234*10^-1     0.1234*10^3     -1+4=3
+	//    12.34      1234*10^-2     0.1234*10^2     -2+4=2
+	//    1.234      1234*10^-3     0.1234*10^1     -3+4=1
+	//    1.0        10*10-1        0.10*10^1       -1+2=1
+	//    0.0        00*10^-1       0.00*10^1       -1+2=1
+	//    0.1234     1234*10^-4     0.1234*10^0     -4+4=0
+	//    0.001234   1234*10^-5     0.1234*10^-1    -5+4=-1
+	//
+	norm := x.exp + len(dec)
+
 	if prec < 0 {
-		prec = len(dec)
+		dec = roundShortest(dec, norm)
+		switch fmt {
+		case 'e', 'E':
+			prec = len(dec) - 1
+		case 'f', 'F':
+			prec = max(len(dec)-norm, 0)
+		case 'g', 'G':
+			prec = len(dec)
+		}
+	} else {
+		switch fmt {
+		case 'e', 'E':
+			dec = round(dec, 1+prec)
+		case 'f', 'F':
+			dec = round(dec, len(dec)+norm+prec)
+		case 'g', 'G':
+			if prec == 0 {
+				prec = 1
+			}
+			dec = round(dec, prec)
+		}
 	}
 
 	switch fmt {
 	case 'g', 'G':
-		// "Next, the adjusted exponent is calculated; this is the exponent, plus
-		// the number of characters in the converted coefficient, less one. That
-		// is, exponent+(clength-1), where clength is the length of the coefficient
-		// in decimal digits.
-		adj := x.exp + (len(dec) - 1)
-		// "If the exponent is less than or equal to zero and the adjusted
-		// exponent is greater than or equal to -6 the number will be converted
-		// to a character form without using exponential notation."
+		// Decide whether to use regular or exponential notation.
+		//
+		//    Next, the adjusted exponent is calculated; this is the exponent,
+		//    plus the number of characters in the converted coefficient, less
+		//    one. That is, exponent+(clength-1), where clength is the length of
+		//    the coefficient in decimal digits.
+		//
+		//    If the exponent is less than or equal to zero and the adjusted
+		//    exponent is greater than or equal to -6 the number will be converted
+		//    to a character form without using exponential notation.
 		//
 		// - http://speleotrove.com/decimal/daconvs.html#reftostr
-		if x.exp <= 0 && adj >= -6 {
-			return fmtG(buf, x.exp, prec, dec)
+		if -6 <= norm-1 && x.exp <= 0 {
+			if prec > norm {
+				prec = len(dec)
+			}
+			return fmtF(buf, max(prec-norm, 0), dec, norm)
 		}
-		return fmtE(buf, fmt+'e'-'g', adj, prec-1, dec)
+		if prec > len(dec) {
+			prec = len(dec)
+		}
+		return fmtE(buf, fmt+'e'-'g', prec-1, dec, norm)
 	case 'e', 'E':
-		return fmtE(buf, fmt, x.exp+(len(dec)-1), prec, dec)
+		return fmtE(buf, fmt, prec, dec, norm)
 	case 'f', 'F':
-		return fmtF(buf, x.exp, prec, dec)
+		return fmtF(buf, prec, dec, norm)
 	default:
 		if neg {
 			buf = buf[:len(buf)-1]
@@ -243,98 +290,88 @@ func (x *Big) Append(buf []byte, fmt byte, prec int) []byte {
 	}
 }
 
-func printf(s string, args ...interface{}) {
-	fmt.Printf(s, args...)
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
-func fmtE(buf []byte, fmt byte, adj, prec int, dec []byte) []byte {
-	printf("E adj:%d, prec:%d, r:%d, n:%d, dec:%s\n", adj, prec, adj+len(dec), len(dec), dec)
+func round(dec []byte, n int) []byte {
+	// TODO(eric): actually round
+	if n < 0 || n >= len(dec) {
+		return dec
+	}
+	return dec[:n]
+}
 
-	buf = append(buf, dec[0])
+func roundShortest(dec []byte, exp int) []byte {
+	// exp < 0        : 0.[000]ddd
+	// exp >= len(dec): ddddd
+	if exp < 0 || exp >= len(dec) {
+		return dec
+	}
+	i := len(dec) - 1
+	for i >= len(dec)-exp {
+		if dec[i] != '0' {
+			break
+		}
+		i--
+	}
+	return dec[:i+1]
+}
+
+func fmtE(buf []byte, fmt byte, prec int, dec []byte, exp int) []byte {
+	if len(dec) > 0 {
+		buf = append(buf, dec[0])
+	} else {
+		buf = append(buf, '0')
+	}
 	if prec > 0 {
 		buf = append(buf, '.')
-		buf = appendPad(buf, dec[1:], prec)
+		i := 1
+		m := min(len(dec), prec+1)
+		if i < m {
+			buf = append(buf, dec[i:m]...)
+			i = m
+		}
+		buf = appendZeros(buf, prec-i+1) // i <= prec
+	}
+
+	if len(dec) > 0 {
+		exp--
 	}
 	buf = append(buf, fmt)
-	if adj >= 0 {
-		buf = append(buf, '+')
-	} else {
+	if exp < 0 {
 		buf = append(buf, '-')
-		adj = -adj
+		exp = -exp
+	} else {
+		buf = append(buf, '+')
 	}
-	if adj < 10 {
+	if exp < 10 {
 		buf = append(buf, '0') // 01, 02, ..., 09
 	}
-	return strconv.AppendUint(buf, uint64(adj), 10) // adj >= 0
+	return strconv.AppendUint(buf, uint64(exp), 10) // exp >= 0
 }
 
-func fmtF(buf []byte, exp, prec int, dec []byte) []byte {
-	fmt.Printf("F exp:%d, prec:%d, r:%d, n:%d, dec:%s\n", exp, prec, exp+len(dec), len(dec), dec)
-
-	switch radix := len(dec) + exp; {
-	// ddddd.
-	case exp >= 0:
-		buf = append(buf, dec...)
-		buf = appendZeros(buf, exp)
-		if prec > 0 {
-			buf = append(buf, '.')
-			buf = appendZeros(buf, prec)
-		}
-	// d.ddddd
-	case radix > 0:
-		buf = append(buf, dec[:radix]...)
-		buf = append(buf, '.')
-		buf = appendPad(buf, dec[radix:], prec)
-	// 0.000dd or 0.ddddd
-	default:
-		buf = append(buf, "0."...)
-		m := min(-radix, prec)
-		buf = appendZeros(buf, m)
-		if m < prec {
-			buf = append(buf, dec...)
-			buf = appendZeros(buf, prec-(m+len(dec)))
-		}
-	}
-	return buf
-}
-
-func fmtG(buf []byte, exp, prec int, dec []byte) []byte {
-	fmt.Printf("G exp:%d, prec:%d, r:%d, n:%d, dec:%s\n", exp, prec, exp+len(dec), len(dec), dec)
-
-	if n := len(dec) - prec; n > 0 {
-		dec = dec[:prec]
-		exp += n
-		fmt.Println(n)
-	}
-
-	fmt.Printf("G exp:%d, prec:%d, r:%d, n:%d, dec:%s\n", exp, prec, exp+len(dec), len(dec), dec)
-
-	switch radix := len(dec) + exp; {
-	// ddddd.
-	case exp >= 0:
-		buf = append(buf, dec...)
-	// d.ddddd
-	case radix > 0:
-		buf = append(buf, dec[:radix]...)
-		buf = append(buf, '.')
-		buf = append(buf, dec[radix:]...)
-	// 0.000dd or 0.ddddd
-	default:
-		buf = append(buf, "0."...)
-		buf = appendZeros(buf, -radix)
-		buf = append(buf, dec...)
-	}
-	return buf
-}
-
-// appendPad appends x up to x[:prec] to buf, right-padding with '0's if
-// len(x) < prec.
-func appendPad(buf, x []byte, prec int) []byte {
-	if n := prec - len(x); n > 0 {
-		buf = append(buf, x...)
-		buf = appendZeros(buf, n)
+func fmtF(buf []byte, prec int, dec []byte, exp int) []byte {
+	if exp > 0 {
+		m := min(len(dec), exp)
+		buf = append(buf, dec[:m]...)
+		buf = appendZeros(buf, exp-m)
 	} else {
-		buf = append(buf, x[:prec]...)
+		buf = append(buf, '0')
+	}
+
+	if prec > 0 {
+		buf = append(buf, '.')
+		for i := 0; i < prec; i++ {
+			c := byte('0')
+			if j := i + exp; 0 <= j && j < len(dec) {
+				c = dec[j]
+			}
+			buf = append(buf, c)
+		}
 	}
 	return buf
 }
@@ -794,7 +831,6 @@ func (x *Big) Format(s fmt.State, c rune) {
 		sign = " "
 	}
 
-	println(string(buf))
 	// Sharp flag requires a decimal point.
 	if s.Flag('#') {
 		digits := prec
@@ -821,13 +857,6 @@ func (x *Big) Format(s fmt.State, c rune) {
 			buf = append(buf, '0')
 		}
 		buf = append(buf, tail...)
-	} else if c == 'g' || c == 'G' {
-		for i := len(buf) - 1; i > 0; i-- {
-			if buf[i] != '0' && buf[i] != '.' {
-				break
-			}
-			buf = buf[:i]
-		}
 	}
 
 	var padding int
