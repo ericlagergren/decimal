@@ -345,3 +345,14 @@ got   : %g
 }
 
 func isSpecial(f float64) bool { return math.IsInf(f, 0) || math.IsNaN(f) }
+
+func TestBig_Format(t *testing.T) {
+	x, _ := new(decimal.Big).SetString("200.0")
+	x.Reduce()
+
+	y := fmt.Sprintf("%.2f", x)
+
+	if y != "200.00" {
+		t.Fatalf("want 200.00 but had %s", y)
+	}
+}

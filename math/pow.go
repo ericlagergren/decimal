@@ -54,7 +54,7 @@ func Pow(z, x, y *decimal.Big) *decimal.Big {
 		return z.SetUint64(1)
 	}
 
-	if x.Cmp(ptFive) == 0 {
+	if y.Cmp(ptFive) == 0 {
 		// x ** 0.5 = sqrt(x)
 		return Sqrt(z, x)
 	}
