@@ -64,8 +64,8 @@ func TestDecomposerCompose(t *testing.T) {
 		{N: "Zero", S: "0", Coef: nil, Exp: 0},
 		{N: "Normal-1", S: "123.456", Coef: []byte{0x01, 0xE2, 0x40}, Exp: -3},
 		{N: "Neg-1", S: "-123.456", Neg: true, Coef: []byte{0x01, 0xE2, 0x40}, Exp: -3},
-		{N: "PosExp-1", S: "123456000", Coef: []byte{0x01, 0xE2, 0x40}, Exp: 3},
-		{N: "PosExp-2", S: "-123456000", Neg: true, Coef: []byte{0x01, 0xE2, 0x40}, Exp: 3},
+		{N: "PosExp-1", S: "1.23456e+08", Coef: []byte{0x01, 0xE2, 0x40}, Exp: 3},
+		{N: "PosExp-2", S: "-1.23456e+08", Neg: true, Coef: []byte{0x01, 0xE2, 0x40}, Exp: 3},
 		{N: "AllDec-1", S: "0.123456", Coef: []byte{0x01, 0xE2, 0x40}, Exp: -6},
 		{N: "AllDec-2", S: "-0.123456", Neg: true, Coef: []byte{0x01, 0xE2, 0x40}, Exp: -6},
 		{N: "NaN-1", S: "NaN", Form: 2},
@@ -90,7 +90,7 @@ func TestDecomposerCompose(t *testing.T) {
 				}
 				return
 			}
-			if s := fmt.Sprintf("%f", d); s != item.S {
+			if s := fmt.Sprintf("%g", d); s != item.S {
 				t.Fatalf("unexpected value, got %q want %q", s, item.S)
 			}
 		})
