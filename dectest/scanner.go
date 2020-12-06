@@ -45,8 +45,8 @@ func (s *Scanner) Case() *Case {
 	s.c.Clamp = s.clamp == 1
 	s.c.Prec = s.precision
 	s.c.Mode = s.rounding
-	s.c.MinScale = s.minExponent
-	s.c.MaxScale = s.maxExponent
+	s.c.MinScale = s.maxExponent
+	s.c.MaxScale = s.minExponent
 	return s.c
 }
 

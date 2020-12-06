@@ -56,6 +56,20 @@ type Context struct {
 	OperatingMode OperatingMode
 }
 
+func (c Context) emin() int {
+	if c.MaxScale != 0 {
+		return -c.MaxScale
+	}
+	return -MaxScale
+}
+
+func (c Context) emax() int {
+	if c.MinScale != 0 {
+		return -c.MinScale
+	}
+	return -MinScale
+}
+
 func (c Context) maxScale() int {
 	if c.MaxScale != 0 {
 		return c.MaxScale

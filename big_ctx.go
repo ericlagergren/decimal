@@ -1020,37 +1020,37 @@ func (c Context) Round(z *Big) *Big {
 		return z
 	}
 
-	n := precision(c)
-	if n == UnlimitedPrecision || z.isSpecial() {
+	if z.IsSubnormal() {
+		z.Context.Conditions |= Subnormal
+	}
+
+	prec := precision(c)
+	if prec == UnlimitedPrecision || z.isSpecial() {
 		return z
 	}
 
 	zp := z.Precision()
-	if zp <= n {
-		return c.fix(z)
+	if zp <= prec {
+		return z
 	}
+	// zp > prec
 
-	shift := zp - n
-	if shift > c.maxScale() {
-		return z.xflow(c.minScale(), false, true)
-	}
-	z.exp += shift
-
-	z.Context.Conditions |= Rounded
-
+	shift := zp - prec
 	c.shiftr(z, uint64(shift))
+	z.exp += shift
+	z.Context.Conditions |= Rounded
 	return c.fix(z)
 }
 
 func (c Context) shiftr(z *Big, n uint64) bool {
+	if z.isZero() || n == 0 {
+		return false
+	}
+
 	if zp := uint64(z.Precision()); n >= zp {
 		z.compact = 0
 		z.precision = 1
 		return n == zp
-	}
-
-	if z.isZero() {
-		return false
 	}
 
 	m := c.RoundingMode

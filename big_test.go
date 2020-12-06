@@ -5,15 +5,17 @@ import (
 	"math"
 	"math/big"
 	"math/rand"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/ericlagergren/decimal"
-	"github.com/ericlagergren/decimal/internal/test"
+	"github.com/ericlagergren/decimal/dectest"
 )
 
+/*
 func TestBig_Abs(t *testing.T)        { test.Abs.Test(t) }
 func TestBig_Add(t *testing.T)        { test.Add.Test(t) }
 func TestBig_Class(t *testing.T)      { test.Class.Test(t) }
@@ -33,6 +35,7 @@ func TestBig_Sign(t *testing.T)       { test.Sign.Test(t) }
 func TestBig_SignBit(t *testing.T)    { test.Signbit.Test(t) }
 func TestBig_String(t *testing.T)     { test.CTS.Test(t) }
 func TestBig_Sub(t *testing.T)        { test.Sub.Test(t) }
+*/
 
 var rnd = rand.New(rand.NewSource(0))
 
@@ -328,6 +331,10 @@ func TestBig_SetFloat64(t *testing.T) {
 		t.Skip("skipping testing all 32-bit floats in short mode")
 	}
 
+	isSpecial := func(f float64) bool {
+		return math.IsInf(f, 0) || math.IsNaN(f)
+	}
+
 	const eps = 1e-15
 	z := decimal.WithPrecision(17)
 	for x := uint32(0); x != math.MaxUint32; x++ {
@@ -344,15 +351,30 @@ got   : %g
 	}
 }
 
-func isSpecial(f float64) bool { return math.IsInf(f, 0) || math.IsNaN(f) }
+// TestDecTests runs the dectest test suite.
+func TestDecTests(t *testing.T) {
+	path := filepath.Join("testdata", "dectest")
+	files, err := filepath.Glob(filepath.Join(path, "*.decTest"))
+	if err != nil {
+		t.Fatal(err)
+	}
 
-func TestBig_Sprintf(t *testing.T) {
-	x, _ := new(decimal.Big).SetString("200.0")
-	x.Reduce()
+	if len(files) == 0 {
+		t.Fatalf("no .detect files found inside %q, re-run %q",
+			path, filepath.Join(path, "generate.bash"))
+	}
 
-	y := fmt.Sprintf("%.2f", x)
-
-	if y != "200.00" {
-		t.Fatalf("want 200.00 but had %s", y)
+	for _, file := range files {
+		file := file
+		t.Run(filepath.Base(file), func(t *testing.T) {
+			switch err := dectest.Test(file); err {
+			case nil:
+				// OK
+			case dectest.ErrSkipTest:
+				t.Skip(err)
+			default:
+				t.Fatal(err)
+			}
+		})
 	}
 }

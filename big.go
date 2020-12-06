@@ -464,7 +464,7 @@ func (x *Big) isSpecial() bool  { return x.form&(inf|nan) != 0 }
 func (x *Big) isZero() bool     { return x.compact == 0 }
 
 func (x *Big) adjusted() int { return (x.exp + x.Precision()) - 1 }
-func (c Context) etiny() int { return MinScale - (precision(c) - 1) }
+func (c Context) etiny() int { return c.emin() - (precision(c) - 1) }
 
 // Abs sets z to the absolute value of x and returns z.
 func (z *Big) Abs(x *Big) *Big {
@@ -1024,7 +1024,7 @@ func (x *Big) IsNormal() bool {
 
 // IsSubnormal returns true if x is subnormal.
 func (x *Big) IsSubnormal() bool {
-	return x.IsFinite() && x.adjusted() < x.Context.minScale()
+	return x.IsFinite() && x.adjusted() < x.Context.emin()
 }
 
 // IsInf returns true if x is an infinity according to sign.

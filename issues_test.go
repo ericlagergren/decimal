@@ -1,6 +1,7 @@
 package decimal
 
 import (
+	"fmt"
 	"math"
 	"math/big"
 	"testing"
@@ -135,5 +136,16 @@ func TestIssue129(t *testing.T) {
 	z.Mul(&x, &y)
 	if !z.IsInf(+1) {
 		t.Fatalf("expected Inf, got %s", &z)
+	}
+}
+
+func TestIssue148(t *testing.T) {
+	x, _ := new(Big).SetString("200.0")
+	x.Reduce()
+
+	y := fmt.Sprintf("%.2f", x)
+
+	if y != "200.00" {
+		t.Fatalf("want 200.00 but had %s", y)
 	}
 }
