@@ -108,7 +108,7 @@ func (c Context) add(z, x *Big, xform form, y *Big, yform form) form {
 //
 // tryTinyAdd reports whether the "tiny" addition was performed.
 func (c Context) tryTinyAdd(z *Big, X *Big, Xsign form, Y *Big, Ysign form) (form, bool) {
-	if X.isZero() {
+	if X.IsZero() {
 		return 0, false
 	}
 
@@ -356,8 +356,8 @@ func (c Context) mul(z, x, y *Big) *Big {
 		return z
 	}
 
-	if (x.IsInf(0) && !y.isZero()) ||
-		(y.IsInf(0) && !x.isZero()) ||
+	if (x.IsInf(0) && !y.IsZero()) ||
+		(y.IsInf(0) && !x.IsZero()) ||
 		(y.IsInf(0) && x.IsInf(0)) {
 		// ±Inf * y
 		// x * ±Inf
@@ -394,7 +394,7 @@ func (c Context) Quantize(z *Big, n int) *Big {
 		return z.setNaN(InvalidOperation, qnan, quantminmax)
 	}
 
-	if z.isZero() {
+	if z.IsZero() {
 		z.exp = n
 		return z
 	}
@@ -471,8 +471,8 @@ func (c Context) Quo(z, x, y *Big) *Big {
 		return z.setZero(sign, c.etiny())
 	}
 
-	if y.isZero() {
-		if x.isZero() {
+	if y.IsZero() {
+		if x.IsZero() {
 			// 0 / 0
 			return z.setNaN(InvalidOperation|DivisionUndefined, qnan, quo00)
 		}
@@ -480,7 +480,7 @@ func (c Context) Quo(z, x, y *Big) *Big {
 		z.Context.Conditions |= DivisionByZero
 		return z.SetInf(sign != 0)
 	}
-	if x.isZero() {
+	if x.IsZero() {
 		// 0 / y
 		return c.fix(z.setZero(sign, x.exp-y.exp))
 	}
@@ -682,8 +682,8 @@ func (c Context) QuoInt(z, x, y *Big) *Big {
 
 	sign := (x.form & signbit) ^ (y.form & signbit)
 	if x.IsFinite() && y.IsFinite() {
-		if y.isZero() {
-			if x.isZero() {
+		if y.IsZero() {
+			if x.IsZero() {
 				// 0 / 0
 				return z.setNaN(InvalidOperation|DivisionUndefined, qnan, quo00)
 			}
@@ -691,7 +691,7 @@ func (c Context) QuoInt(z, x, y *Big) *Big {
 			z.Context.Conditions |= DivisionByZero
 			return z.SetInf(sign != 0)
 		}
-		if x.isZero() {
+		if x.IsZero() {
 			// 0 / y
 			return c.fix(z.setZero(sign, 0))
 		}
@@ -736,8 +736,8 @@ func (c Context) QuoRem(z, x, y, r *Big) (*Big, *Big) {
 
 	sign := (x.form & signbit) ^ (y.form & signbit)
 	if x.IsFinite() && y.IsFinite() {
-		if y.isZero() {
-			if x.isZero() {
+		if y.IsZero() {
+			if x.IsZero() {
 				// 0 / 0
 				z.setNaN(InvalidOperation|DivisionUndefined, qnan, quo00)
 				r.setNaN(InvalidOperation|DivisionUndefined, qnan, quo00)
@@ -747,7 +747,7 @@ func (c Context) QuoRem(z, x, y, r *Big) (*Big, *Big) {
 			r.Context.Conditions |= DivisionByZero
 			return z.SetInf(sign != 0), r.SetInf(x.Signbit())
 		}
-		if x.isZero() {
+		if x.IsZero() {
 			// 0 / y
 			z.setZero((x.form^y.form)&signbit, 0)
 			r.setZero(x.form, y.exp-x.exp)
@@ -894,7 +894,7 @@ func (c Context) simpleReduce(z *Big) *Big {
 		return z
 	}
 
-	if z.isZero() {
+	if z.IsZero() {
 		z.exp = 0
 		z.precision = 1
 		return z
@@ -966,15 +966,15 @@ func (c Context) Rem(z, x, y *Big) *Big {
 	}
 
 	if x.IsFinite() && y.IsFinite() {
-		if y.isZero() {
-			if x.isZero() {
+		if y.IsZero() {
+			if x.IsZero() {
 				// 0 / 0
 				return z.setNaN(InvalidOperation|DivisionUndefined, qnan, quo00)
 			}
 			// x / 0
 			return z.setNaN(InvalidOperation|DivisionByZero, qnan, remx0)
 		}
-		if x.isZero() {
+		if x.IsZero() {
 			// 0 / y
 			return z.setZero(x.form&signbit, min(x.exp, y.exp))
 		}
@@ -1048,7 +1048,7 @@ func (c Context) shiftr(z *Big, n uint64) bool {
 		return n == zp
 	}
 
-	if z.isZero() {
+	if z.IsZero() {
 		return false
 	}
 

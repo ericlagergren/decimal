@@ -235,7 +235,9 @@ func (z *Big) xflow(exp int, over, neg bool) *Big {
 func (x *Big) isCompact() bool  { return x.compact != c.Inflated }
 func (x *Big) isInflated() bool { return !x.isCompact() }
 func (x *Big) isSpecial() bool  { return x.form&(inf|nan) != 0 }
-func (x *Big) isZero() bool     { return x.compact == 0 }
+
+// IsZero returns true if x == 0.
+func (x *Big) IsZero() bool { return x.compact == 0 }
 
 func (x *Big) adjusted() int { return (x.exp + x.Precision()) - 1 }
 func (c Context) etiny() int { return MinScale - (precision(c) - 1) }
@@ -278,7 +280,7 @@ func (x *Big) Class() string {
 		if x.IsInf(0) {
 			return "-Infinity"
 		}
-		if x.isZero() {
+		if x.IsZero() {
 			return "-Zero"
 		}
 		if x.IsSubnormal() {
@@ -289,7 +291,7 @@ func (x *Big) Class() string {
 	if x.IsInf(0) {
 		return "+Infinity"
 	}
-	if x.isZero() {
+	if x.IsZero() {
 		return "+Zero"
 	}
 	if x.IsSubnormal() {
@@ -523,7 +525,7 @@ func (x *Big) Float(z *big.Float) *big.Float {
 
 	switch x.form {
 	case finite, finite | signbit:
-		if x.isZero() {
+		if x.IsZero() {
 			z.SetUint64(0)
 		} else {
 			z.SetRat(x.Rat(nil))
@@ -835,7 +837,7 @@ func (x *Big) IsInt() bool {
 	}
 
 	// 0, 5000, 40
-	if x.isZero() || x.exp >= 0 {
+	if x.IsZero() || x.exp >= 0 {
 		return true
 	}
 
@@ -1351,7 +1353,7 @@ func (x *Big) Sign() int {
 		x.validate()
 	}
 
-	if (x.IsFinite() && x.isZero()) || x.IsNaN(0) {
+	if (x.IsFinite() && x.IsZero()) || x.IsNaN(0) {
 		return 0
 	}
 	if x.form&signbit != 0 {

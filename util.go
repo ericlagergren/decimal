@@ -26,7 +26,7 @@ func (c Context) fix(z *Big) *Big {
 	if adj > c.maxScale() {
 		prec := precision(c)
 
-		if z.isZero() {
+		if z.IsZero() {
 			z.exp = c.maxScale()
 			z.Context.Conditions |= Clamped
 			return z
@@ -53,7 +53,7 @@ func (c Context) fix(z *Big) *Big {
 	if adj < c.minScale() {
 		tiny := c.etiny()
 
-		if z.isZero() {
+		if z.IsZero() {
 			if z.exp < tiny {
 				z.setZero(z.form, tiny)
 				z.Context.Conditions |= Clamped
@@ -68,7 +68,7 @@ func (c Context) fix(z *Big) *Big {
 			}
 			z.Context.Conditions |= Underflow
 			z.exp = tiny
-			if z.isZero() {
+			if z.IsZero() {
 				z.Context.Conditions |= Clamped
 			}
 		}
