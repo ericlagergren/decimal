@@ -487,10 +487,16 @@ func (x *Big) Float64() (f float64, ok bool) {
 	case xc == 0:
 		ok = true
 	case x.IsInt():
-		if xc, ok := x.Int64(); ok {
+		if xc, convok := x.Int64(); convok {
 			f = float64(xc)
-		} else if xc, ok := x.Uint64(); ok {
+		} else if xc, convok := x.Uint64(); convok {
 			f = float64(xc)
+		} else {
+			// The compact value doesn't fit into an int, but it might
+			// still fit into a float. Try using strconv.ParseFloat.
+			f, _ = strconv.ParseFloat(x.String(), 64)
+			ok = !math.IsInf(f, 0) && !math.IsNaN(f)
+			break
 		}
 		ok = xc < maxMantissa || (xc&(xc-1)) == 0
 	case x.exp == 0:

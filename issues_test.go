@@ -98,6 +98,17 @@ func TestIssue114(t *testing.T) {
 	}
 }
 
+func TestIssue158(t *testing.T) {
+	val := New(1, -300)
+	f, ok := val.Float64()
+	if !ok {
+		t.Fatal("expected true, got false")
+	}
+	if f != float64(1e300) {
+		t.Fatalf("expected 1e300, got %f", f)
+	}
+}
+
 func TestIssue129(t *testing.T) {
 	const ys = "3032043016321464119267109897502707536081241662295108925759281083" +
 		"5908762948729460330525095674778062760636202846843095908778429447" +
