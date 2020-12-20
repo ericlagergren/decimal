@@ -65,7 +65,7 @@ func (z *Big) scan(r io.ByteScanner) error {
 			z.form = qnan
 			z.Context.Conditions |= ConversionSyntax
 		}
-		return nil
+		return err
 	}
 
 	// Exponent
@@ -78,6 +78,7 @@ func (z *Big) scan(r io.ByteScanner) error {
 		case strconv.ErrSyntax:
 			z.form = qnan
 			z.Context.Conditions |= ConversionSyntax
+			return err
 		default:
 			return err
 		}
@@ -438,7 +439,7 @@ func (z *Big) scanExponent(r io.ByteScanner) (err error) {
 
 	if ch, err := r.ReadByte(); err != io.EOF {
 		if ch < '0' || ch > '9' {
-			return err
+			return strconv.ErrSyntax
 		}
 		if buf[0] == '-' {
 			return Underflow

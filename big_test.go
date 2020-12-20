@@ -247,6 +247,23 @@ func TestBig_Scan(t *testing.T) {
 	// TODO(eric): write this test
 }
 
+func TestBig_ScanInvalid(t *testing.T) {
+	for i, test := range [...]struct {
+		v   string
+	}{
+		0: {"18e7b17e-4ead-4e27-bfd5-bb6d11261bb6"},
+		1: {"18e7b17e-4ead-4e27-bfd5"},
+		2: {"-18e7b"},
+		3: {"f"},
+		4: {"-f"},
+	} {
+		bd, ok := new(decimal.Big).SetString(test.v)
+		if ok {
+			t.Errorf("#%d: expected %s to fail parsing, but parsed %s", i, test.v, bd)
+		}
+	}
+}
+
 func TestBig_SetFloat64(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping testing all 32-bit floats in short mode")
