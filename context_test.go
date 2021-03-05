@@ -19,6 +19,41 @@ func TestCondition_String(t *testing.T) {
 	}
 }
 
+func TestAwayFromZeroQuoRounding(t *testing.T) {
+
+	for _, test := range [...]struct {
+		x        int64
+		y        int64
+		expected string // x div y round 2
+	}{
+		{1, 9, "0.11"},
+		{2, 9, "0.22"},
+		{3, 9, "0.33"},
+		{4, 9, "0.44"},
+		{5, 9, "0.56"},
+		{6, 9, "0.67"},
+		{7, 9, "0.78"},
+		{8, 9, "0.89"},
+	} {
+
+		x := New(test.x, 1)
+		y := New(test.y, 1)
+
+		// Setup Precision=2 and AwayFromZero Rounding
+		z := New(0, 1)
+		z.Context.Precision = 2
+		z.Context.RoundingMode = AwayFromZero
+
+		actual := z.Quo(x, y).String()
+		expected := test.expected
+
+		if actual != expected {
+			t.Errorf("Quo(%d,%d) result %s, expected %s", test.x, test.y, actual, expected)
+		}
+	}
+
+}
+
 func TestNonStandardRoundingModes(t *testing.T) {
 	for i, test := range [...]struct {
 		value    int64
