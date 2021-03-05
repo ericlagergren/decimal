@@ -22,33 +22,32 @@ func TestCondition_String(t *testing.T) {
 func TestToNearestAwayQuoRounding(t *testing.T) {
 
 	for _, test := range [...]struct {
-		x        int64
-		y        int64
+		x        string
+		y        string
 		expected string // x div y round 2
 	}{
-		{1, 9, "0.11"},
-		{2, 9, "0.22"},
-		{3, 9, "0.33"},
-		{4, 9, "0.44"},
-		{5, 9, "0.56"},
-		{6, 9, "0.67"},
-		{7, 9, "0.78"},
-		{8, 9, "0.89"},
+		{"1", "9", "0.11111111111111111111"},
+		{"2", "9", "0.22222222222222222222"},
+		{"3", "9", "0.33333333333333333333"},
+		{"4", "9", "0.44444444444444444444"},
+		{"5", "9", "0.55555555555555555556"},
+		{"6", "9", "0.66666666666666666667"},
+		{"7", "9", "0.77777777777777777778"},
+		{"8", "9", "0.88888888888888888889"},
 	} {
 
-		x := New(test.x, 1)
-		y := New(test.y, 1)
+		x, _ := WithContext(Context128).SetString(test.x)
+		y, _ := WithContext(Context128).SetString(test.y)
+		z, _ := WithContext(Context128).SetString("0")
 
-		// Setup Precision=2 and ToNearestAway Rounding
-		z := New(0, 1)
-		z.Context.Precision = 2
+		z.Context.Precision = 20
 		z.Context.RoundingMode = ToNearestAway
 
 		actual := z.Quo(x, y).String()
 		expected := test.expected
 
 		if actual != expected {
-			t.Errorf("Quo(%d,%d) result %s, expected %s", test.x, test.y, actual, expected)
+			t.Errorf("Quo(%s,%s) result %s, expected %s", test.x, test.y, actual, expected)
 		}
 	}
 
