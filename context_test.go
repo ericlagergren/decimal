@@ -19,7 +19,7 @@ func TestCondition_String(t *testing.T) {
 	}
 }
 
-func TestAwayFromZeroQuoRounding(t *testing.T) {
+func TestToNearestAwayQuoRounding(t *testing.T) {
 
 	for _, test := range [...]struct {
 		x        int64
@@ -39,10 +39,10 @@ func TestAwayFromZeroQuoRounding(t *testing.T) {
 		x := New(test.x, 1)
 		y := New(test.y, 1)
 
-		// Setup Precision=2 and AwayFromZero Rounding
+		// Setup Precision=2 and ToNearestAway Rounding
 		z := New(0, 1)
 		z.Context.Precision = 2
-		z.Context.RoundingMode = AwayFromZero
+		z.Context.RoundingMode = ToNearestAway
 
 		actual := z.Quo(x, y).String()
 		expected := test.expected
