@@ -24,7 +24,7 @@ func TestToNearestAwayQuoRounding(t *testing.T) {
 	for _, test := range [...]struct {
 		x        string
 		y        string
-		expected string // x div y round 2
+		expected string // x div y round 20
 	}{
 		{"1", "9", "0.11111111111111111111"},
 		{"2", "9", "0.22222222222222222222"},
