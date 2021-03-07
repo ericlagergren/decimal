@@ -514,7 +514,8 @@ func (c Context) Quo(z, x, y *Big) *Big {
 			xb := z.unscaled.SetUint64(x.compact)
 			xb = arith.MulBigPow10(xb, xb, uint64(shift))
 			yb := new(big.Int).SetUint64(y.compact)
-			if z.quoBig(m, xb, x.form, yb, y.form, yb) && expadj > 0 {
+			rb := new(big.Int)
+			if z.quoBig(m, xb, x.form, yb, y.form, rb) && expadj > 0 {
 				c.simpleReduce(z)
 			}
 			return z
@@ -529,7 +530,8 @@ func (c Context) Quo(z, x, y *Big) *Big {
 			yb := z.unscaled.SetUint64(y.compact)
 			yb = arith.MulBigPow10(yb, yb, uint64(-shift))
 			xb := new(big.Int).SetUint64(x.compact)
-			if z.quoBig(m, xb, x.form, yb, y.form, xb) && expadj > 0 {
+			rb := new(big.Int)
+			if z.quoBig(m, xb, x.form, yb, y.form, rb) && expadj > 0 {
 				c.simpleReduce(z)
 			}
 			return z
