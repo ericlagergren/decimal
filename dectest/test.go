@@ -6,6 +6,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/ericlagergren/decimal"
@@ -277,15 +278,15 @@ got   : %v
 func check(t *testing.T, z, r *decimal.Big, c *Case, flags decimal.Condition) {
 	helper(t)()
 	if !equal(z, r) {
-		str := fmt.Sprintf(`%s
-wanted: %q (%s:%d)
-got   : %q (%s:%d)
-`,
+		s := []string{
 			c.ShortString(10000),
-			r, flags, -r.Scale(),
-			z, z.Context.Conditions, -z.Scale(),
-		)
-		t.Log(str)
+			fmt.Sprintf("wanted: %q (%s:%d)", r, flags, -r.Scale()),
+			fmt.Sprintf("got   : %q (%s:%d)", z, z.Context.Conditions, -z.Scale()),
+		}
+		if isInexact(z) && allow1ULPError[c.Op] && equalWithin1ULP(z, r) {
+			s = append(s, "passed within 1 ULP")
+		}
+		t.Log(strings.Join(s, "\n"), "\n")
 	}
 }
 
@@ -321,6 +322,35 @@ func equal(x, y *decimal.Big) bool {
 	return cmp && scl && prec
 }
 
+func equalWithin1ULP(x, y *decimal.Big) bool {
+	if !x.IsFinite() || !y.IsFinite() {
+		return false
+	}
+	formX, negX, coeffX, expX := x.Decompose(make([]byte, 2<<3))
+	formY, negY, coeffY, expY := y.Decompose(make([]byte, 2<<3))
+	if formX != formY || negX != negY || expX != expY {
+		return false
+	}
+	l := len(coeffX)
+	if len(coeffY) != l {
+		return false
+	}
+	for i := 0; i < l-1; i++ {
+		if coeffX[i] != coeffY[i] {
+			return false
+		}
+	}
+	d := coeffX[l-1] - coeffY[l-1]
+	return d == 0x01 || d == 0xff
+}
+
+var allow1ULPError = map[Op]bool{
+	Exp:   true,
+	Ln:    true,
+	Log10: true,
+	Power: true,
+}
+
 // helper returns testing.T.Helper, if it exists.
 func helper(v interface{}) func() {
 	if fn, ok := v.(interface {
@@ -344,4 +374,8 @@ func convertConditions(c Condition) (decimal.Condition, bool) {
 		return 0, false
 	}
 	return r, true
+}
+
+func isInexact(x *decimal.Big) bool {
+	return x.Context.Conditions&decimal.Inexact == decimal.Inexact
 }
