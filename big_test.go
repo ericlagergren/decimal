@@ -28,7 +28,7 @@ func TestBig_Rat(t *testing.T)        { test.CTR.Test(t) }
 func TestBig_Reduce(t *testing.T)     { test.Reduce.Test(t) }
 func TestBig_Rem(t *testing.T)        { test.Rem.Test(t) }
 func TestBig_RoundToInt(t *testing.T) { test.RoundToInt.Test(t) }
-func TestBig_SetString(t *testing.T)  { test.CTS.Test(t) /* Same as CFS */ }
+func TestBig_SetString(t *testing.T)  { test.CFS.Test(t) }
 func TestBig_Sign(t *testing.T)       { test.Sign.Test(t) }
 func TestBig_SignBit(t *testing.T)    { test.Signbit.Test(t) }
 func TestBig_String(t *testing.T)     { test.CTS.Test(t) }
@@ -57,7 +57,8 @@ func randDec() string {
 	return string(b)
 }
 
-var randDecs = func() (a [5000]string) {
+var randDecs = func() []string {
+	a := make([]string, 5000)
 	for i := range a {
 		a[i] = randDec()
 	}
@@ -74,6 +75,103 @@ func TestBig_Float(t *testing.T) {
 		xf := new(decimal.Big).SetFloat(flt).Float(fv)
 		if xf.String() != flt.String() {
 			t.Fatalf("#%d: wanted %s, got %s", i, flt, xf.String())
+		}
+	}
+}
+
+// TestBig_Format tests Big.Format
+//
+// The test cases are largely taken from the fmt package's test cases.
+func TestBig_Format(t *testing.T) {
+	const (
+		posInf = "+inf"
+		negInf = "-inf"
+		NaN    = "NaN"
+	)
+	// Comments after a test case indicate the original fmt package test case.
+	for i, s := range []struct {
+		format string
+		input  string
+		want   string
+	}{
+		0:  {"%f", "1234", "1234.000000"},
+		1:  {"%f", "1e-3", "0.001000"},
+		2:  {"%f", "1e+3", "1000.000000"},
+		3:  {"%.3f", "1", "1.000"},
+		4:  {"%.5g", "1", "1"},
+		5:  {"%.3g", "12.34", "12.3"},
+		6:  {"'%5.2f'", "0.", "' 0.00'"},
+		7:  {"%.10f", "0.1234567891", "0.1234567891"},
+		8:  {"%.10f", "0.01", "0.0100000000"},
+		9:  {"%.10f", "0.0000000000000000000000000000000000000000000000000000000000001", "0.0000000000"},
+		10: {"%+.3e", "0.0", "+0.000e-01"}, // +0.000e+00
+		11: {"%+.3e", "1.0", "+1.000e+00"},
+		12: {"%+.3f", "-1.0", "-1.000"},
+		13: {"%+.3F", "-1.0", "-1.000"},
+		14: {"%+07.2f", "1.0", "+001.00"},
+		15: {"%+07.2f", "-1.0", "-001.00"},
+		16: {"%-07.2f", "1.0", "1.00   "},
+		17: {"%-07.2f", "-1.0", "-1.00  "},
+		18: {"%+-07.2f", "1.0", "+1.00  "},
+		19: {"%+-07.2f", "-1.0", "-1.00  "},
+		20: {"%-+07.2f", "1.0", "+1.00  "},
+		21: {"%-+07.2f", "-1.0", "-1.00  "},
+		22: {"%+10.2f", "+1.0", "     +1.00"},
+		23: {"%+10.2f", "-1.0", "     -1.00"},
+		24: {"% .3E", "-1.0", "-1.000E+00"},
+		25: {"% .3e", "1.0", " 1.000e+00"},
+		26: {"%+.3g", "0.0", "+0.0"},  // +0
+		27: {"%+.3g", "1.0", "+1.0"},  // +1
+		28: {"%+.3g", "-1.0", "-1.0"}, // -1
+		29: {"% .3g", "-1.0", "-1.0"}, // -1
+		30: {"% .3g", "1.0", " 1.0"},  // 1
+		31: {"%#g", "1e-323", "1.00000e-323"},
+		32: {"%#g", "-1.0", "-1.00000"},
+		33: {"%#g", "1.1", "1.10000"},
+		34: {"%#g", "123456.0", "123456."},
+		35: {"%#g", "1234567.0", "1234567."}, // 1.234567e+06
+		36: {"%#g", "1230000.0", "1230000."}, // 1.23000e+06
+		37: {"%#g", "1000000.0", "1000000."}, // 1000000.0
+		38: {"%#.0f", "1.0", "1."},
+		39: {"%#.0e", "1.0", "1.e+00"},
+		40: {"%#.0g", "1.0", "1."},
+		41: {"%#.0g", "1100000.0", "1000000."}, // 1.e+06
+		42: {"%#.4f", "1.0", "1.0000"},
+		43: {"%#.4e", "1.0", "1.0000e+00"},
+		44: {"%#.4g", "1.0", "1.000"},
+		45: {"%#.4g", "100000.0", "100000."}, // 1.000e+05
+		46: {"%#.0f", "123.0", "123."},
+		47: {"%#.0e", "123.0", "1.e+02"},
+		48: {"%#.0g", "123.0", "100."}, // 1.e+02
+		49: {"%#.4f", "123.0", "123.0000"},
+		50: {"%#.4e", "123.0", "1.2300e+02"},
+		51: {"%#.4g", "123.0", "123.0"},
+		52: {"%#.4g", "123000.0", "123000."}, // 1.230e+05
+		53: {"%#9.4g", "1.0", "    1.000"},
+		54: {"%f", posInf, "Infinity"}, // +Inf
+		55: {"%.1f", negInf, "-Infinity"},
+		56: {"% f", NaN, " NaN"},
+		57: {"%20f", posInf, "            Infinity"},
+		58: {"% 20F", posInf, "            Infinity"},
+		59: {"% 20e", negInf, "           -Infinity"},
+		60: {"%+20E", negInf, "           -Infinity"},
+		61: {"% +20g", negInf, "           -Infinity"},
+		62: {"%+-20G", posInf, "+Infinity           "},
+		63: {"%20e", NaN, "                 NaN"},
+		64: {"% +20E", NaN, "                +NaN"},
+		65: {"% -20g", NaN, " NaN                "},
+		66: {"%+-20G", NaN, "+NaN                "},
+		67: {"%+020e", posInf, "           +Infinity"},
+		68: {"%-020f", negInf, "-Infinity           "},
+		69: {"%-020E", NaN, "NaN                 "},
+	} {
+		z, _ := new(decimal.Big).SetString(s.input)
+		got := fmt.Sprintf(s.format, z)
+		if got != s.want {
+			t.Fatalf(`#%d: printf("%s", "%s")
+got   : %q
+wanted: %q
+`, i, s.format, s.input, got, s.want)
 		}
 	}
 }
@@ -172,28 +270,6 @@ func TestBig_IsInt(t *testing.T) {
 	}
 }
 
-// func TestBig_Format(t *testing.T) {
-// 	tests := [...]struct {
-// 		format string
-// 		a      string
-// 		b      string
-// 	}{
-// 		0: {format: "%e", a: "1.234", b: "1.234"},
-// 		1: {format: "%s", a: "1.2134124124", b: "1.2134124124"},
-// 		2: {format: "%e", a: "1.00003e-12", b: "1.00003e-12"},
-// 		3: {format: "%E", a: "1.000003E-12", b: "1.000003E-12"},
-// 	}
-// 	for i, v := range tests {
-// 		x, ok := new(decimal.Big).SetString(v.a)
-// 		if !ok {
-// 			t.Fatal("invalid SetString")
-// 		}
-// 		if fs := fmt.Sprintf(v.format, x); fs != v.b {
-// 			t.Fatalf("#%d: wanted %q, got %q:", i, v.b, fs)
-// 		}
-// 	}
-// }
-
 func TestParallel(t *testing.T) {
 	x := decimal.New(4, 0)
 	y := decimal.New(3, 0)
@@ -270,7 +346,7 @@ got   : %g
 
 func isSpecial(f float64) bool { return math.IsInf(f, 0) || math.IsNaN(f) }
 
-func TestBig_Format(t *testing.T) {
+func TestBig_Sprintf(t *testing.T) {
 	x, _ := new(decimal.Big).SetString("200.0")
 	x.Reduce()
 
