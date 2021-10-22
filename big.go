@@ -724,7 +724,7 @@ func (x *Big) Float64() (f float64, ok bool) {
 		maxMantissa = 1<<53 + 1 // largest exact mantissa
 	)
 
-	parse := false && !math.IsNaN(f)
+	parse := false
 	switch xc := x.compact; {
 	case !x.isCompact():
 		parse = true
