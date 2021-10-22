@@ -264,7 +264,7 @@ func (c *scase) Assert(got, want interface{}) {
 	c.t.Helper()
 
 	if !reflect.DeepEqual(got, want) {
-		c.t.Fatalf(`#%d: %s
+		c.t.Errorf(`#%d: %s
 wanted: %v
 got   : %v
 `, c.i, c.c.ShortString(22), want, got)
@@ -276,7 +276,7 @@ func (c *scase) Check(z *Big) {
 
 	r := c.R()
 	if !pytablesEqual(z, r) {
-		c.t.Fatalf(`#%d: %s
+		c.t.Errorf(`#%d: %s
 wanted: %q (%s:%d)
 got   : %q (%s:%d)
 `,

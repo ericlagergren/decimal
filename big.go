@@ -271,7 +271,7 @@ func (z *Big) xflow(exp int, over, neg bool) *Big {
 
 func (x *Big) isCompact() bool  { return x.compact != c.Inflated }
 func (x *Big) isInflated() bool { return !x.isCompact() }
-func (x *Big) isSpecial() bool  { return x.form&(inf|nan) != 0 }
+func (x *Big) isSpecial() bool  { return x.form&special != 0 }
 
 // isZero reports whether x is zero.
 //
@@ -1641,10 +1641,9 @@ func (z *Big) SetScale(scale int) *Big {
 // can be passed to SetString.
 var Regexp = regexp.MustCompile(`(?i)(([+-]?(\d+\.\d*|\.?\d+)([eE][+-]?\d+)?)|(inf(infinity)?))|([+-]?([sq]?nan\d*))`)
 
-// SetString sets z to the value of s, returning z and a bool
-// indicating success.
+// SetString sets z to the value of s and returns z.
 //
-// s must be a string in one of the following formats:
+// s must have one of the following formats:
 //
 // 	1.234
 // 	1234
@@ -1656,11 +1655,17 @@ var Regexp = regexp.MustCompile(`(?i)(([+-]?(\d+\.\d*|\.?\d+)([eE][+-]?\d+)?)|(i
 // 	qNaN
 // 	sNaN
 //
-// Each value may be preceded by an optional sign, "-" or "+".
-// "Inf" and "NaN" map to "+Inf" and "qNaN", respectively. NaN
-// values may have optional diagnostic information, represented
-// as trailing digits; for example, "NaN123". These digits are
-// otherwise ignored but are included for robustness.
+// Each format may be preceded by an optional sign, either "-" or
+// "+". By default, "Inf" and "NaN" map to "+Inf" and "qNaN",
+// respectively. NaN values may have optional diagnostic
+// information, represented as trailing digits; for example,
+// "NaN123".
+//
+// If s does not match one of the allowed formats, the
+// ConversionSyntax condition is set.
+//
+// SetString will only return (nil, false) if a library error
+// occurs. In general, it safe to ignore the bool result.
 func (z *Big) SetString(s string) (*Big, bool) {
 	if err := z.scan(strings.NewReader(s)); err != nil {
 		return nil, false

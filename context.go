@@ -43,11 +43,12 @@ type Context struct {
 	//
 	Precision int
 
-	// Traps are a set of exceptional conditions that should result in an error.
+	// Traps are a set of exceptional conditions that should
+	// result in an error.
 	Traps Condition
 
-	// Conditions are a set of the most recent exceptional conditions to occur
-	// during an operation.
+	// Conditions are a set of the most recent exceptional
+	// conditions to occur during an operation.
 	Conditions Condition
 
 	// RoundingMode determines how a decimal is rounded.
