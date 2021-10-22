@@ -20,7 +20,6 @@ func TestCondition_String(t *testing.T) {
 }
 
 func TestToNearestAwayQuoRounding(t *testing.T) {
-
 	for _, test := range [...]struct {
 		x        string
 		y        string
@@ -50,7 +49,6 @@ func TestToNearestAwayQuoRounding(t *testing.T) {
 			t.Errorf("Quo(%s,%s) result %s, expected %s", test.x, test.y, actual, expected)
 		}
 	}
-
 }
 
 func TestNonStandardRoundingModes(t *testing.T) {

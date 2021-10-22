@@ -1,7 +1,6 @@
 package decimal_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -17,12 +16,11 @@ func TestDecTests(t *testing.T) {
 	}
 
 	if len(files) == 0 {
-		t.Fatalf("no .detect files found inside %[1]q, re-run %[1]s%cgenerate.bash",
-			path, os.PathSeparator)
+		t.Fatalf("no .decTest files found in %q; run %q",
+			path, filepath.Join(path, "generate.bash"))
 	}
 
 	for _, file := range files {
-		file := file
 		t.Run(filepath.Base(file), func(t *testing.T) {
 			dectest.Test(t, file)
 		})

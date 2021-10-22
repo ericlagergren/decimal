@@ -1,45 +1,44 @@
-package decimal_test
+package decimal
 
 import (
 	"fmt"
 	"os"
 	"strings"
-
-	"github.com/ericlagergren/decimal"
 )
 
 func ExampleBig_reversePolishNotationCalculator() {
+	ctx := Context128
 	const input = "15 7 1 1 + - / 3 * 2 1 1 + + - 5 * 3 / ="
-	var stack []*decimal.Big
+	var stack []*Big
 Loop:
 	for _, tok := range strings.Split(input, " ") {
 		last := len(stack) - 1
 		switch tok {
 		case "+":
 			x := stack[last-1]
-			x.Add(x, stack[last])
+			ctx.Add(x, x, stack[last])
 			stack = stack[:last]
 		case "-":
 			x := stack[last-1]
-			x.Sub(x, stack[last])
+			ctx.Sub(x, x, stack[last])
 			stack = stack[:last]
 		case "/":
 			x := stack[last-1]
-			x.Quo(x, stack[last])
+			ctx.Quo(x, x, stack[last])
 			stack = stack[:last]
 		case "*":
 			x := stack[last-1]
-			x.Mul(x, stack[last])
+			ctx.Mul(x, x, stack[last])
 			stack = stack[:last]
 		case "=":
 			break Loop
 		default:
-			x := decimal.WithContext(decimal.Context128)
+			var x Big
 			if _, ok := x.SetString(tok); !ok {
 				fmt.Fprintf(os.Stderr, "invalid decimal: %v\n", x.Context.Err())
 				os.Exit(1)
 			}
-			stack = append(stack, x)
+			stack = append(stack, &x)
 		}
 	}
 	fmt.Printf("%+6.4g\n", stack[0])

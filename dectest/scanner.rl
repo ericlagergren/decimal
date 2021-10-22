@@ -6,6 +6,8 @@ import (
 	"io"
 	"strconv"
 	"strings"
+
+	. "github.com/ericlagergren/decimal"
 )
 
 type Scanner struct {
@@ -119,10 +121,12 @@ func (s *Scanner) parse(data []byte) (err error) {
 			s.c.Conditions |= cond
 		}
 
+		sign = '+' | '-';
+
 		precision = ( digit+ ) >mark %set_precision;
 		clamp = ( digit+ ) >mark %set_clamp;
-		max_exponent = ( digit+ ) >mark %set_max_exponent;
-		min_exponent = ( digit+ ) >mark %set_min_exponent;
+		max_exponent = ( sign? digit+ ) >mark %set_max_exponent;
+		min_exponent = ( sign? digit+ ) >mark %set_min_exponent;
 
 		rounding = (
 			  'ceiling'i
@@ -192,7 +196,6 @@ func (s *Scanner) parse(data []byte) (err error) {
 		) >mark %set_op;
 
 		quote      = '\'' | '"';
-		sign	   = '+' | '-';
 		indicator  = 'e' | 'E';
 		exponent   = indicator? sign? digit+;
 		number	   = (digit+ '.' digit* | '.' digit+ | digit+ | digit) exponent?;
@@ -230,11 +233,11 @@ func (s *Scanner) parse(data []byte) (err error) {
 		) >mark %add_condition;
 
 		main := (
-			  ('precision:' space+ precision space* any*)
-			| ('clamp:' space+ clamp space* any*)
-			| ('maxexponent:' space+ max_exponent space* any*)
-			| ('minexponent:' space+ min_exponent space* any*)
-			| ('rounding:' space+ rounding space* any*)
+			  ('precision:'i space+ precision space* any*)
+			| ('clamp:'i space+ clamp space* any*)
+			| ('maxexponent:'i space+ max_exponent space* any*)
+			| ('minexponent:'i space+ min_exponent space* any*)
+			| ('rounding:'i space+ rounding space* any*)
 			| (id space+ op space+ (quote? input quote? space+)+ '->' space+ quote? output quote? (space+ condition)*)
 		);
 

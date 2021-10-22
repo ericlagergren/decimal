@@ -1,7 +1,6 @@
-package math
+package decimal
 
 import (
-	"github.com/ericlagergren/decimal"
 	"github.com/ericlagergren/decimal/internal/arith"
 )
 
@@ -47,22 +46,22 @@ import (
 // apbqBinarySplitState is used to hold intermediate values for each step in the
 // calculation.
 type apbqBinarySplitState struct {
-	B *decimal.Big
-	P *decimal.Big
-	Q *decimal.Big
-	T *decimal.Big
+	B *Big
+	P *Big
+	Q *Big
+	T *Big
 }
 
 func newState() *apbqBinarySplitState {
 	return &apbqBinarySplitState{
-		B: new(decimal.Big),
-		P: new(decimal.Big),
-		Q: new(decimal.Big),
-		T: new(decimal.Big),
+		B: new(Big),
+		P: new(Big),
+		Q: new(Big),
+		T: new(Big),
 	}
 }
 
-func (s *apbqBinarySplitState) term(z *decimal.Big, ctx decimal.Context) *decimal.Big {
+func (s *apbqBinarySplitState) term(z *Big, ctx Context) *Big {
 	return ctx.Quo(z, s.T, ctx.Mul(z, s.B, s.Q)) // z = T / B*Q
 }
 
@@ -70,7 +69,7 @@ func (s *apbqBinarySplitState) term(z *decimal.Big, ctx decimal.Context) *decima
 // must not be modified by the caller and may only be valid until the next
 // invocation of said function. This allows the implementation to conserve
 // memory usage.
-type SplitFunc func(n uint64) *decimal.Big
+type SplitFunc func(n uint64) *Big
 
 // BinarySplit sets z to the result of the binary splitting formula and returns
 // z. The formula is defined as:
@@ -82,7 +81,7 @@ type SplitFunc func(n uint64) *decimal.Big
 // It should only be used when the number of terms is known ahead of time. If
 // start is not in [start, stop) or stop is not in (start, stop], BinarySplit
 // will panic.
-func BinarySplit(z *decimal.Big, ctx decimal.Context, start, stop uint64, A, P, B, Q SplitFunc) *decimal.Big {
+func BinarySplit(z *Big, ctx Context, start, stop uint64, A, P, B, Q SplitFunc) *Big {
 	switch {
 	case stop == start:
 		panic("math: the start and stop of BinarySplit cannot be not be the same")
@@ -98,7 +97,7 @@ func BinarySplit(z *decimal.Big, ctx decimal.Context, start, stop uint64, A, P, 
 // BinarySplitDynamic sets z to the result of the binary splitting formula. It
 // should be used when the number of terms is not known ahead of time. For more
 // information, See BinarySplit.
-func BinarySplitDynamic(ctx decimal.Context, A, P, B, Q SplitFunc) *decimal.Big {
+func BinarySplitDynamic(ctx Context, A, P, B, Q SplitFunc) *Big {
 	// TODO(eric): get a handle on this function's memory usage.
 
 	// BinarySplitDynamic does not take a receiver since binary splitting uses
@@ -122,23 +121,23 @@ func BinarySplitDynamic(ctx decimal.Context, A, P, B, Q SplitFunc) *decimal.Big 
 	current.calculate(ctx, 0, currentLastTerm, A, P, B, Q)
 
 	// the marked value is what should be returned which is T/(BQ)
-	markValue1 := current.term(new(decimal.Big), ctx)
-	markValue2 := new(decimal.Big)
+	markValue1 := current.term(new(Big), ctx)
+	markValue2 := new(Big)
 
-	diff := new(decimal.Big) // markValue1 - markValue2
+	diff := new(Big) // markValue1 - markValue2
 
 	// now get the next marked value, if the difference isn't already ZERO we need
 	// at least one digit of ctx to continue
 	nextLastTerm := currentLastTerm
 	next := &apbqBinarySplitState{
-		B: new(decimal.Big).Copy(current.B),
-		P: new(decimal.Big).Copy(current.P),
-		Q: new(decimal.Big).Copy(current.Q),
-		T: new(decimal.Big).Copy(current.T),
+		B: new(Big).Copy(current.B),
+		P: new(Big).Copy(current.P),
+		Q: new(Big).Copy(current.Q),
+		T: new(Big).Copy(current.T),
 	}
 	var expectedLastTerm uint64
 	deltaTerm := uint64(4)
-	eps := decimal.New(1, ctx.Precision)
+	eps := New(1, ctx.Precision)
 
 	tmp := newState()
 
@@ -235,7 +234,7 @@ func BinarySplitDynamic(ctx decimal.Context, A, P, B, Q SplitFunc) *decimal.Big 
 	}
 }
 
-func (s *apbqBinarySplitState) calculate(ctx decimal.Context, start, end uint64, A, P, B, Q SplitFunc) {
+func (s *apbqBinarySplitState) calculate(ctx Context, start, end uint64, A, P, B, Q SplitFunc) {
 	switch n1 := start; end - start {
 	case 1:
 		s.B.Copy(B(n1))
@@ -274,7 +273,7 @@ func (s *apbqBinarySplitState) calculate(ctx decimal.Context, start, end uint64,
 		ctx.Mul(s.P, s.P, P(n2))
 
 		// Finish computing T.
-		t1 := new(decimal.Big)
+		t1 := new(Big)
 		ctx.Mul(t1, B1, A(n2))
 		ctx.FMA(s.T, t1, s.P /* P12 */, s.T) // combine the final multiply with t0 + t1
 	case 3:
@@ -301,7 +300,7 @@ func (s *apbqBinarySplitState) calculate(ctx decimal.Context, start, end uint64,
 		// P = P1 * P2 since we need it for t1.
 		ctx.Mul(s.P, s.P, P(n2))
 
-		t1 := new(decimal.Big)
+		t1 := new(Big)
 		// T_1 = A2 * __ * __ * P1 * P2 * __
 		//            B1   B3             Q3
 		ctx.Mul(t1, A(n2), s.P)
@@ -309,7 +308,7 @@ func (s *apbqBinarySplitState) calculate(ctx decimal.Context, start, end uint64,
 		// P = P1 * P2 * P3; P is finished.
 		ctx.Mul(s.P, s.P, P(n3))
 
-		t2 := new(decimal.Big)
+		t2 := new(Big)
 		// T_2 = A3 * __ * __ * P1 * P2 * P3
 		//            B1   B2
 		ctx.Mul(t2, A(n3), s.P)
@@ -377,9 +376,9 @@ func (s *apbqBinarySplitState) calculate(ctx decimal.Context, start, end uint64,
 
 		// A{1,2,3,4} are transient, so we don't need to store them.
 
-		t1 := new(decimal.Big)
-		t2 := new(decimal.Big)
-		t3 := new(decimal.Big).Copy(A(n4)) // T_3 needs: P1234, B123
+		t1 := new(Big)
+		t2 := new(Big)
+		t3 := new(Big).Copy(A(n4)) // T_3 needs: P1234, B123
 
 		s.Q.Copy(Q(n4))          // Q = Q4.
 		ctx.Mul(t2, A(n3), s.Q)  // T_2 needs: P123, B124.
@@ -398,7 +397,7 @@ func (s *apbqBinarySplitState) calculate(ctx decimal.Context, start, end uint64,
 		ctx.Mul(s.P, s.P, P(n4)) // P = P1234; P is finished.
 		ctx.Mul(t3, t3, s.P)     // T_3 needs: B123.
 
-		b1 := new(decimal.Big).Copy(B(n1))
+		b1 := new(Big).Copy(B(n1))
 		ctx.Mul(t3, t3, b1)            // T_3 needs: B23.
 		ctx.Mul(t2, t2, b1)            // T_2 needs: B2.
 		ctx.Mul(t1, t1, b1)            // T_1 is finished.
@@ -443,17 +442,20 @@ func (s *apbqBinarySplitState) calculate(ctx decimal.Context, start, end uint64,
 //     Q = Q_l*Q_r
 //     T = B_l*P_l*T_r + B_r*Q_r*T_l
 //
-func (s *apbqBinarySplitState) combine(ctx decimal.Context, L, R *apbqBinarySplitState) {
+func (s *apbqBinarySplitState) combine(ctx Context, L, R *apbqBinarySplitState) {
 	// T = L.B*L.P*R.T, t1 = R.B*R.Q*L.T
-	t0 := alias(alias(s.T, L.T), R.T)
+	t0 := getDec(ctx)
 	ctx.Mul(t0, L.B, L.P)
 	ctx.Mul(t0, t0, R.T)
 
-	t1 := alias(alias(s.B, L.B), R.B) // clobber s.B, if possible.
+	t1 := getDec(ctx)
 	ctx.Mul(t1, R.B, R.Q)
 	ctx.FMA(s.T, t1, L.T, t0) // combine the final multiply and t0 + t1
 
 	ctx.Mul(s.B, L.B, R.B)
 	ctx.Mul(s.P, L.P, R.P)
 	ctx.Mul(s.Q, L.Q, R.Q)
+
+	putDec(t0)
+	putDec(t1)
 }

@@ -3,19 +3,19 @@ package dectest
 import (
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"reflect"
 	"strconv"
 	"testing"
 
-	"github.com/ericlagergren/decimal"
-	"github.com/ericlagergren/decimal/math"
-	"github.com/ericlagergren/decimal/misc"
+	. "github.com/ericlagergren/decimal"
 )
 
 func Test(t *testing.T, file string) {
 	r := open(file)
-	defer r.Close()
+	t.Cleanup(func() { r.Close() })
+
 	s := NewScanner(r)
 	for s.Scan() {
 		c := s.Case()
@@ -30,95 +30,107 @@ func Test(t *testing.T, file string) {
 		execute(t, c)
 	}
 	if err := s.Err(); err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 }
 
-var nilary = map[Op]func(z *decimal.Big) *decimal.Big{
-	Reduce:      (*decimal.Big).Reduce,
-	ToIntegralX: (*decimal.Big).RoundToInt,
+var nilary = map[Op]func(ctx Context, z *Big) *Big{
+	OpReduce:      (Context).Reduce,
+	OpToIntegralX: (Context).RoundToInt,
 }
 
-var unary = map[Op]func(z, x *decimal.Big) *decimal.Big{
-	Apply:      (*decimal.Big).Set,
-	Abs:        (*decimal.Big).Abs,
-	Canonical:  misc.Canonical,
-	Copy:       (*decimal.Big).Copy,
-	CopyAbs:    misc.CopyAbs,
-	CopyNegate: misc.CopyNeg,
-	Exp:        math.Exp,
-	LogB:       math.Log10,
-	Log10:      math.Log10,
-	Ln:         math.Log,
-	Minus:      (*decimal.Big).Neg,
-	NextMinus:  misc.NextMinus,
-	NextPlus:   misc.NextPlus,
-	SquareRoot: math.Sqrt,
+var unary = map[Op]func(ctx Context, z, x *Big) *Big{
+	OpApply: (Context).Set,
+	OpAbs:   Context.Abs,
+	OpCanonical: func(_ Context, z, x *Big) *Big {
+		return z.Canonical(x)
+	},
+	OpCopy: func(_ Context, z, x *Big) *Big {
+		return z.Copy(x)
+	},
+	OpCopyAbs: func(_ Context, z, x *Big) *Big {
+		return z.CopyAbs(x)
+	},
+	OpCopyNegate: func(_ Context, z, x *Big) *Big {
+		return z.CopyNeg(x)
+	},
+	OpExp:        Context.Exp,
+	OpLogB:       Context.Log10,
+	OpLog10:      Context.Log10,
+	OpLn:         Context.Log,
+	OpMinus:      Context.Neg,
+	OpNextMinus:  Context.NextMinus,
+	OpNextPlus:   Context.NextPlus,
+	OpSquareRoot: Context.Sqrt,
 }
 
-var binary = map[Op]func(z, x, y *decimal.Big) *decimal.Big{
-	Add:       (*decimal.Big).Add,
-	CopySign:  (*decimal.Big).CopySign,
-	Divide:    (*decimal.Big).Quo,
-	DivideInt: (*decimal.Big).QuoInt,
-	Max:       func(z, x, y *decimal.Big) *decimal.Big { return misc.Max(x, y) },
-	MaxMag:    func(z, x, y *decimal.Big) *decimal.Big { return misc.MaxAbs(x, y) },
-	Min:       func(z, x, y *decimal.Big) *decimal.Big { return misc.Min(x, y) },
-	MinMag:    func(z, x, y *decimal.Big) *decimal.Big { return misc.MinAbs(x, y) },
-	Multiply:  (*decimal.Big).Mul,
-	Power:     math.Pow,
-	Remainder: (*decimal.Big).Rem,
-	Subtract:  (*decimal.Big).Sub,
+var binary = map[Op]func(ctx Context, z, x, y *Big) *Big{
+	OpAdd: Context.Add,
+	OpCopySign: func(_ Context, z, x, y *Big) *Big {
+		return z.CopySign(x, y)
+	},
+	OpDivide:    Context.Quo,
+	OpDivideInt: Context.QuoInt,
+	OpMax: func(_ Context, _, x, y *Big) *Big {
+		return Max(x, y)
+	},
+	OpMaxMag: func(_ Context, _, x, y *Big) *Big {
+		return MaxAbs(x, y)
+	},
+	OpMin: func(_ Context, _, x, y *Big) *Big {
+		return Min(x, y)
+	},
+	OpMinMag: func(_ Context, _, x, y *Big) *Big {
+		return MinAbs(x, y)
+	},
+	OpMultiply:  Context.Mul,
+	OpPower:     Context.Pow,
+	OpRemainder: Context.Rem,
+	OpSubtract:  Context.Sub,
 }
 
-var ternary = map[Op]func(z, x, y, u *decimal.Big) *decimal.Big{
-	FMA: (*decimal.Big).FMA,
+var ternary = map[Op]func(ctx Context, z, x, y, u *Big) *Big{
+	OpFMA: Context.FMA,
 }
 
-var decRoundingModes = map[RoundingMode]decimal.RoundingMode{
-	Ceiling:  decimal.ToPositiveInf,
-	Down:     decimal.ToZero,
-	Floor:    decimal.ToNegativeInf,
-	HalfEven: decimal.ToNearestEven,
-	HalfUp:   decimal.ToNearestAway,
-	HalfDown: decimal.ToNearestTowardZero,
-}
-
-var decConditions = map[Condition]decimal.Condition{
-	Clamped:             decimal.Clamped,
-	ConversionSyntax:    decimal.ConversionSyntax,
-	DivisionByZero:      decimal.DivisionByZero,
-	DivisionImpossible:  decimal.DivisionImpossible,
-	DivisionUndefined:   decimal.DivisionUndefined,
-	Inexact:             decimal.Inexact,
-	InsufficientStorage: decimal.InsufficientStorage,
-	InvalidContext:      decimal.InvalidContext,
-	InvalidOperation:    decimal.InvalidOperation,
-	Overflow:            decimal.Overflow,
-	Rounded:             decimal.Rounded,
-	Subnormal:           decimal.Subnormal,
-	Underflow:           decimal.Underflow,
+var decConditions = map[Condition]Condition{
+	Clamped:             Clamped,
+	ConversionSyntax:    ConversionSyntax,
+	DivisionByZero:      DivisionByZero,
+	DivisionImpossible:  DivisionImpossible,
+	DivisionUndefined:   DivisionUndefined,
+	Inexact:             Inexact,
+	InsufficientStorage: InsufficientStorage,
+	InvalidContext:      InvalidContext,
+	InvalidOperation:    InvalidOperation,
+	Overflow:            Overflow,
+	Rounded:             Rounded,
+	Subnormal:           Subnormal,
+	Underflow:           Underflow,
 }
 
 func execute(t *testing.T, c *Case) {
-	if c.MaxScale > decimal.MaxScale {
+	if c.MaxScale > MaxScale {
 		t.Fatalf("invalid max scale: %d", c.MaxScale)
 	}
 
-	if c.MinScale < decimal.MinScale {
+	if c.MinScale < MinScale {
 		t.Fatalf("invalid min scale: %d", c.MinScale)
 	}
 
-	if c.MinScale < decimal.MinScale {
+	if c.MinScale < MinScale {
 		t.Fatalf("invalid min scale: %d", c.MinScale)
 	}
 
-	if c.Prec < decimal.MinPrecision || c.Prec > decimal.MaxPrecision {
+	if c.Prec < MinPrecision || c.Prec > MaxPrecision {
 		t.Fatalf("invalid precision: %d", c.Prec)
 	}
 
 	if _, ok := skip[c.ID]; ok {
-		t.Skipf("skipped dectest")
+		// Can't use t.Skip since it'll fail the entire category,
+		// which we do not want.
+		t.Logf("skipped test %s", c.ID)
+		return
 	}
 
 	flags, ok := convertConditions(c.Conditions)
@@ -126,15 +138,10 @@ func execute(t *testing.T, c *Case) {
 		t.Fatalf("invalid condition(s): %s", c.Conditions)
 	}
 
-	mode, ok := decRoundingModes[c.Mode]
-	if !ok {
-		t.Fatalf("invalid rounding mode: %s", c.Mode)
-	}
-
-	ctx := decimal.Context{
+	ctx := Context{
 		Precision:     c.Prec,
-		OperatingMode: decimal.GDA,
-		RoundingMode:  mode,
+		OperatingMode: GDA,
+		RoundingMode:  c.Mode,
 		MinScale:      c.MinScale,
 		MaxScale:      c.MaxScale,
 	}
@@ -143,43 +150,47 @@ func execute(t *testing.T, c *Case) {
 	r := parseOutput(ctx, c, flags)
 
 	if nfn, ok := nilary[c.Op]; ok {
-		check(t, nfn(x), r, c, flags)
+		check(t, nfn(ctx, x), r, c, flags)
 	} else if ufn, ok := unary[c.Op]; ok {
-		check(t, ufn(z, x), r, c, flags)
+		check(t, ufn(ctx, z, x), r, c, flags)
 	} else if bfn, ok := binary[c.Op]; ok {
-		check(t, bfn(z, x, y), r, c, flags)
+		check(t, bfn(ctx, z, x, y), r, c, flags)
 	} else if tfn, ok := ternary[c.Op]; ok {
-		check(t, tfn(z, x, y, u), r, c, flags)
+		check(t, tfn(ctx, z, x, y, u), r, c, flags)
 	} else {
 		switch c.Op {
-		case Class:
+		case OpClass:
 			assert(t, c, x.Class(), r)
-		case Compare:
+		case OpCompare:
 			rv := x.Cmp(y)
 			r, _, snan := cmp(t, c)
 			assert(t, c, rv, r)
-			assert(t, c, snan, x.Context.Conditions&decimal.InvalidOperation != 0)
-		case CompareTotal:
-			rv := misc.CmpTotal(x, y)
+			assert(t, c, snan, x.Context.Conditions&InvalidOperation != 0)
+		case OpCompareTotal:
+			rv := x.CmpTotal(y)
 			r, _, snan := cmp(t, c)
 			assert(t, c, rv, r)
-			assert(t, c, snan, x.Context.Conditions&decimal.InvalidOperation != 0)
-		case CompareTotMag:
-			rv := misc.CmpTotalAbs(x, y)
+			assert(t, c, snan, x.Context.Conditions&InvalidOperation != 0)
+		case OpCompareTotMag:
+			rv := x.CmpTotalAbs(y)
 			r, _, snan := cmp(t, c)
 			assert(t, c, rv, r)
-			assert(t, c, snan, x.Context.Conditions&decimal.InvalidOperation != 0)
-		case Max:
-			check(t, z.Set(misc.Max(x, y)), r, c, flags)
-		case Min:
-			check(t, z.Set(misc.Min(x, y)), r, c, flags)
-		case Quantize:
+			assert(t, c, snan, x.Context.Conditions&InvalidOperation != 0)
+		case OpMax:
+			check(t, z.Set(Max(x, y)), r, c, flags)
+		case OpMin:
+			check(t, z.Set(Min(x, y)), r, c, flags)
+		case OpQuantize:
 			v, _ := y.Int64()
+			if v > math.MaxInt {
+				t.Logf("%s: int out of range: %d", c.ID, v)
+				return
+			}
 			check(t, x.Quantize(int(v)), r, c, flags)
-		case SameQuantum:
-			rv := misc.SameQuantum(x, y)
+		case OpSameQuantum:
+			rv := x.SameQuantum(y)
 			assert(t, c, rv, c.Output == Data("1"))
-		case ToSci:
+		case OpToSci:
 			rv := fmt.Sprintf("%E", x)
 			assert(t, c, rv, string(c.Output))
 		default:
@@ -197,10 +208,6 @@ func isSupported(c *Case) bool {
 		return false
 	}
 
-	if _, ok := decRoundingModes[c.Mode]; !ok {
-		return false
-	}
-
 	var opSupported bool
 	if _, ok := nilary[c.Op]; ok {
 		opSupported = true
@@ -212,11 +219,11 @@ func isSupported(c *Case) bool {
 		opSupported = true
 	} else {
 		switch c.Op {
-		case Class, Compare, CompareTotal, CompareTotMag, Max, Min, Quantize, SameQuantum, ToSci:
+		case OpClass, OpCompare, OpCompareTotal, OpCompareTotMag,
+			OpMax, OpMin, OpQuantize, OpSameQuantum, OpToSci:
 			opSupported = true
 		}
 	}
-
 	return opSupported
 }
 
@@ -228,34 +235,35 @@ func open(fpath string) io.ReadCloser {
 	return file
 }
 
-func parseOutput(ctx decimal.Context, c *Case, f decimal.Condition) *decimal.Big {
-	r := dataToBig(ctx, c.Output)
+func parseOutput(ctx Context, c *Case, f Condition) *Big {
+	r := c.Output.toBig(ctx)
 	r.Context.Conditions = f
 	return r
 }
 
-func dataToBig(ctx decimal.Context, d Data) *decimal.Big {
+func (d Data) toBig(ctx Context) *Big {
 	if d == NoData {
-		return decimal.New(0, 0).SetInf(false)
+		return New(0, 0).SetInf(false)
 	}
-	b, ok := decimal.WithContext(ctx).SetString(string(d.TrimQuotes()))
+	var z Big
+	_, ok := z.SetString(string(d.TrimQuotes()))
 	if !ok {
-		b = decimal.WithContext(ctx).SetNaN(true)
+		z.SetNaN(true)
 	}
-	return b
+	return &z
 }
 
-func parseInputs(ctx decimal.Context, c *Case) (z *decimal.Big, x *decimal.Big, y *decimal.Big, u *decimal.Big) {
-	z = decimal.WithContext(ctx)
+func parseInputs(ctx Context, c *Case) (z, x, y, u *Big) {
+	z = new(Big)
 	switch len(c.Inputs) {
 	case 3:
-		u = dataToBig(ctx, c.Inputs[2])
+		u = c.Inputs[2].toBig(ctx)
 		fallthrough
 	case 2:
-		y = dataToBig(ctx, c.Inputs[1])
+		y = c.Inputs[1].toBig(ctx)
 		fallthrough
 	case 1:
-		x = dataToBig(ctx, c.Inputs[0])
+		x = c.Inputs[0].toBig(ctx)
 	case 0:
 		break
 	default:
@@ -265,17 +273,19 @@ func parseInputs(ctx decimal.Context, c *Case) (z *decimal.Big, x *decimal.Big, 
 }
 
 func assert(t *testing.T, c *Case, a, b interface{}) {
-	helper(t)()
+	t.Helper()
+
 	if !reflect.DeepEqual(a, b) {
-		t.Logf(`%s
+		t.Fatalf(`%s
 wanted: %v
 got   : %v
 `, c.ShortString(22), b, a)
 	}
 }
 
-func check(t *testing.T, z, r *decimal.Big, c *Case, flags decimal.Condition) {
-	helper(t)()
+func check(t *testing.T, z, r *Big, c *Case, flags Condition) {
+	t.Helper()
+
 	if !equal(z, r) {
 		str := fmt.Sprintf(`%s
 wanted: %q (%s:%d)
@@ -285,24 +295,25 @@ got   : %q (%s:%d)
 			r, flags, -r.Scale(),
 			z, z.Context.Conditions, -z.Scale(),
 		)
-		t.Log(str)
+		t.Fatal(str)
 	}
 }
 
 func cmp(t *testing.T, c *Case) (int, bool, bool) {
+	t.Helper()
+
 	qnan, snan := Data(c.Output).IsNaN()
 	if qnan || snan {
 		return 0, qnan, snan
 	}
 	r, err := strconv.Atoi(string(c.Output))
 	if err != nil {
-		helper(t)()
 		t.Fatal(err)
 	}
 	return r, false, false
 }
 
-func equal(x, y *decimal.Big) bool {
+func equal(x, y *Big) bool {
 	if x.Signbit() != y.Signbit() {
 		return false
 	}
@@ -321,18 +332,8 @@ func equal(x, y *decimal.Big) bool {
 	return cmp && scl && prec
 }
 
-// helper returns testing.T.Helper, if it exists.
-func helper(v interface{}) func() {
-	if fn, ok := v.(interface {
-		Helper()
-	}); ok {
-		return fn.Helper
-	}
-	return func() {}
-}
-
-func convertConditions(c Condition) (decimal.Condition, bool) {
-	var r decimal.Condition
+func convertConditions(c Condition) (Condition, bool) {
+	var r Condition
 	x := c // check to make sure all flags are copied
 	for k, v := range decConditions {
 		if c&k == k {

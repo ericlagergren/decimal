@@ -43,10 +43,15 @@ var (
 	bigPow10Tab atomic.Value
 )
 
-func loadBigTable() []*big.Int    { return *(bigPow10Tab.Load().(*[]*big.Int)) }
-func storeBigTable(x *[]*big.Int) { bigPow10Tab.Store(x) }
+func loadBigTable() []*big.Int {
+	return *(bigPow10Tab.Load().(*[]*big.Int))
+}
 
-// PowOfTenBig returns true if x is a power of 10.
+func storeBigTable(x *[]*big.Int) {
+	bigPow10Tab.Store(x)
+}
+
+// PowOfTenBig reports whether x is a power of 10.
 func PowOfTenBig(x *big.Int) bool {
 	if x.Bit(0) != 0 {
 		return x.Cmp(c.OneInt) == 0
@@ -65,7 +70,7 @@ func PowOfTenBig(x *big.Int) bool {
 	return PowOfTen(q.Uint64())
 }
 
-// PowOfTen returns strue if x is a power of 10.
+// PowOfTen reports whether x is a power of 10.
 func PowOfTen(x uint64) bool {
 	if x&1 != 0 {
 		return x == 1
@@ -96,7 +101,9 @@ func PowOfTen(x uint64) bool {
 	}
 }
 
-// BigPow10 computes 10 ** n. The returned *big.Int must not be modified.
+// BigPow10 computes 10**n.
+//
+// The returned *big.Int must not be modified.
 func BigPow10(n uint64) *big.Int {
 	tab := loadBigTable()
 
@@ -107,8 +114,9 @@ func BigPow10(n uint64) *big.Int {
 
 	// Too large for our table.
 	if n >= BigPowTabLen {
-		// Optimization: we don't need to start from scratch each time. Start
-		// from the largest term we've found so far.
+		// As an optimization, we don't need to start from
+		// scratch each time. Start from the largest term we've
+		// found so far.
 		partial := tab[tabLen-1]
 		p := new(big.Int).SetUint64(n - (tabLen - 1))
 		return p.Mul(partial, p.Exp(c.TenInt, p, nil))
@@ -117,12 +125,14 @@ func BigPow10(n uint64) *big.Int {
 }
 
 func growBigTen(n uint64) *big.Int {
-	// We need to expand our table to contain the value for 10 ** n.
+	// We need to expand our table to contain the value for
+	// 10**n.
 	bigMu.Lock()
 
 	tab := loadBigTable()
 
-	// Look again in case the table was rebuilt before we grabbed the lock.
+	// Look again in case the table was rebuilt before we grabbed
+	// the lock.
 	tableLen := uint64(len(tab))
 	if n < tableLen {
 		bigMu.Unlock()
@@ -147,10 +157,12 @@ func growBigTen(n uint64) *big.Int {
 	return tab[n]
 }
 
-func Safe(e uint64) bool { return e < PowTabLen }
+func Safe(e uint64) bool {
+	return e < PowTabLen
+}
 
-// Pow10 returns 10 ** e and a boolean indicating whether the result fits into
-// a uint64.
+// Pow10 returns 10**e and a boolean indicating whether the
+// result fits into a uint64.
 func Pow10(e uint64) (uint64, bool) {
 	if e < PowTabLen {
 		return pow10tab[e], true
@@ -158,8 +170,8 @@ func Pow10(e uint64) (uint64, bool) {
 	return 0, false
 }
 
-// Pow10Int returns 10 ** e and a boolean indicating whether the result fits
-// into an int64.
+// Pow10Int returns 10**e and a boolean indicating whether the
+// result fits into an int64.
 func Pow10Int(e uint64) (int64, bool) {
 	if e < PowTabLen-1 {
 		return int64(pow10tab[e]), true

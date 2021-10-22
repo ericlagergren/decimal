@@ -2,11 +2,15 @@ package decimal
 
 import (
 	"math/big"
+	"strconv"
+	"sync"
 
 	"github.com/ericlagergren/decimal/internal/arith"
 	cst "github.com/ericlagergren/decimal/internal/c"
 )
 
+// norm normalizes z to enforce the invariant that z.unscaled is
+// only used if the decimal has over 20 digits.
 func (z *Big) norm() *Big {
 	if z.unscaled.IsUint64() {
 		if v := z.unscaled.Uint64(); v != cst.Inflated {
@@ -20,14 +24,15 @@ func (z *Big) norm() *Big {
 	return z
 }
 
+// fix check for overflow, underflow, and clamping.
 func (c Context) fix(z *Big) *Big {
 	adj := z.adjusted()
 
-	if adj > c.maxScale() {
-		prec := precision(c)
+	if adj > c.emax() {
+		prec := c.precision()
 
 		if z.isZero() {
-			z.exp = c.maxScale()
+			z.exp = c.emax()
 			z.Context.Conditions |= Clamped
 			return z
 		}
@@ -38,10 +43,10 @@ func (c Context) fix(z *Big) *Big {
 		case AwayFromZero:
 			// OK
 		case ToZero:
-			z.exp = c.maxScale() - prec + 1
+			z.exp = c.emax() - prec + 1
 		case ToPositiveInf, ToNegativeInf:
 			if m == ToPositiveInf == z.Signbit() {
-				z.exp = c.maxScale() - prec + 1
+				z.exp = c.emax() - prec + 1
 			} else {
 				z.SetInf(false)
 			}
@@ -50,7 +55,7 @@ func (c Context) fix(z *Big) *Big {
 		return z
 	}
 
-	if adj < c.minScale() {
+	if adj < c.emin() {
 		tiny := c.etiny()
 
 		if z.isZero() {
@@ -66,8 +71,8 @@ func (c Context) fix(z *Big) *Big {
 			if c.shiftr(z, uint64(tiny-z.exp)) {
 				z.compact = 1
 			}
-			z.Context.Conditions |= Underflow
 			z.exp = tiny
+			z.Context.Conditions |= Underflow
 			if z.isZero() {
 				z.Context.Conditions |= Clamped
 			}
@@ -89,6 +94,9 @@ func alias(z, x *big.Int) *big.Int {
 	return new(big.Int)
 }
 
+// invalidContext reports whether the Context is invalid.
+//
+// If so, it modifies z appropriately.
 func (z *Big) invalidContext(c Context) bool {
 	switch {
 	case c.Precision < 0:
@@ -109,13 +117,6 @@ func (z *Big) invalidContext(c Context) bool {
 	return true
 }
 
-func precision(c Context) (p int) {
-	if p := c.Precision; p != 0 {
-		return p
-	}
-	return DefaultPrecision
-}
-
 // copybits can be useful when we want to allocate a big.Int without calling
 // new or big.Int.Set. For example:
 //
@@ -131,8 +132,8 @@ func copybits(x []big.Word) []big.Word {
 	return z
 }
 
-// cmpNorm compares x and y in the range [0.1, 0.999...] and returns true if x
-// > y.
+// cmpNorm compares x and y in the range [0.1, 0.999...] and
+// reports whether x > y.
 func cmpNorm(x uint64, xs int, y uint64, ys int) (ok bool) {
 	goodx, goody := true, true
 
@@ -168,8 +169,9 @@ func cmpNormBig(z, x *big.Int, xs int, y *big.Int, ys int) (ok bool) {
 	return x.Cmp(y) > 0
 }
 
-// scalex adjusts x by scale. If scale > 0, x = x * 10^scale, otherwise
-// x = x / 10^-scale.
+// scalex adjusts x by scale.
+//
+// If scale > 0, x = x * 10^scale, otherwise x = x / 10^-scale.
 func scalex(x uint64, scale int) (sx uint64, ok bool) {
 	if scale > 0 {
 		if sx, ok = arith.MulPow10(x, uint64(scale)); !ok {
@@ -197,4 +199,50 @@ func min(x, y int) int {
 		return x
 	}
 	return y
+}
+
+func max(x, y int) int {
+	if x > y {
+		return x
+	}
+	return y
+}
+
+// getmsd returns the n most significant digits in x.
+func getmsd(x *Big, n int) uint64 {
+	if n < 0 || n > arith.MaxLength {
+		panic("getmsd: out of range: " + strconv.Itoa(n))
+	}
+
+	r := x.Precision() - n
+	if r < 0 {
+		r = 0
+	}
+
+	if x.isCompact() {
+		p, _ := arith.Pow10(uint64(r))
+		return x.compact / p
+	}
+
+	// Here, x.Precision >= n since n is in [0, 19] and an
+	// inflated decimal is >= 1<<64-1.
+	var w big.Int
+	w.Quo(&x.unscaled, arith.BigPow10(uint64(r)))
+	return w.Uint64()
+}
+
+var decPool = sync.Pool{
+	New: func() interface{} {
+		return new(Big)
+	},
+}
+
+func getDec(ctx Context) *Big {
+	x := decPool.Get().(*Big)
+	x.Context = ctx
+	return x
+}
+
+func putDec(x *Big) {
+	decPool.Put(x)
 }
