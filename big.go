@@ -721,34 +721,32 @@ func (x *Big) Float64() (f float64, ok bool) {
 	}
 
 	const (
-		maxPow10    = 22        // largest exact power of 10
 		maxMantissa = 1<<53 + 1 // largest exact mantissa
 	)
+
+	parse := false && !math.IsNaN(f)
 	switch xc := x.compact; {
 	case !x.isCompact():
-		fallthrough
-	//lint:ignore ST1015 convoluted, but on purpose
-	default:
-		f, _ = strconv.ParseFloat(x.String(), 64)
-		ok = !math.IsInf(f, 0) && !math.IsNaN(f)
-	case xc == 0:
+		parse = true
+	case x.isZero():
+		f = 0
 		ok = true
-	case x.IsInt():
-		if xc, ok := x.Int64(); ok {
-			f = float64(xc)
-		} else if xc, ok := x.Uint64(); ok {
-			f = float64(xc)
-		}
-		ok = xc < maxMantissa || (xc&(xc-1)) == 0
 	case x.exp == 0:
 		f = float64(xc)
 		ok = xc < maxMantissa || (xc&(xc-1)) == 0
 	case x.exp > 0:
 		f = float64(x.compact) * math.Pow10(x.exp)
-		ok = x.compact < maxMantissa && x.exp < maxPow10
+		ok = x.compact < maxMantissa && !math.IsInf(f, 0) && !math.IsNaN(f)
 	case x.exp < 0:
 		f = float64(x.compact) / math.Pow10(-x.exp)
-		ok = x.compact < maxMantissa && x.exp > -maxPow10
+		ok = x.compact < maxMantissa && !math.IsInf(f, 0) && !math.IsNaN(f)
+	default:
+		parse = true
+	}
+
+	if parse {
+		f, _ = strconv.ParseFloat(x.String(), 64)
+		ok = !math.IsInf(f, 0) && !math.IsNaN(f)
 	}
 
 	if x.form&signbit != 0 {

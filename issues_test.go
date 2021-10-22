@@ -208,3 +208,14 @@ func TestIssue146(t *testing.T) {
 		}
 	}
 }
+
+func TestIssue158(t *testing.T) {
+	val := New(1, -300)
+	f, ok := val.Float64()
+	if !ok {
+		t.Fatal("expected true, got false")
+	}
+	if f != float64(1e300) {
+		t.Fatalf("expected 1e300, got %f", f)
+	}
+}
