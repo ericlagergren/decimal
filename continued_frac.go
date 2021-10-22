@@ -1,9 +1,7 @@
-package math
+package decimal
 
 import (
 	"fmt"
-
-	"github.com/ericlagergren/decimal"
 )
 
 // Term is a specific term in a continued fraction. A and B correspond with the
@@ -11,15 +9,11 @@ import (
 // example can be seen in the book, ``Numerical Recipes in C: The Art of
 // Scientific Computing'' (ISBN 0-521-43105-5) in figure 5.2.1 on page 169.
 type Term struct {
-	A, B *decimal.Big
+	A, B *Big
 }
 
 func (t Term) String() string {
 	return fmt.Sprintf("[%s / %s]", t.A, t.B)
-}
-
-func makeTerm() Term {
-	return Term{A: new(decimal.Big), B: new(decimal.Big)}
 }
 
 // Generator represents a continued fraction.
@@ -38,7 +32,7 @@ type Generator interface {
 // intended to be analogous to the relationship between, for example,
 // Context.Mul and Big.Mul.
 type Contexter interface {
-	Context() decimal.Context
+	Context() Context
 }
 
 // Okay, I _am_ sorry about the name of this interface. It's stupid.
@@ -47,33 +41,38 @@ type Contexter interface {
 type Walliser interface {
 	// Wallis provides the backing storage for a Generator passed to the Wallis
 	// function. See the Lentzer interface for more information.
-	Wallis() (a, a1, b, b1, p, eps *decimal.Big)
+	Wallis() (a, a1, b, b1, p, eps *Big)
 }
 
-type walliser struct{ prec int }
+type walliser struct {
+	prec int
+}
 
-func (w walliser) Wallis() (a, a1, b, b1, p, eps *decimal.Big) {
-	a = decimal.WithPrecision(w.prec)
-	a1 = decimal.WithPrecision(w.prec)
-	b = decimal.WithPrecision(w.prec)
-	b1 = decimal.WithPrecision(w.prec)
-	p = decimal.WithPrecision(w.prec)
-	eps = decimal.New(1, w.prec)
+func (w walliser) Wallis() (a, a1, b, b1, p, eps *Big) {
+	a = WithPrecision(w.prec)
+	a1 = WithPrecision(w.prec)
+	b = WithPrecision(w.prec)
+	b1 = WithPrecision(w.prec)
+	p = WithPrecision(w.prec)
+	eps = New(1, w.prec)
 	return a, a1, b, b1, p, eps
 }
 
-// Wallis sets z to the result of the continued fraction provided by the
-// Generator and returns z. The fraction is evaluated in a top-down manner,
-// using the recurrence algorithm discovered by John Wallis. For more information
-// on continued fraction representations, see the Lentz function.
-func Wallis(z *decimal.Big, g Generator) *decimal.Big {
+// Wallis sets z to the result of the continued fraction provided
+// by the Generator and returns z.
+//
+// The fraction is evaluated in a top-down manner, using the
+// recurrence algorithm discovered by John Wallis. For more
+// information on continued fraction representations, see the
+// Lentz function.
+func (c Context) Wallis(z *Big, g Generator) *Big {
 	if !g.Next() {
 		return z
 	}
 
 	ws, ok := g.(Walliser)
 	if !ok {
-		ws = walliser{prec: precision(z) + 5}
+		ws = walliser{prec: c.precision() + 5}
 	}
 	a, a_1, b, b_1, p, eps := ws.Wallis()
 
@@ -121,25 +120,27 @@ type Lentzer interface {
 	//
 	// For more information, refer to "Numerical Recipes in C: The Art of
 	// Scientific Computing" (ISBN 0-521-43105-5), pg 171.
-	Lentz() (f, Δ, C, D, eps *decimal.Big)
+	Lentz() (f, Δ, C, D, eps *Big)
 }
 
 // lentzer implements the Lentzer interface.
 type lentzer struct{ prec int }
 
-func (l lentzer) Lentz() (f, Δ, C, D, eps *decimal.Big) {
-	f = decimal.WithPrecision(l.prec)
-	Δ = decimal.WithPrecision(l.prec)
-	C = decimal.WithPrecision(l.prec)
-	D = decimal.WithPrecision(l.prec)
-	eps = decimal.New(1, l.prec)
+func (l lentzer) Lentz() (f, Δ, C, D, eps *Big) {
+	f = WithPrecision(l.prec)
+	Δ = WithPrecision(l.prec)
+	C = WithPrecision(l.prec)
+	D = WithPrecision(l.prec)
+	eps = New(1, l.prec)
 	return f, Δ, C, D, eps
 }
 
-var tiny = decimal.New(10, 60)
+var tiny = New(10, 60)
 
-// Lentz sets z to the result of the continued fraction provided by the
-// Generator and returns z. The continued fraction should be represented as such:
+// Lentz sets z to the result of the continued fraction provided
+// by the Generator and returns z.
+//
+// The continued fraction should be represented as such:
 //
 //                          a1
 //     f(x) = b0 + --------------------
@@ -157,17 +158,19 @@ var tiny = decimal.New(10, 60)
 //     f(x) = b0 + ---- ---- ----
 //                  b1 + b2 + b3 + ···
 //
-// If terms need to be subtracted, the a_N terms should be negative. To compute
-// a continued fraction without b_0, divide the result by a_1.
+// If terms need to be subtracted, the a_N terms should be
+// negative. To compute a continued fraction without b_0, divide
+// the result by a_1.
 //
-// If the first call to the Generator's Next method returns false, the result
-// of Lentz is undefined.
+// If the first call to the Generator's Next method returns
+// false, the result of Lentz is undefined.
 //
-// Note: the accuracy of the result may be affected by the precision of
-// intermediate results. If larger precision is desired it may be necessary for
-// the Generator to implement the Lentzer interface and set a higher precision
-// for f, Δ, C, and D.
-func Lentz(z *decimal.Big, g Generator) *decimal.Big {
+// Note: the accuracy of the result may be affected by the
+// precision of intermediate results. If larger precision is
+// desired, it may be necessary for the Generator to implement
+// the Lentzer interface and set a higher precision for f, Δ, C,
+// and D.
+func (c Context) Lentz(z *Big, g Generator) *Big {
 	// We use the modified Lentz algorithm from
 	// "Numerical Recipes in C: The Art of Scientific Computing" (ISBN
 	// 0-521-43105-5), pg 171.
@@ -193,14 +196,14 @@ func Lentz(z *decimal.Big, g Generator) *decimal.Big {
 	lz, ok := g.(Lentzer)
 	if !ok {
 		// TODO(eric): what is a sensible default precision?
-		lz = lentzer{prec: precision(z) + 5}
+		lz = lentzer{prec: c.precision() + 5}
 	}
 	f, Δ, C, D, eps := lz.Lentz()
 
 	// tiny should be less than typical values of eps.
 	tiny := tiny
 	if eps.Scale() > tiny.Scale() {
-		tiny = decimal.New(10, min(eps.Scale()*2, maxscl(z)))
+		tiny = New(10, min(eps.Scale()*2, c.emax()))
 	}
 
 	t := g.Term()
@@ -240,7 +243,7 @@ func Lentz(z *decimal.Big, g Generator) *decimal.Big {
 		}
 
 		// Set D_j = 1/D_j
-		ctx.Quo(D, one, D)
+		ctx.Quo(D, one.get(), D)
 
 		// Set Δ_j = C_j*D_j
 		ctx.Mul(Δ, C, D)
@@ -249,7 +252,7 @@ func Lentz(z *decimal.Big, g Generator) *decimal.Big {
 		ctx.Mul(f, f, Δ)
 
 		// If |Δ_j - 1| < eps then exit
-		if ctx.Sub(Δ, Δ, one).CmpAbs(eps) < 0 {
+		if ctx.Sub(Δ, Δ, one.get()).CmpAbs(eps) < 0 {
 			break
 		}
 	}
@@ -258,7 +261,7 @@ func Lentz(z *decimal.Big, g Generator) *decimal.Big {
 }
 
 /*
-func dump(f, Δ, D, C, eps *decimal.Big) {
+func dump(f, Δ, D, C, eps *Big) {
 	fmt.Printf(`
 f  : %s
 Δ  : %s

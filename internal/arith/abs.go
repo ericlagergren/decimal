@@ -1,6 +1,9 @@
 package arith
 
-import "math/big"
+import (
+	"math/big"
+	"math/bits"
+)
 
 // Abs returns the absolute value of x.
 func Abs(x int64) uint64 {
@@ -26,7 +29,7 @@ func Cmp(x, y uint64) int {
 
 // CmpShift compares x and y*shift.
 func CmpShift(x, y, shift uint64) int {
-	y1, y0 := Mul64(y, shift)
+	y1, y0 := bits.Mul64(y, shift)
 	if y1 != 0 {
 		return -1
 	}

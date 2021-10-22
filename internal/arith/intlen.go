@@ -5,6 +5,8 @@ import (
 	"math/bits"
 )
 
+const MaxLength = 20
+
 // Length returns the number of digits in x.
 func Length(x uint64) int {
 	if x < 10 {

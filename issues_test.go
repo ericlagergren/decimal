@@ -137,3 +137,74 @@ func TestIssue129(t *testing.T) {
 		t.Fatalf("expected Inf, got %s", &z)
 	}
 }
+
+func TestIssue70(t *testing.T) {
+	x, _ := new(Big).SetString("1E+41")
+	ctx := Context{Precision: 1}
+	ctx.Log10(x, x)
+	if x.Cmp(New(40, 0)) != 0 {
+		t.Fatalf(`Log10(1e+41)
+wanted: 40
+got   : %s
+`, x)
+	}
+}
+
+func TestIssue69(t *testing.T) {
+	maxSqrt := uint64(4294967295)
+	if testing.Short() {
+		maxSqrt = 1e6
+	}
+	for i := uint64(1); i <= maxSqrt; i++ {
+		var x Big
+		x.SetUint64(i * i)
+		var ctx Context
+		if v, ok := ctx.Sqrt(&x, &x).Uint64(); !ok || v != i {
+			t.Fatalf(`Sqrt(%d)
+wanted: %d (0)
+got   : %d (%d)
+`, i*i, i, v, -x.Scale())
+		}
+	}
+}
+
+func TestIssue73(t *testing.T) {
+	x := New(16, 2)
+	z := new(Big)
+	ctx := Context{Precision: 4100}
+	ctx.Sqrt(z, x)
+	r := New(4, 1)
+	if z.Cmp(r) != 0 || z.Scale() != r.Scale() || z.Context.Conditions != r.Context.Conditions {
+		t.Fatalf(`Sqrt(%d)
+wanted: %s (%d) %s
+got   : %s (%d) %s
+`, x, r, -r.Scale(), r.Context.Conditions, z, -z.Scale(), z.Context.Conditions)
+	}
+}
+
+func TestIssue75(t *testing.T) {
+	x := New(576, 2)
+	z := new(Big)
+	ctx := Context{Precision: 2}
+	ctx.Sqrt(z, x)
+	r := New(24, 1)
+	if z.Cmp(r) != 0 || z.Scale() != r.Scale() || z.Context.Conditions != r.Context.Conditions {
+		t.Fatalf(`Sqrt(%d)
+wanted: %s (%d) %s
+got   : %s (%d) %s
+`, x, r, -r.Scale(), r.Context.Conditions, z, -z.Scale(), z.Context.Conditions)
+	}
+}
+
+func TestIssue146(t *testing.T) {
+	var ctx Context
+	for i := int64(0); i < 10; i++ {
+		n := New(i, 1)
+		firstPow := ctx.Pow(new(Big), n, one.get())
+		if n.Cmp(firstPow) != 0 {
+			t.Errorf("%v^1 != %v", n, firstPow)
+		} else {
+			t.Logf("%v^1 == %v", n, firstPow)
+		}
+	}
+}

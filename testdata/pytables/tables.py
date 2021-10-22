@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.6
+#!/usr/bin/env python3
 
 from decimal import *
 import gzip
@@ -48,6 +48,8 @@ modes = {
     "^": ROUND_UP,
     # ROUND_05UP,
 }
+
+modes_inv = dict((v, k) for k, v in modes.items())
 
 
 def rand_bool():
@@ -321,6 +323,7 @@ N = int(sys.argv[1])
 
 
 def make_tables(items):
+    random.seed(0xdeadbeef)
     for op, name in items:
         print("generating {}".format(name))
         with gzip.open("{}-tables.gz".format(name), "wt") as f:
@@ -331,8 +334,8 @@ def make_tables(items):
                 ctx = getcontext()
                 ctx.Emax = MAX_EMAX
                 ctx.Emin = MIN_EMIN
-                ctx.rounding = modes[mode]
-                ctx.prec = random.randint(1, random.randint(100, 50000))
+                ctx.rounding = ROUND_HALF_EVEN # modes[mode]
+                ctx.prec = random.randint(1, random.randint(1, 1000))
                 ctx.clear_traps()
                 ctx.clear_flags()
 
@@ -342,7 +345,8 @@ def make_tables(items):
                 for key, value in ctx.flags.items():
                     if value == 1 and key != FloatOperation:
                         conds += traps[key]
-                write_line(f, ctx.prec, op, mode, r, x, y, u, conds)
+                mode_str = modes_inv[ctx.rounding]
+                write_line(f, ctx.prec, op, mode_str, r, x, y, u, conds)
 
 
 items = ops.items()

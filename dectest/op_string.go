@@ -4,9 +4,67 @@ package dectest
 
 import "strconv"
 
-const _Op_name = "UnknownOpAbsAddAndApplyCanonicalClassCompareCompareSigCompareTotalCompareTotMagCopyCopyAbsCopyNegateCopySignDivideDivideIntExpFMAInvertLnLog10LogBMaxMaxMagMinMinMagMinusMultiplyNextMinusNextPlusNextTowardOrPlusPowerQuantizeReduceRemainderRemainderNearRescaleRotateSameQuantumScaleBShiftSquareRootSubtractToEngToIntegralToIntegralXToSciTrimXor"
+func _() {
+	// An "invalid array index" compiler error signifies that the constant values have changed.
+	// Re-run the stringer command to generate them again.
+	var x [1]struct{}
+	_ = x[OpUnknownOp-0]
+	_ = x[OpAbs-1]
+	_ = x[OpAdd-2]
+	_ = x[OpAnd-3]
+	_ = x[OpApply-4]
+	_ = x[OpCanonical-5]
+	_ = x[OpClass-6]
+	_ = x[OpCompare-7]
+	_ = x[OpCompareSig-8]
+	_ = x[OpCompareTotal-9]
+	_ = x[OpCompareTotMag-10]
+	_ = x[OpCopy-11]
+	_ = x[OpCopyAbs-12]
+	_ = x[OpCopyNegate-13]
+	_ = x[OpCopySign-14]
+	_ = x[OpDivide-15]
+	_ = x[OpDivideInt-16]
+	_ = x[OpExp-17]
+	_ = x[OpFMA-18]
+	_ = x[OpInvert-19]
+	_ = x[OpLn-20]
+	_ = x[OpLog10-21]
+	_ = x[OpLogB-22]
+	_ = x[OpMax-23]
+	_ = x[OpMaxMag-24]
+	_ = x[OpMin-25]
+	_ = x[OpMinMag-26]
+	_ = x[OpMinus-27]
+	_ = x[OpMultiply-28]
+	_ = x[OpNextMinus-29]
+	_ = x[OpNextPlus-30]
+	_ = x[OpNextToward-31]
+	_ = x[OpOr-32]
+	_ = x[OpPlus-33]
+	_ = x[OpPower-34]
+	_ = x[OpQuantize-35]
+	_ = x[OpReduce-36]
+	_ = x[OpRemainder-37]
+	_ = x[OpRemainderNear-38]
+	_ = x[OpRescale-39]
+	_ = x[OpRotate-40]
+	_ = x[OpSameQuantum-41]
+	_ = x[OpScaleB-42]
+	_ = x[OpShift-43]
+	_ = x[OpSquareRoot-44]
+	_ = x[OpSubtract-45]
+	_ = x[OpToEng-46]
+	_ = x[OpToIntegral-47]
+	_ = x[OpToIntegralX-48]
+	_ = x[OpToSci-49]
+	_ = x[OpTrim-50]
+	_ = x[OpXor-51]
+}
 
-var _Op_index = [...]uint16{0, 9, 12, 15, 18, 23, 32, 37, 44, 54, 66, 79, 83, 90, 100, 108, 114, 123, 126, 129, 135, 137, 142, 146, 149, 155, 158, 164, 169, 177, 186, 194, 204, 206, 210, 215, 223, 229, 238, 251, 258, 264, 275, 281, 286, 296, 304, 309, 319, 330, 335, 339, 342}
+const _Op_name = "OpUnknownOpOpAbsOpAddOpAndOpApplyOpCanonicalOpClassOpCompareOpCompareSigOpCompareTotalOpCompareTotMagOpCopyOpCopyAbsOpCopyNegateOpCopySignOpDivideOpDivideIntOpExpOpFMAOpInvertOpLnOpLog10OpLogBOpMaxOpMaxMagOpMinOpMinMagOpMinusOpMultiplyOpNextMinusOpNextPlusOpNextTowardOpOrOpPlusOpPowerOpQuantizeOpReduceOpRemainderOpRemainderNearOpRescaleOpRotateOpSameQuantumOpScaleBOpShiftOpSquareRootOpSubtractOpToEngOpToIntegralOpToIntegralXOpToSciOpTrimOpXor"
+
+var _Op_index = [...]uint16{0, 11, 16, 21, 26, 33, 44, 51, 60, 72, 86, 101, 107, 116, 128, 138, 146, 157, 162, 167, 175, 179, 186, 192, 197, 205, 210, 218, 225, 235, 246, 256, 268, 272, 278, 285, 295, 303, 314, 329, 338, 346, 359, 367, 374, 386, 396, 403, 415, 428, 435, 441, 446}
 
 func (i Op) String() string {
 	if i >= Op(len(_Op_index)-1) {

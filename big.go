@@ -17,30 +17,42 @@ import (
 	"github.com/ericlagergren/decimal/internal/c"
 )
 
-// Big is a floating-point, arbitrary-precision decimal.
+const (
+	// Radix is the base in which decimal arithmetic is
+	// performed.
+	Radix = 10
+
+	// IsCanonical is true since Big decimals are always
+	// normalized.
+	IsCanonical = true
+)
+
+// Big is a floating-point, arbitrary-precision
 //
-// It is represented as a number and a scale. If the scale is >= 0, it indicates
-// the number of decimal digits after the radix. Otherwise, the number is
-// multiplied by 10 to the power of the negation of the scale. More formally,
+// It is represented as a number and a scale. A scale greater
+// than zero indicates the number of decimal digits after the
+// radix. Otherwise, the number is multiplied by 10 to the power
+// of the negation of the scale. More formally,
 //
 //    Big = number × 10**-scale
 //
-// with MinScale <= scale <= MaxScale. A Big may also be ±0, ±Infinity, or ±NaN
-// (either quiet or signaling). Non-NaN Big values are ordered, defined as the
-// result of x.Cmp(y).
+// with MinScale <= scale <= MaxScale. A Big may also be ±0,
+// ±Infinity, or ±NaN (either quiet or signaling). Non-NaN Big
+// values are ordered, defined as the result of x.Cmp(y).
 //
-// Additionally, each Big value has a contextual object which governs arithmetic
-// operations.
+// Additionally, each Big value has a contextual object which
+// governs arithmetic operations.
 type Big struct {
 	// Context is the decimal's unique contextual object.
 	Context Context
 
-	// unscaled is only used if the decimal is too large to fit in compact.
+	// unscaled is only used if the decimal is too large to fit
+	// in compact.
 	unscaled big.Int
 
-	// compact is use if the value fits into an uint64. The scale does not
-	// affect whether this field is used; typically, if a decimal has <= 20
-	// digits this field will be used.
+	// compact is use if the value fits into an uint64. The scale
+	// does not affect whether this field is used. If a decimal
+	// has 20 or fewer digits, this field will be used.
 	compact uint64
 
 	// exp is the negated scale, meaning
@@ -52,8 +64,8 @@ type Big struct {
 	// precision is the current precision.
 	precision int
 
-	// form indicates whether a decimal is a finite number, an infinity, or a
-	// NaN value and whether it's signed or not.
+	// form indicates whether a decimal is a finite number, an
+	// infinity, or a NaN value and whether it's signed or not.
 	form form
 }
 
@@ -63,10 +75,11 @@ var (
 	_ fmt.Stringer             = (*Big)(nil)
 	_ json.Unmarshaler         = (*Big)(nil)
 	_ encoding.TextUnmarshaler = (*Big)(nil)
+	_ decomposer               = (*Big)(nil)
 )
 
-// form indicates whether a decimal is a finite number, an infinity, or a nan
-// value and whether it's signed or not.
+// form indicates whether a decimal is a finite number, an
+// infinity, or a nan value and whether it's signed or not.
 type form uint8
 
 const (
@@ -125,48 +138,72 @@ type Payload uint64
 //go:generate stringer -type Payload -linecomment
 
 const (
-	addinfinf      Payload = iota + 1 // addition of infinities with opposing signs
-	mul0inf                           // multiplication of zero with infinity
-	quo00                             // division of zero by zero
-	quoinfinf                         // division of infinity by infinity
-	quantinf                          // quantization of an infinity
-	quantminmax                       // quantization exceeds minimum or maximum scale
-	quantprec                         // quantization exceeds working precision
-	subinfinf                         // subtraction of infinities with opposing signs
-	absvalue                          // absolute value of NaN
+	absvalue       Payload = iota + 1 // absolute value of NaN
+	acos                              // acos with NaN as an operand
+	addinfinf                         // addition of infinities with opposing signs
 	addition                          // addition with NaN as an operand
+	asin                              // asin with NaN as an operand
+	atan                              // atan with NaN as an operand
+	atan2                             // atan2 with NaN as an operand
 	comparison                        // comparison with NaN as an operand
+	cos                               // cos with NaN as an operand
+	division                          // division with NaN as an operand
+	exp                               // exp with NaN as an operand
+	invctxomode                       // operation with an invalid OperatingMode
+	invctxpgtu                        // operation with a precision greater than MaxPrecision
+	invctxpltz                        // operation with a precision less than zero
+	invctxrmode                       // operation with an invalid RoundingMode
+	invctxsgtu                        // operation with a scale greater than MaxScale
+	invctxsltu                        // operation with a scale lesser than MinScale
+	log                               // log with NaN as an operand
+	log10                             // log10 with NaN as an operand
+	mul0inf                           // multiplication of zero with infinity
 	multiplication                    // multiplication with NaN as an operand
 	negation                          // negation with NaN as an operand
-	division                          // division with NaN as an operand
+	nextminus                         // next-minus with NaN as an operand
+	nextplus                          // next-plus with NaN as an operand
+	quantinf                          // quantization of an infinity
 	quantization                      // quantization with NaN as an operand
-	subtraction                       // subtraction with NaN as an operand
-	quorem_                           // integer division or remainder has too many digits
-	reminfy                           // remainder of infinity
-	remx0                             // remainder by zero
-	quotermexp                        // division with unlimited precision has a non-terminating decimal expansion
-	invctxpltz                        // operation with a precision less than zero
-	invctxpgtu                        // operation with a precision greater than MaxPrecision
-	invctxrmode                       // operation with an invalid RoundingMode
-	invctxomode                       // operation with an invalid OperatingMode
-	invctxsltu                        // operation with a scale lesser than MinScale
-	invctxsgtu                        // operation with a scale greater than MaxScale
-	reduction                         // reduction with NaN as an operand
+	quantminmax                       // quantization exceeds minimum or maximum scale
+	quantprec                         // quantization exceeds working precision
+	quo00                             // division of zero by zero
+	quoinfinf                         // division of infinity by infinity
 	quointprec                        // result of integer division was larger than the desired precision
+	quorem_                           // integer division or remainder has too many digits
+	quotermexp                        // division with unlimited precision has a non-terminating decimal expansion
+	reduction                         // reduction with NaN as an operand
+	reminfy                           // remainder of infinity
 	remprec                           // result of remainder operation was larger than the desired precision
+	remx0                             // remainder by zero
+	sin                               // sin with NaN as an operand
+	subinfinf                         // subtraction of infinities with opposing signs
+	subtraction                       // subtraction with NaN as an operand
 )
 
 // An ErrNaN is used when a decimal operation would lead to a NaN under IEEE-754
 // rules. An ErrNaN implements the error interface.
-type ErrNaN struct{ Msg string }
+type ErrNaN struct {
+	Msg string
+}
 
-func (e ErrNaN) Error() string { return e.Msg }
+func (e ErrNaN) Error() string {
+	return e.Msg
+}
 
 var _ error = ErrNaN{}
 
-// CheckNaNs checks if either x or y is NaN. If so, it follows the rules of NaN
-// handling set forth in the GDA specification. The second argument, y, may be
-// nil. It returns true if either condition is a NaN.
+// Canonical sets z to the canonical form of z.
+//
+// Since Big values are always canonical, it's identical to Copy.
+func (z *Big) Canonical(x *Big) *Big {
+	return z.Copy(x)
+}
+
+// CheckNaNs checks if either x or y is NaN.
+//
+// If so, it follows the rules of NaN handling set forth in the
+// GDA specification. The argument y may be nil. It reports
+// whether either condition is a NaN.
 func (z *Big) CheckNaNs(x, y *Big) bool {
 	return z.invalidContext(z.Context) || z.checkNaNs(x, y, 0)
 }
@@ -235,37 +272,59 @@ func (z *Big) xflow(exp int, over, neg bool) *Big {
 func (x *Big) isCompact() bool  { return x.compact != c.Inflated }
 func (x *Big) isInflated() bool { return !x.isCompact() }
 func (x *Big) isSpecial() bool  { return x.form&(inf|nan) != 0 }
-func (x *Big) isZero() bool     { return x.compact == 0 }
 
-func (x *Big) adjusted() int { return (x.exp + x.Precision()) - 1 }
-func (c Context) etiny() int { return MinScale - (precision(c) - 1) }
+// isZero reports whether x is zero.
+//
+// Only use after checking for specials.
+func (x *Big) isZero() bool {
+	if debug {
+		if x.isSpecial() {
+			panic("isZero called on a special value")
+		}
+	}
+	return x.compact == 0
+}
+
+// adjusted returns the adjusted exponent.
+//
+// The adjusted exponent is the exponent of x when expressed in
+// scientific notation with one digit before the radix.
+func (x *Big) adjusted() int {
+	return (x.exp + x.Precision()) - 1
+}
+
+// etiny returns the minimum exponent of a subnormal result.
+func (c Context) etiny() int {
+	return c.emin() - (c.precision() - 1)
+}
+
+// etop returns the maximum exponent of an overflow result.
+func (c Context) etop() int {
+	return c.emax() - (c.precision() - 1)
+}
 
 // Abs sets z to the absolute value of x and returns z.
 func (z *Big) Abs(x *Big) *Big {
-	if debug {
-		x.validate()
-	}
-	if !z.invalidContext(z.Context) && !z.checkNaNs(x, x, absvalue) {
-		z.Context.round(z.copyAbs(x))
-	}
-	return z
+	return z.Context.Abs(z, x)
 }
 
 // Add sets z to x + y and returns z.
-func (z *Big) Add(x, y *Big) *Big { return z.Context.Add(z, x, y) }
+func (z *Big) Add(x, y *Big) *Big {
+	return z.Context.Add(z, x, y)
+}
 
-// Class returns the ``class'' of x, which is one of the following:
+// Class returns the "class" of x, which is one of the following:
 //
-//  sNaN
-//  NaN
-//  -Infinity
-//  -Normal
-//  -Subnormal
-//  -Zero
-//  +Zero
-//  +Subnormal
-//  +Normal
-//  +Infinity
+//    sNaN
+//    NaN
+//    -Infinity
+//    -Normal
+//    -Subnormal
+//    -Zero
+//    +Zero
+//    +Subnormal
+//    +Normal
+//    +Infinity
 //
 func (x *Big) Class() string {
 	if x.IsNaN(0) {
@@ -304,9 +363,17 @@ func (x *Big) Class() string {
 //    0 if x == y
 //   +1 if x >  y
 //
-// It does not modify x or y. The result is undefined if either x or y are NaN.
-// For an abstract comparison with NaN values, see misc.CmpTotal.
-func (x *Big) Cmp(y *Big) int { return cmp(x, y, false) }
+// It does not modify x or y. The result is undefined if either
+// x or y are NaN.
+//
+// For an abstract comparison with NaN values, see CmpTotal.
+func (x *Big) Cmp(y *Big) int {
+	if debug {
+		x.validate()
+		y.validate()
+	}
+	return cmp(x, y, false)
+}
 
 // CmpAbs compares |x| and |y| and returns:
 //
@@ -314,17 +381,73 @@ func (x *Big) Cmp(y *Big) int { return cmp(x, y, false) }
 //    0 if |x| == |y|
 //   +1 if |x| >  |y|
 //
-// It does not modify x or y. The result is undefined if either x or y are NaN.
-// For an abstract comparison with NaN values, see misc.CmpTotalAbs.
-func (x *Big) CmpAbs(y *Big) int { return cmp(x, y, true) }
-
-// cmp is the implementation for both Cmp and CmpAbs.
-func cmp(x, y *Big, abs bool) int {
+// It does not modify x or y. The result is undefined if either
+// x or y are NaN.
+//
+// For an abstract comparison with NaN values, see
+// CmpTotalAbs.
+func (x *Big) CmpAbs(y *Big) int {
 	if debug {
 		x.validate()
 		y.validate()
 	}
+	return cmp(x, y, true)
+}
 
+func cmpInt(x *Big, y int64) int {
+	switch {
+	case x.Signbit() && y >= 0:
+		return -1
+	case !x.Signbit() && y < 0:
+		return +1
+	default:
+		return cmpAbsInt(x, y)
+	}
+}
+
+func cmpAbsInt(x *Big, y int64) int {
+	u := uint64(y)
+
+	// Same scales, so compare straight across.
+	if x.exp == 0 {
+		// If the scales are the same and x x is not compact,
+		// then by definition it's larger than y.
+		if !x.isCompact() {
+			return +1
+		}
+		return arith.Cmp(x.compact, u)
+	}
+
+	// Signs are the same and the scales differ. Compare the
+	// lengths of their integral parts; if they differ in length
+	// one number is larger.
+	// E.g.: 1234.01
+	//       1230011
+	xl := x.adjusted()
+	yl := arith.Length(u) - 1
+	if xl != yl {
+		if xl < yl {
+			return -1
+		}
+		return +1
+	}
+
+	// The length of the integral parts match. Rescale x, then
+	// compare straight across.
+	t, ok := scalex(x.compact, x.exp)
+	if !ok {
+		if x.exp > 0 {
+			// Overflow.
+			return +1
+		}
+		// Underflow.
+		return -1
+	}
+	return arith.Cmp(t, u)
+}
+
+// cmp is the implementation for both Cmp and CmpAbs.
+func cmp(x, y *Big, abs bool) int {
 	if x == y {
 		return 0
 	}
@@ -336,7 +459,8 @@ func cmp(x, y *Big, abs bool) int {
 		return 0
 	}
 
-	// Fast path: Catches non-finite forms like zero and ±Inf, possibly signed.
+	// Fast path: Catches non-finite forms like zero and ±Inf,
+	// possibly signed.
 	xs := x.ord(abs)
 	ys := y.ord(abs)
 	if xs != ys {
@@ -357,6 +481,21 @@ func cmp(x, y *Big, abs bool) int {
 	}
 }
 
+// ord returns similar to Sign except -Inf is -2 and +Inf is +2.
+func (x *Big) ord(abs bool) int {
+	if x.form&inf != 0 {
+		if x.form == pinf || abs {
+			return +2
+		}
+		return -2
+	}
+	r := x.Sign()
+	if abs && r < 0 {
+		r = -r
+	}
+	return r
+}
+
 func cmpabs(x, y *Big) int {
 	// Same scales means we can compare straight across.
 	if x.exp == y.exp {
@@ -372,10 +511,11 @@ func cmpabs(x, y *Big) int {
 		return x.unscaled.CmpAbs(&y.unscaled)
 	}
 
-	// Signs are the same and the scales differ. Compare the lengths of their
-	// integral parts; if they differ in length one number is larger.
-	// E.g., 1234.01
-	//        123.011
+	// Signs are the same and the scales differ. Compare the
+	// lengths of their integral parts; if they differ in length
+	// one number is larger.
+	// E.g.: 1234.01
+	//       123.011
 	xl := x.adjusted()
 	yl := y.adjusted()
 
@@ -413,6 +553,87 @@ func cmpabs(x, y *Big) int {
 	return arith.CmpBits(xw, yw)
 }
 
+// CmpTotal compares x and y in a manner similar to the Big.Cmp,
+// but allows ordering of all abstract representations.
+//
+// In particular, this means NaN values have a defined ordering.
+// From lowest to highest the ordering is:
+//
+//    -NaN
+//    -sNaN
+//    -Infinity
+//    -127
+//    -1.00
+//    -1
+//    -0.000
+//    -0
+//    +0
+//    +1.2300
+//    +1.23
+//    +1E+9
+//    +Infinity
+//    +sNaN
+//    +NaN
+//
+func (x *Big) CmpTotal(y *Big) int {
+	if debug {
+		x.validate()
+		y.validate()
+	}
+	xs := x.ordTotal(false)
+	ys := y.ordTotal(false)
+	if xs != ys {
+		if xs > ys {
+			return +1
+		}
+		return -1
+	}
+	if xs != 0 {
+		return 0
+	}
+	return x.Cmp(y)
+}
+
+// CmpTotalAbs is like CmpTotal but instead compares the absolute
+// values of x and y.
+func (x *Big) CmpTotalAbs(y *Big) int {
+	if debug {
+		x.validate()
+		y.validate()
+	}
+	xs := x.ordTotal(true)
+	ys := y.ordTotal(true)
+	if xs != ys {
+		if xs > ys {
+			return +1
+		}
+		return -1
+	}
+	if xs != 0 {
+		return 0
+	}
+	return x.CmpAbs(y)
+}
+
+func (x *Big) ordTotal(abs bool) (r int) {
+	// -2 == -qnan
+	// -1 == -snan
+	//  0 == not nan
+	// +1 == snan
+	// +2 == qnan
+	if x.IsNaN(0) {
+		if x.IsNaN(+1) { // qnan
+			r = +2
+		} else {
+			r = +1
+		}
+		if !abs && x.Signbit() {
+			r = -r
+		}
+	}
+	return r
+}
+
 // Copy sets z to a copy of x and returns z.
 func (z *Big) Copy(x *Big) *Big {
 	if debug {
@@ -440,7 +661,30 @@ func (z *Big) copyAbs(x *Big) *Big {
 	return z
 }
 
-// CopySign sets z to x with the sign of y and returns z. It accepts NaN values.
+// CopyAbs is like Abs, but no flags are changed and the result
+// is not rounded.
+func (z *Big) CopyAbs(x *Big) *Big {
+	if debug {
+		x.validate()
+	}
+	return z.copyAbs(x)
+}
+
+// CopyNeg is like Neg, but no flags are changed and the result
+// is not rounded.
+func (z *Big) CopyNeg(x *Big) *Big {
+	if debug {
+		x.validate()
+	}
+	xform := x.form // in case z == x
+	z.copyAbs(x)
+	z.form = xform ^ signbit
+	return z
+}
+
+// CopySign sets z to x with the sign of y and returns z.
+//
+// It accepts NaN values.
 func (z *Big) CopySign(x, y *Big) *Big {
 	if debug {
 		x.validate()
@@ -453,10 +697,13 @@ func (z *Big) CopySign(x, y *Big) *Big {
 	return z
 }
 
-// Float64 returns x as a float64 and a bool indicating whether x can fit into
-// a float64 without truncation, overflow, or underflow. Special values are
-// considered exact; however, special values that occur because the magnitude of
-// x is too large to be represented as a float64 are not.
+// Float64 returns x as a float64 and a bool indicating whether
+// x can fit into a float64 without truncation, overflow, or
+// underflow.
+//
+// Special values are considered exact; however, special values
+// that occur because the magnitude of x is too large to be
+// represented as a float64 are not.
 func (x *Big) Float64() (f float64, ok bool) {
 	if debug {
 		x.validate()
@@ -510,8 +757,9 @@ func (x *Big) Float64() (f float64, ok bool) {
 	return f, ok
 }
 
-// Float sets z to x and returns z. z is allowed to be nil. The result is
-// undefined if z is a NaN value.
+// Float sets z, which may be nil, to x and returns z.
+//
+// The result is undefined if z is a NaN value.
 func (x *Big) Float(z *big.Float) *big.Float {
 	if debug {
 		x.validate()
@@ -536,8 +784,9 @@ func (x *Big) Float(z *big.Float) *big.Float {
 	return z
 }
 
-// Format implements the fmt.Formatter interface. The following verbs are
-// supported:
+// Format implements the fmt.Formatter interface.
+//
+// The following verbs are supported:
 //
 // 	%s: -dddd.dd or -d.dddd±edd, depending on x
 // 	%d: same as %s
@@ -584,7 +833,8 @@ func (x *Big) Format(s fmt.State, c rune) {
 		e       = sciE[x.Context.OperatingMode]
 	)
 
-	// If we need to left pad then we need to first write our string into an
+	// If we need to left pad then we need to first write our
+	// string into an
 	// empty buffer.
 	tmpbuf := lpZero || lpSpace
 	if tmpbuf {
@@ -679,7 +929,7 @@ func (x *Big) Format(s fmt.State, c rune) {
 		fmt.Fprintf(s, "%"+specs+"v", (*Big)(x))
 		return
 	default:
-		fmt.Fprintf(s, "%%!%c(*decimal.Big=%s)", c, x.String())
+		fmt.Fprintf(s, "%%!%c(*Big=%s)", c, x.String())
 		return
 	}
 
@@ -702,11 +952,14 @@ func (x *Big) Format(s fmt.State, c rune) {
 }
 
 // FMA sets z to (x * y) + u without any intermediate rounding.
-func (z *Big) FMA(x, y, u *Big) *Big { return z.Context.FMA(z, x, y, u) }
+func (z *Big) FMA(x, y, u *Big) *Big {
+	return z.Context.FMA(z, x, y, u)
+}
 
-// Int sets z to x, truncating the fractional portion (if any) and returns z. z
-// is allowed to be nil. If x is an infinity or a NaN value the result is
-// undefined.
+// Int sets z, which may be nil, to x, truncating the fractional
+// portion (if any) and returns z.
+//
+// If x is an infinity or a NaN value the result is undefined.
 func (x *Big) Int(z *big.Int) *big.Int {
 	if debug {
 		x.validate()
@@ -734,8 +987,10 @@ func (x *Big) Int(z *big.Int) *big.Int {
 	return bigScalex(z, z, x.exp)
 }
 
-// Int64 returns x as an int64, truncating towards zero. The returned boolean
-// indicates whether the conversion to an int64 was successful.
+// Int64 returns x as an int64, truncating towards zero.
+//
+// The bool result indicates whether the conversion to an int64
+// was successful.
 func (x *Big) Int64() (int64, bool) {
 	if debug {
 		x.validate()
@@ -745,8 +1000,8 @@ func (x *Big) Int64() (int64, bool) {
 		return 0, false
 	}
 
-	// x might be too large to fit into an int64 *now*, but rescaling x might
-	// shrink it enough. See issue #20.
+	// x might be too large to fit into an int64 *now*, but
+	// rescaling x might shrink it enough. See issue #20.
 	if !x.isCompact() {
 		xb := x.Int(nil)
 		return xb.Int64(), xb.IsInt64()
@@ -769,8 +1024,10 @@ func (x *Big) Int64() (int64, bool) {
 	return 0, false
 }
 
-// Uint64 returns x as a uint64, truncating towards zero. The returned boolean
-// indicates whether the conversion to a uint64 was successful.
+// Uint64 returns x as a uint64, truncating towards zero.
+//
+// The bool result indicates whether the conversion to a uint64
+// was successful.
 func (x *Big) Uint64() (uint64, bool) {
 	if debug {
 		x.validate()
@@ -780,8 +1037,8 @@ func (x *Big) Uint64() (uint64, bool) {
 		return 0, false
 	}
 
-	// x might be too large to fit into an uint64 *now*, but rescaling x might
-	// shrink it enough. See issue #20.
+	// x might be too large to fit into an uint64 *now*, but
+	// rescaling x might shrink it enough. See issue #20.
 	if !x.isCompact() {
 		xb := x.Int(nil)
 		return xb.Uint64(), xb.IsUint64()
@@ -794,20 +1051,22 @@ func (x *Big) Uint64() (uint64, bool) {
 	return scalex(b, x.exp)
 }
 
-// IsFinite returns true if x is finite.
-func (x *Big) IsFinite() bool { return x.form & ^signbit == 0 }
+// IsFinite reports whether x is finite.
+func (x *Big) IsFinite() bool {
+	return x.form & ^signbit == 0
+}
 
-// IsNormal returns true if x is normal.
+// IsNormal reports whether x is normal.
 func (x *Big) IsNormal() bool {
-	return x.IsFinite() && x.adjusted() >= x.Context.minScale()
+	return x.IsFinite() && x.adjusted() >= x.Context.emin()
 }
 
-// IsSubnormal returns true if x is subnormal.
+// IsSubnormal reports whether x is subnormal.
 func (x *Big) IsSubnormal() bool {
-	return x.IsFinite() && x.adjusted() < x.Context.minScale()
+	return x.IsFinite() && x.adjusted() < x.Context.emin()
 }
 
-// IsInf returns true if x is an infinity according to sign.
+// IsInf reports whether x is an infinity according to sign.
 // If sign >  0, IsInf reports whether x is positive infinity.
 // If sign <  0, IsInf reports whether x is negative infinity.
 // If sign == 0, IsInf reports whether x is either infinity.
@@ -815,7 +1074,7 @@ func (x *Big) IsInf(sign int) bool {
 	return sign >= 0 && x.form == pinf || sign <= 0 && x.form == ninf
 }
 
-// IsNaN returns true if x is NaN.
+// IsNaN reports whether x is NaN.
 // If sign >  0, IsNaN reports whether x is quiet NaN.
 // If sign <  0, IsNaN reports whether x is signaling NaN.
 // If sign == 0, IsNaN reports whether x is either NaN.
@@ -823,8 +1082,9 @@ func (x *Big) IsNaN(quiet int) bool {
 	return quiet >= 0 && x.form&qnan == qnan || quiet <= 0 && x.form&snan == snan
 }
 
-// IsInt reports whether x is an integer. Infinity and NaN values are not
-// integers.
+// IsInt reports whether x is an integer.
+//
+// Infinity and NaN values are not integers.
 func (x *Big) IsInt() bool {
 	if debug {
 		x.validate()
@@ -854,8 +1114,8 @@ func (x *Big) IsInt() bool {
 		for v := x.compact; v%10 == 0; v /= 10 {
 			exp++
 		}
-		// Avoid the overhead of copying x.unscaled if we know for a fact it's not
-		// an integer.
+		// Avoid the overhead of copying x.unscaled if we know
+		// for a fact it's not an integer.
 	} else if x.unscaled.Bit(0) == 0 {
 		v := new(big.Int).Set(&x.unscaled)
 		r := new(big.Int)
@@ -868,6 +1128,15 @@ func (x *Big) IsInt() bool {
 		}
 	}
 	return exp >= 0
+}
+
+// Mantissa returns the mantissa of x and reports whether the
+// mantissa fits into a uint64 and x is finite.
+//
+// This may be used to convert a decimal representing a monetary
+// value to its most basic unit (e.g., $123.45 to 12345 cents).
+func (x *Big) Mantissa() (uint64, bool) {
+	return x.compact, x.IsFinite() && x.compact != c.Inflated
 }
 
 // MarshalText implements encoding.TextMarshaler.
@@ -888,40 +1157,96 @@ func (x *Big) MarshalText() ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-// Mul sets z to x * y and returns z.
-func (z *Big) Mul(x, y *Big) *Big { return z.Context.Mul(z, x, y) }
-
-// Neg sets z to -x and returns z. If x is positive infinity, z will be set to
-// negative infinity and visa versa. If x == 0, z will be set to zero as well.
-// NaN will result in an error.
-func (z *Big) Neg(x *Big) *Big {
-	if debug {
-		x.validate()
+// Max returns the greater of the provided values.
+//
+// The result is undefined if no values are are provided.
+func Max(a, b *Big) *Big {
+	v := a.Cmp(b)
+	if v >= 0 {
+		return a
 	}
-	if !z.invalidContext(z.Context) && !z.checkNaNs(x, x, negation) {
-		xform := x.form // copy in case z == x
-		z.copyAbs(x)
-		if !z.IsFinite() || z.compact != 0 || z.Context.RoundingMode == ToNegativeInf {
-			z.form = xform ^ signbit
-		}
-	}
-	return z.Context.round(z)
+	return b
 }
 
-// New creates a new Big decimal with the given value and scale. For example:
+// MaxAbs returns the greater of the absolute value of the provided values.
 //
-//  New(1234, 3) // 1.234
-//  New(42, 0)   // 42
-//  New(4321, 5) // 0.04321
-//  New(-1, 0)   // -1
-//  New(3, -10)  // 30 000 000 000
+// The result is undefined if no values are provided.
+func MaxAbs(x ...*Big) *Big {
+	m := x[0]
+	for _, v := range x[1:] {
+		if v.CmpAbs(m) > 0 {
+			m = v
+		}
+	}
+	return m
+}
+
+// Min returns the lesser of the provided values.
+//
+// The result is undefined if no values are are provided.
+func Min(x ...*Big) *Big {
+	m := x[0]
+	for _, v := range x[1:] {
+		if v.Cmp(m) < 0 {
+			m = v
+		}
+	}
+	return m
+}
+
+// MinAbs returns the lesser of the absolute value of the
+// provided values.
+//
+// The result is undefined if no values are provided.
+func MinAbs(x ...*Big) *Big {
+	m := x[0]
+	for _, v := range x[1:] {
+		if v.CmpAbs(m) < 0 {
+			m = v
+		}
+	}
+	return m
+}
+
+// maxfor sets z to 999...n with the provided sign.
+func maxfor(z *big.Int, n, sign int) {
+	arith.Sub(z, arith.BigPow10(uint64(n)), 1)
+	if sign < 0 {
+		z.Neg(z)
+	}
+}
+
+// Mul sets z to x * y and returns z.
+func (z *Big) Mul(x, y *Big) *Big {
+	return z.Context.Mul(z, x, y)
+}
+
+// Neg sets z to -x and returns z.
+//
+// If x is positive infinity, z will be set to negative infinity
+// and vice versa. If x == 0, z will be set to zero. It is an
+// error if x is a NaN value
+func (z *Big) Neg(x *Big) *Big {
+	return z.Context.Neg(z, x)
+}
+
+// New creates a new Big decimal with the given value and scale.
+//
+// For example:
+//
+//    New(1234, 3) // 1.234
+//    New(42, 0)   // 42
+//    New(4321, 5) // 0.04321
+//    New(-1, 0)   // -1
+//    New(3, -10)  // 30 000 000 000
 //
 func New(value int64, scale int) *Big {
 	return new(Big).SetMantScale(value, scale)
 }
 
-// Payload returns the payload of x, provided x is a NaN value. If x is not a
-// NaN value, the result is undefined.
+// Payload returns the payload of x, provided x is a NaN value.
+//
+// If x is not a NaN value, the result is undefined.
 func (x *Big) Payload() Payload {
 	if !x.IsNaN(0) {
 		return 0
@@ -929,9 +1254,11 @@ func (x *Big) Payload() Payload {
 	return Payload(x.compact)
 }
 
-// Precision returns the precision of x. That is, it returns the number of
-// digits in the unscaled form of x. x == 0 has a precision of 1. The result is
-// undefined if x is not finite.
+// Precision returns the number of digits in the unscaled form of
+// x.
+//
+// x == 0 has a precision of 1. The result is undefined if x is
+// not finite.
 func (x *Big) Precision() int {
 	// Cannot call validate since validate calls this method.
 	if !x.IsFinite() {
@@ -943,17 +1270,25 @@ func (x *Big) Precision() int {
 	return x.precision
 }
 
-// Quantize sets z to the number equal in value and sign to z with the scale, n.
-// The rounding of z is performed according to the rounding mode set in z.Context.RoundingMode.
-// In order to perform truncation, set z.Context.RoundingMode to ToZero.
-func (z *Big) Quantize(n int) *Big { return z.Context.Quantize(z, n) }
+// Quantize sets z to the number equal in value and sign to z
+// with the scale, n.
+//
+// z is rounded according to z.Context.RoundingMode. To perform
+// truncation, set z.Context.RoundingMode to ToZero.
+func (z *Big) Quantize(n int) *Big {
+	return z.Context.Quantize(z, n)
+}
 
 // Quo sets z to x / y and returns z.
-func (z *Big) Quo(x, y *Big) *Big { return z.Context.Quo(z, x, y) }
+func (z *Big) Quo(x, y *Big) *Big {
+	return z.Context.Quo(z, x, y)
+}
 
 // QuoInt sets z to x / y with the remainder truncated. See QuoRem for more
 // details.
-func (z *Big) QuoInt(x, y *Big) *Big { return z.Context.QuoInt(z, x, y) }
+func (z *Big) QuoInt(x, y *Big) *Big {
+	return z.Context.QuoInt(z, x, y)
+}
 
 // QuoRem sets z to the quotient x / y and r to the remainder x % y, such that
 // x = z * y + r, and returns the pair (z, r).
@@ -961,8 +1296,9 @@ func (z *Big) QuoRem(x, y, r *Big) (*Big, *Big) {
 	return z.Context.QuoRem(z, x, y, r)
 }
 
-// Rat sets z to x and returns z. z is allowed to be nil. The result is undefined if
-// x is an infinity or NaN value.
+// Rat sets z, which may be nil, to x and returns z.
+//
+// The result is undefined if x is an infinity or NaN value.
 func (x *Big) Rat(z *big.Rat) *big.Rat {
 	if debug {
 		x.validate()
@@ -979,8 +1315,9 @@ func (x *Big) Rat(z *big.Rat) *big.Rat {
 	// Fast path for decimals <= math.MaxInt64.
 	if x.IsInt() {
 		if u, ok := x.Int64(); ok {
-			// If profiled we can call scalex ourselves and save the overhead of
-			// calling Int64. But I doubt it'll matter much.
+			// If profiled we can call scalex ourselves and save
+			// the overhead of calling Int64. But I doubt it'll
+			// matter much.
 			return z.SetInt64(u)
 		}
 	}
@@ -1010,24 +1347,33 @@ func (x *Big) Rat(z *big.Rat) *big.Rat {
 	return z.SetFrac(num, denom)
 }
 
-// Raw directly returns x's raw compact and unscaled values. Caveat emptor:
-// Neither are guaranteed to be valid. Raw is intended to support missing
-// functionality outside this package and generally should be avoided.
-// Additionally, Raw is the only part of this package's API which is not
-// guaranteed to remain stable. This means the function could change or
-// disappear at any time, even across minor version numbers.
-func Raw(x *Big) (*uint64, *big.Int) { return &x.compact, &x.unscaled }
+// Raw directly returns x's raw compact and unscaled values.
+//
+// Caveat emptor: neither are guaranteed to be valid. Raw is
+// intended to support missing functionality outside this package
+// and should generally be avoided. Additionally, Raw is the only
+// part of this package's API that is not guaranteed to remain
+// stable. This means the function could change or disappear at
+// any time, even across minor version numbers.
+func Raw(x *Big) (*uint64, *big.Int) {
+	return &x.compact, &x.unscaled
+}
 
 // Reduce reduces a finite z to its most simplest form.
-func (z *Big) Reduce() *Big { return z.Context.Reduce(z) }
+func (z *Big) Reduce() *Big {
+	return z.Context.Reduce(z)
+}
 
 // Rem sets z to the remainder x % y. See QuoRem for more details.
-func (z *Big) Rem(x, y *Big) *Big { return z.Context.Rem(z, x, y) }
+func (z *Big) Rem(x, y *Big) *Big {
+	return z.Context.Rem(z, x, y)
+}
 
-// Round rounds z down to n digits of precision and returns z. The result is
-// undefined if z is not finite. No rounding will occur if n <= 0. The result of
-// Round will always be within the interval [⌊10**x⌋, z] where x = the precision
-// of z.
+// Round rounds z down to n digits of precision and returns z.
+//
+// The result is undefined if z is not finite. No rounding will
+// occur if n <= 0. The result of Round will always be in the
+// interval [⌊10**p⌋, z] where p = the precision of z.
 func (z *Big) Round(n int) *Big {
 	ctx := z.Context
 	ctx.Precision = n
@@ -1035,21 +1381,47 @@ func (z *Big) Round(n int) *Big {
 }
 
 // RoundToInt rounds z down to an integral value.
-func (z *Big) RoundToInt() *Big { return z.Context.RoundToInt(z) }
+func (z *Big) RoundToInt() *Big {
+	return z.Context.RoundToInt(z)
+}
+
+// SameQuantum reports whether x and y have the same exponent
+// (scale).
+func (x *Big) SameQuantum(y *Big) bool {
+	return x.Scale() == y.Scale()
+}
+
+// SetSignbit sets z to -z if sign is true, otherwise to +z.
+func (z *Big) SetSignbit(sign bool) *Big {
+	if sign {
+		z.form |= signbit
+	} else {
+		z.form &^= signbit
+	}
+	return z
+}
 
 // Scale returns x's scale.
-func (x *Big) Scale() int { return -x.exp }
+func (x *Big) Scale() int {
+	return -x.exp
+}
 
 // Scan implements fmt.Scanner.
 func (z *Big) Scan(state fmt.ScanState, verb rune) error {
 	return z.scan(byteReader{state})
 }
 
-// Set sets z to x and returns z. The result might be rounded depending on z's
-// Context, and even if z == x.
-func (z *Big) Set(x *Big) *Big { return z.Context.round(z.Copy(x)) }
+// Set sets z to x and returns z.
+//
+// The result might be rounded depending on z.Context, even if
+// z == x.
+func (z *Big) Set(x *Big) *Big {
+	return z.Context.Set(z, x)
+}
 
-// setShared sets z to x, but does not copy—z may possibly alias x.
+// setShared sets z to x, but does not copy.
+//
+// z may possibly alias x.
 func (z *Big) setShared(x *Big) *Big {
 	if debug {
 		x.validate()
@@ -1067,7 +1439,8 @@ func (z *Big) setShared(x *Big) *Big {
 
 // SetBigMantScale sets z to the given value and scale.
 func (z *Big) SetBigMantScale(value *big.Int, scale int) *Big {
-	// Do this first in case value == z.unscaled. Don't want to clobber the sign.
+	// Do this first in case value == z.unscaled. Don't want to
+	// clobber the sign.
 	z.form = finite
 	if value.Sign() < 0 {
 		z.form |= signbit
@@ -1158,8 +1531,8 @@ func (z *Big) SetFloat64(x float64) *Big {
 		return z
 	}
 
-	// The gist of the following is lifted from math/big/rat.go, but adapted for
-	// base-10 decimals.
+	// The gist of the following is lifted from math/big/rat.go,
+	// but adapted for base-10 decimals.
 
 	const expMask = 1<<11 - 1
 	bits := math.Float64bits(x)
@@ -1191,7 +1564,8 @@ func (z *Big) SetFloat64(x float64) *Big {
 		arith.Mul(&z.unscaled, &z.unscaled, mantissa)
 		z.exp = -shift
 	} else {
-		// TODO(eric): figure out why this doesn't work for _some_ numbers. See
+		// TODO(eric): figure out why this doesn't work for
+		// _some_ numbers. See
 		// https://github.com/ericlagergren/decimal/issues/89
 		//
 		// z.compact = mantissa << uint(-shift)
@@ -1204,8 +1578,8 @@ func (z *Big) SetFloat64(x float64) *Big {
 	return z.norm()
 }
 
-// SetInf sets z to -Inf if signbit is set or +Inf is signbit is not set, and
-// returns z.
+// SetInf sets z to -Inf if signbit is set or +Inf is signbit is
+// not set, and returns z.
 func (z *Big) SetInf(signbit bool) *Big {
 	if signbit {
 		z.form = ninf
@@ -1218,15 +1592,15 @@ func (z *Big) SetInf(signbit bool) *Big {
 // SetMantScale sets z to the given value and scale.
 func (z *Big) SetMantScale(value int64, scale int) *Big {
 	z.SetUint64(arith.Abs(value))
-	z.exp = -scale // compiler should optimize out z.exp = 0 in SetUint64
+	z.exp = -scale
 	if value < 0 {
 		z.form |= signbit
 	}
 	return z
 }
 
-// setNaN is an internal NaN-setting method that panics when the OperatingMode
-// is Go.
+// setNaN is an internal NaN-setting method that panics when the
+// OperatingMode is Go.
 func (z *Big) setNaN(c Condition, f form, p Payload) *Big {
 	z.form = f
 	z.compact = uint64(p)
@@ -1237,8 +1611,10 @@ func (z *Big) setNaN(c Condition, f form, p Payload) *Big {
 	return z
 }
 
-// SetNaN sets z to a signaling NaN if signal is true or quiet NaN otherwise and
-// returns z. No conditions are raised.
+// SetNaN sets z to a signaling NaN if signal is true or quiet
+// NaN otherwise and returns z.
+//
+// No conditions are raised.
 func (z *Big) SetNaN(signal bool) *Big {
 	if signal {
 		z.form = snan
@@ -1249,15 +1625,10 @@ func (z *Big) SetNaN(signal bool) *Big {
 	return z
 }
 
-// SetRat sets z to to the possibly rounded value of x and return z.
+// SetRat sets z to to the possibly rounded value of x and
+// returns z.
 func (z *Big) SetRat(x *big.Rat) *Big {
-	if x.IsInt() {
-		return z.Context.round(z.SetBigMantScale(x.Num(), 0))
-	}
-	var num, denom Big
-	num.SetBigMantScale(x.Num(), 0)
-	denom.SetBigMantScale(x.Denom(), 0)
-	return z.Quo(&num, &denom)
+	return z.Context.SetRat(z, x)
 }
 
 // SetScale sets z's scale to scale and returns z.
@@ -1266,11 +1637,13 @@ func (z *Big) SetScale(scale int) *Big {
 	return z
 }
 
-// Regexp matches any valid string representing a decimal that can be passed to
-// SetString.
+// Regexp matches any valid string representing a decimal that
+// can be passed to SetString.
 var Regexp = regexp.MustCompile(`(?i)(([+-]?(\d+\.\d*|\.?\d+)([eE][+-]?\d+)?)|(inf(infinity)?))|([+-]?([sq]?nan\d*))`)
 
-// SetString sets z to the value of s, returning z and a bool indicating success.
+// SetString sets z to the value of s, returning z and a bool
+// indicating success.
+//
 // s must be a string in one of the following formats:
 //
 // 	1.234
@@ -1283,11 +1656,11 @@ var Regexp = regexp.MustCompile(`(?i)(([+-]?(\d+\.\d*|\.?\d+)([eE][+-]?\d+)?)|(i
 // 	qNaN
 // 	sNaN
 //
-// Each value may be preceded by an optional sign, ``-'' or ``+''. ``Inf'' and
-// ``NaN'' map to ``+Inf'' and ``qNaN'', respectively. NaN values may have
-// optional diagnostic information, represented as trailing digits; for example,
-// ``NaN123''. These digits are otherwise ignored but are included for
-// robustness.
+// Each value may be preceded by an optional sign, "-" or "+".
+// "Inf" and "NaN" map to "+Inf" and "qNaN", respectively. NaN
+// values may have optional diagnostic information, represented
+// as trailing digits; for example, "NaN123". These digits are
+// otherwise ignored but are included for robustness.
 func (z *Big) SetString(s string) (*Big, bool) {
 	if err := z.scan(strings.NewReader(s)); err != nil {
 		return nil, false
@@ -1311,7 +1684,8 @@ func (z *Big) setZero(sign form, exp int) *Big {
 	return z
 }
 
-// SetUint64 is shorthand for SetMantScale(x, 0) for an unsigned integer.
+// SetUint64 is shorthand for SetMantScale(x, 0) for an unsigned
+// integer.
 func (z *Big) SetUint64(x uint64) *Big {
 	z.compact = x
 	if x == c.Inflated {
@@ -1323,29 +1697,14 @@ func (z *Big) SetUint64(x uint64) *Big {
 	return z
 }
 
-// ord returns similar to Sign except -Inf is -2 and +Inf is +2.
-func (x *Big) ord(abs bool) int {
-	if x.form&inf != 0 {
-		if x.form == pinf || abs {
-			return +2
-		}
-		return -2
-	}
-	r := x.Sign()
-	if abs && r < 0 {
-		r = -r
-	}
-	return r
-}
-
 // Sign returns:
 //
 //    -1 if x <  0
 //     0 if x == 0
 //    +1 if x >  0
 //
-// No distinction is made between +0 and -0. The result is undefined if x is a
-// NaN value.
+// No distinction is made between +0 and -0. The result is
+// undefined if x is a NaN value.
 func (x *Big) Sign() int {
 	if debug {
 		x.validate()
@@ -1360,8 +1719,8 @@ func (x *Big) Sign() int {
 	return 1
 }
 
-// Signbit reports whether x is negative, negative zero, negative infinity, or
-// negative NaN.
+// Signbit reports whether x is negative, negative zero, negative
+// infinity, or  negative NaN.
 func (x *Big) Signbit() bool {
 	if debug {
 		x.validate()
@@ -1369,9 +1728,12 @@ func (x *Big) Signbit() bool {
 	return x.form&signbit != 0
 }
 
-// String returns the string representation of x. It's equivalent to the %s verb
-// discussed in the Format method's documentation. Special cases depend on the
-// OperatingMode.
+// String returns the string representation of x.
+//
+// It's equivalent to the %s verb  discussed in the Format
+// method's documentation.
+//
+// Special cases depend on the OperatingMode.
 func (x *Big) String() string {
 	if x == nil {
 		return "<nil>"
@@ -1387,7 +1749,9 @@ func (x *Big) String() string {
 }
 
 // Sub sets z to x - y and returns z.
-func (z *Big) Sub(x, y *Big) *Big { return z.Context.Sub(z, x, y) }
+func (z *Big) Sub(x, y *Big) *Big {
+	return z.Context.Sub(z, x, y)
+}
 
 // UnmarshalJSON implements json.Unmarshaler.
 func (z *Big) UnmarshalJSON(data []byte) error {

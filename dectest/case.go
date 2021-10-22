@@ -2,8 +2,9 @@ package dectest
 
 import (
 	"fmt"
-	"math/bits"
 	"strings"
+
+	. "github.com/ericlagergren/decimal"
 )
 
 type Case struct {
@@ -120,69 +121,6 @@ func (i Data) IsInf() (int, bool) {
 	return 0, false
 }
 
-// Condition is a bitmask value raised after or during specific operations.
-type Condition uint32
-
-const (
-	Clamped Condition = 1 << iota
-	ConversionSyntax
-	DivisionByZero
-	DivisionImpossible
-	DivisionUndefined
-	Inexact
-	InsufficientStorage
-	InvalidContext
-	InvalidOperation
-	Overflow
-	Rounded
-	Subnormal
-	Underflow
-	LostDigits
-)
-
-func (c Condition) String() string {
-	if c == 0 {
-		return "NoConditions"
-	}
-
-	// Each condition is one bit, so this saves some allocations.
-	a := make([]string, 0, bits.OnesCount32(uint32(c)))
-	for i := Condition(1); c != 0; i <<= 1 {
-		if c&i == 0 {
-			continue
-		}
-		switch c ^= i; i {
-		case Clamped:
-			a = append(a, "clamped")
-		case ConversionSyntax:
-			a = append(a, "conversion syntax")
-		case DivisionByZero:
-			a = append(a, "division by zero")
-		case DivisionImpossible:
-			a = append(a, "division impossible")
-		case Inexact:
-			a = append(a, "inexact")
-		case InsufficientStorage:
-			a = append(a, "insufficient storage")
-		case InvalidContext:
-			a = append(a, "invalid context")
-		case InvalidOperation:
-			a = append(a, "invalid operation")
-		case Overflow:
-			a = append(a, "overflow")
-		case Rounded:
-			a = append(a, "rounded")
-		case Subnormal:
-			a = append(a, "subnormal")
-		case Underflow:
-			a = append(a, "underflow")
-		default:
-			a = append(a, fmt.Sprintf("unknown(%d)", i))
-		}
-	}
-	return strings.Join(a, ", ")
-}
-
 var conditions = map[string]Condition{
 	"clamped":              Clamped,
 	"conversion_syntax":    ConversionSyntax,
@@ -193,7 +131,7 @@ var conditions = map[string]Condition{
 	"insufficient_storage": InsufficientStorage,
 	"invalid_context":      InvalidContext,
 	"invalid_operation":    InvalidOperation,
-	"lost_digits":          LostDigits,
+	"lost_digits":          0, // TODO
 	"overflow":             Overflow,
 	"rounded":              Rounded,
 	"subnormal":            Subnormal,
@@ -204,137 +142,123 @@ var conditions = map[string]Condition{
 type Op uint8
 
 const (
-	UnknownOp Op = iota
-	Abs
-	Add
-	And
-	Apply
-	Canonical
-	Class
-	Compare
-	CompareSig
-	CompareTotal
-	CompareTotMag
-	Copy
-	CopyAbs
-	CopyNegate
-	CopySign
-	Divide
-	DivideInt
-	Exp
-	FMA
-	Invert
-	Ln
-	Log10
-	LogB
-	Max
-	MaxMag
-	Min
-	MinMag
-	Minus
-	Multiply
-	NextMinus
-	NextPlus
-	NextToward
-	Or
-	Plus
-	Power
-	Quantize
-	Reduce
-	Remainder
-	RemainderNear
-	Rescale
-	Rotate
-	SameQuantum
-	ScaleB
-	Shift
-	SquareRoot
-	Subtract
-	ToEng
-	ToIntegral
-	ToIntegralX
-	ToSci
-	Trim
-	Xor
+	OpUnknownOp Op = iota
+	OpAbs
+	OpAdd
+	OpAnd
+	OpApply
+	OpCanonical
+	OpClass
+	OpCompare
+	OpCompareSig
+	OpCompareTotal
+	OpCompareTotMag
+	OpCopy
+	OpCopyAbs
+	OpCopyNegate
+	OpCopySign
+	OpDivide
+	OpDivideInt
+	OpExp
+	OpFMA
+	OpInvert
+	OpLn
+	OpLog10
+	OpLogB
+	OpMax
+	OpMaxMag
+	OpMin
+	OpMinMag
+	OpMinus
+	OpMultiply
+	OpNextMinus
+	OpNextPlus
+	OpNextToward
+	OpOr
+	OpPlus
+	OpPower
+	OpQuantize
+	OpReduce
+	OpRemainder
+	OpRemainderNear
+	OpRescale
+	OpRotate
+	OpSameQuantum
+	OpScaleB
+	OpShift
+	OpSquareRoot
+	OpSubtract
+	OpToEng
+	OpToIntegral
+	OpToIntegralX
+	OpToSci
+	OpTrim
+	OpXor
 )
 
 var operations = map[string]Op{
-	"abs":           Abs,
-	"add":           Add,
-	"and":           And,
-	"apply":         Apply,
-	"canonical":     Canonical,
-	"class":         Class,
-	"compare":       Compare,
-	"comparesig":    CompareSig,
-	"comparetotal":  CompareTotal,
-	"comparetotmag": CompareTotMag,
-	"copy":          Copy,
-	"copyabs":       CopyAbs,
-	"copynegate":    CopyNegate,
-	"copysign":      CopySign,
-	"divide":        Divide,
-	"divideint":     DivideInt,
-	"exp":           Exp,
-	"fma":           FMA,
-	"invert":        Invert,
-	"ln":            Ln,
-	"log10":         Log10,
-	"logb":          LogB,
-	"max":           Max,
-	"maxmag":        MaxMag,
-	"min":           Min,
-	"minmag":        MinMag,
-	"minus":         Minus,
-	"multiply":      Multiply,
-	"nextminus":     NextMinus,
-	"nextplus":      NextPlus,
-	"nexttoward":    NextToward,
-	"or":            Or,
-	"plus":          Plus,
-	"power":         Power,
-	"quantize":      Quantize,
-	"reduce":        Reduce,
-	"remainder":     Remainder,
-	"remaindernear": RemainderNear,
-	"rescale":       Rescale,
-	"rotate":        Rotate,
-	"samequantum":   SameQuantum,
-	"scaleb":        ScaleB,
-	"shift":         Shift,
-	"squareroot":    SquareRoot,
-	"subtract":      Subtract,
-	"toeng":         ToEng,
-	"tointegral":    ToIntegral,
-	"tointegralx":   ToIntegralX,
-	"tosci":         ToSci,
-	"trim":          Trim,
-	"xor":           Xor,
+	"abs":           OpAbs,
+	"add":           OpAdd,
+	"and":           OpAnd,
+	"apply":         OpApply,
+	"canonical":     OpCanonical,
+	"class":         OpClass,
+	"compare":       OpCompare,
+	"comparesig":    OpCompareSig,
+	"comparetotal":  OpCompareTotal,
+	"comparetotmag": OpCompareTotMag,
+	"copy":          OpCopy,
+	"copyabs":       OpCopyAbs,
+	"copynegate":    OpCopyNegate,
+	"copysign":      OpCopySign,
+	"divide":        OpDivide,
+	"divideint":     OpDivideInt,
+	"exp":           OpExp,
+	"fma":           OpFMA,
+	"invert":        OpInvert,
+	"ln":            OpLn,
+	"log10":         OpLog10,
+	"logb":          OpLogB,
+	"max":           OpMax,
+	"maxmag":        OpMaxMag,
+	"min":           OpMin,
+	"minmag":        OpMinMag,
+	"minus":         OpMinus,
+	"multiply":      OpMultiply,
+	"nextminus":     OpNextMinus,
+	"nextplus":      OpNextPlus,
+	"nexttoward":    OpNextToward,
+	"or":            OpOr,
+	"plus":          OpPlus,
+	"power":         OpPower,
+	"quantize":      OpQuantize,
+	"reduce":        OpReduce,
+	"remainder":     OpRemainder,
+	"remaindernear": OpRemainderNear,
+	"rescale":       OpRescale,
+	"rotate":        OpRotate,
+	"samequantum":   OpSameQuantum,
+	"scaleb":        OpScaleB,
+	"shift":         OpShift,
+	"squareroot":    OpSquareRoot,
+	"subtract":      OpSubtract,
+	"toeng":         OpToEng,
+	"tointegral":    OpToIntegral,
+	"tointegralx":   OpToIntegralX,
+	"tosci":         OpToSci,
+	"trim":          OpTrim,
+	"xor":           OpXor,
 }
 
-type RoundingMode int
-
-const (
-	Ceiling RoundingMode = iota
-	Down
-	Floor
-	HalfDown
-	HalfEven
-	HalfUp
-	Up
-	ZeroFiveUp
-)
-
 var roundingModes = map[string]RoundingMode{
-	"ceiling":   Ceiling,
-	"down":      Down,
-	"floor":     Floor,
-	"half_down": HalfDown,
-	"half_even": HalfEven,
-	"half_up":   HalfUp,
-	"up":        Up,
-	"05up":      ZeroFiveUp,
+	"ceiling":   ToPositiveInf,
+	"down":      ToZero,
+	"floor":     ToNegativeInf,
+	"half_down": ToNearestTowardZero,
+	"half_even": ToNearestEven,
+	"half_up":   ToNearestAway,
+	"up":        0,
+	"05up":      0,
 }
 
 //go:generate stringer -type=Op
-//go:generate stringer -type=RoundingMode

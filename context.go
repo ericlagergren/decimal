@@ -17,21 +17,23 @@ const (
 	DefaultPrecision   = 16               // default precision for literals.
 )
 
-// Context is a per-decimal contextual object that governs specific operations.
+// Context is a per-decimal contextual object that governs
+// specific operations.
 type Context struct {
-	// MaxScale overrides the MaxScale constant so long as it's in the range
-	// (0, MaxScale].
+	// MaxScale overrides the MaxScale constant so long as it's
+	// in the range (0, MaxScale].
 	MaxScale int
 
-	// MinScale overrides the MaxScale constant so long as it's in the range
-	// [MinScale, 0).
+	// MinScale overrides the MaxScale constant so long as it's
+	// in the range [MinScale, 0).
 	MinScale int
 
-	// Precision is the Context's precision; that is, the maximum number of
-	// significant digits that may result from any arithmetic operation.
-	// Excluding any package-defined constants (e.g., ``UnlimitedPrecision''),
-	// if precision is not in the range [1, MaxPrecision] operations might
-	// result in an error. A precision of 0 will be interpreted as
+	// Precision is the Context's precision; that is, the maximum
+	// number of significant digits that may result from any
+	// arithmetic operation.  Excluding any package-defined
+	// constants (e.g., "UnlimitedPrecision"), if precision is
+	// not in the range [1, MaxPrecision] operations might result
+	// in an error. A precision of 0 will be interpreted as
 	// DefaultPrecision. For example,
 	//
 	//   precision ==  4 // 4
@@ -56,21 +58,36 @@ type Context struct {
 	OperatingMode OperatingMode
 }
 
-func (c Context) maxScale() int {
+// dup returns the Context, but with a non-zero Precision.
+func (c Context) dup() Context {
+	ctx := c
+	ctx.Precision = c.precision()
+	return ctx
+}
+
+func (c Context) precision() int {
+	if c.Precision != 0 {
+		return c.Precision
+	}
+	return DefaultPrecision
+}
+
+func (c Context) emax() int {
 	if c.MaxScale != 0 {
 		return c.MaxScale
 	}
 	return MaxScale
 }
 
-func (c Context) minScale() int {
+func (c Context) emin() int {
 	if c.MinScale != 0 {
 		return c.MinScale
 	}
 	return MinScale
 }
 
-// Err returns non-nil if there are any trapped exceptional conditions.
+// Err returns non-nil if there are any trapped exceptional
+// conditions.
 func (c Context) Err() error {
 	if m := c.Conditions & c.Traps; m != 0 {
 		return m
@@ -102,9 +119,10 @@ func WithPrecision(p int) *Big {
 // The following are called ContextXX instead of DecimalXX
 // to reserve the DecimalXX namespace for future decimal types.
 
-// The following Contexts are based on IEEE 754R. Each Context's RoundingMode is
-// ToNearestEven, OperatingMode is GDA, and traps are set to every exception
-// other than Inexact, Rounded, and Subnormal.
+// The following Contexts are based on IEEE 754R. Each Context's
+// RoundingMode is ToNearestEven, OperatingMode is GDA, and traps
+// are set to every exception other than Inexact, Rounded, and
+// Subnormal.
 var (
 	// Context32 is the IEEE 754R Decimal32 format.
 	Context32 = Context{
@@ -139,6 +157,15 @@ var (
 	// ContextUnlimited provides unlimited precision decimals.
 	ContextUnlimited = Context{
 		Precision:     UnlimitedPrecision,
+		RoundingMode:  ToNearestEven,
+		OperatingMode: GDA,
+		Traps:         ^(Inexact | Rounded | Subnormal),
+		MaxScale:      MaxScale,
+		MinScale:      MinScale,
+	}
+
+	maxCtx = Context{
+		Precision:     MaxPrecision,
 		RoundingMode:  ToNearestEven,
 		OperatingMode: GDA,
 		Traps:         ^(Inexact | Rounded | Subnormal),
@@ -248,7 +275,7 @@ const (
 	// exact, or when the Overflow/Underflow Conditions occur.
 	Inexact
 	// InsufficientStorage occurs when the system doesn't have enough storage
-	// (i.e. memory) to store the decimal.
+	// (i.e. memory) to store the
 	InsufficientStorage
 	// InvalidContext occurs when an invalid context was detected during an
 	// operation. This might occur if, for example, an invalid RoundingMode was
