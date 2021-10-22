@@ -1,12 +1,9 @@
 package decimal
 
 import (
-	"errors"
 	"fmt"
 	"io"
-	"math/bits"
-	"strconv"
-	"unicode"
+	"math"
 
 	"github.com/ericlagergren/decimal/internal/arith"
 	"github.com/ericlagergren/decimal/internal/c"
@@ -42,13 +39,17 @@ func (z *Big) scan(r io.ByteScanner) error {
 
 	z.form, err = z.scanForm(r)
 	if err != nil {
-		if err == strconv.ErrSyntax {
+		switch err {
+		case ConversionSyntax:
+			z.form = qnan
 			z.Context.Conditions |= ConversionSyntax
+		default:
+			return err
 		}
-		return err
+		return nil
 	}
 
-	if z.form&special != 0 {
+	if z.isSpecial() {
 		if neg {
 			z.form |= signbit
 		}
@@ -61,9 +62,11 @@ func (z *Big) scan(r io.ByteScanner) error {
 		case io.EOF:
 			z.form = qnan
 			return io.ErrUnexpectedEOF
-		case strconv.ErrSyntax:
+		case ConversionSyntax:
 			z.form = qnan
 			z.Context.Conditions |= ConversionSyntax
+		default:
+			return err
 		}
 		return nil
 	}
@@ -75,7 +78,7 @@ func (z *Big) scan(r io.ByteScanner) error {
 			z.xflow(MinScale, false, neg)
 		case Overflow:
 			z.xflow(MinScale, true, neg)
-		case strconv.ErrSyntax:
+		case ConversionSyntax:
 			z.form = qnan
 			z.Context.Conditions |= ConversionSyntax
 		default:
@@ -116,64 +119,38 @@ func (z *Big) scanForm(r io.ByteScanner) (form, error) {
 		return finite, r.UnreadByte()
 	}
 
-	// Likely infinity.
-	if ch == 'i' || ch == 'I' {
-		const (
-			inf1 = "infinity"
-			inf2 = "INFINITY"
-		)
-		for i := 1; i < len(inf1); i++ {
-			ch, err = r.ReadByte()
-			if err != nil {
-				if err == io.EOF {
-					// "inf"
-					if i == len("inf") {
-						return inf, nil
-					}
-					return 0, io.ErrUnexpectedEOF
-				}
-				return 0, err
-			}
-			if ch != inf1[i] && ch != inf2[i] {
-				return 0, strconv.ErrSyntax
-			}
-		}
-		return inf, nil
-	}
-
-	i := 0
 	signal := false
 	switch ch {
+	case 'i', 'I':
+		return z.scanInfinity(r)
 	case 'q', 'Q':
 		// OK
 	case 's', 'S':
 		signal = true
 	case 'n', 'N':
-		i = 1 // or r.UnreadByte() and don't use i.
+		r.UnreadByte()
 	default:
-		return 0, strconv.ErrSyntax
+		return 0, ConversionSyntax
 	}
 
 	const (
-		nan1 = "nan"
-		nan2 = "NAN"
+		s = "nan"
 	)
-	for ; i < len(nan1); i++ {
-		ch, err = r.ReadByte()
+	for i := 0; i < len(s); i++ {
+		ch, err := r.ReadByte()
 		if err != nil {
 			if err == io.EOF {
 				return 0, io.ErrUnexpectedEOF
 			}
 			return 0, err
 		}
-		if ch != nan1[i] && ch != nan2[i] {
-			return 0, strconv.ErrSyntax
+		if ch != s[i] && ch != s[i]-('a'-'A') {
+			return 0, ConversionSyntax
 		}
 	}
 
 	// Parse payload
-	var buf [20]byte
-	for i = 0; i < 20; i++ {
+	for {
 		ch, err := r.ReadByte()
 		if err != nil {
 			if err == io.EOF {
@@ -181,15 +158,23 @@ func (z *Big) scanForm(r io.ByteScanner) (form, error) {
 			}
 			return 0, err
 		}
-		if ch >= '0' && ch <= '9' {
-			buf[i] = ch
+		if ch < '0' || ch > '9' {
+			return 0, ConversionSyntax
 		}
-	}
-	if i > 0 {
-		z.compact, err = strconv.ParseUint(string(buf[:i]), 10, 64)
-		if err != nil {
-			return 0, err
+		d := ch - '0'
+		if d >= 10 {
+			return 0, ConversionSyntax
 		}
+		const cutoff = math.MaxUint64/10 + 1
+		if z.compact >= cutoff {
+			return 0, ConversionSyntax
+		}
+		z.compact *= 10
+
+		if z.compact+uint64(d) < z.compact {
+			return 0, ConversionSyntax
+		}
+		z.compact += uint64(d)
 	}
 
 	if signal {
@@ -198,141 +183,77 @@ func (z *Big) scanForm(r io.ByteScanner) (form, error) {
 	return qnan, nil
 }
 
-// fakeState is implements fmt.ScanState so we can call big.Int.Scan.
-type fakeState struct {
-	length int
-	scale  int
-	i      int    // index into small
-	small  []byte // buffer of first 20 or so characters.
-	r      io.ByteScanner
-}
-
-func (f *fakeState) ReadRune() (rune, int, error) {
-	// small is guaranteed to be a valid numeric character.
-	if f.i < len(f.small) {
-		r := rune(f.small[f.i])
-		f.i++
-		f.length++
-		return r, 1, nil
-	}
-
-	ch, err := f.r.ReadByte()
-	if err != nil {
-		return 0, 0, err
-	}
-
-	if ch >= '0' && ch <= '9' {
-		f.length++
-		return rune(ch), 1, nil
-	}
-	if ch == '.' {
-		const noScale = -1
-		if f.scale > noScale {
-			return 0, 0, strconv.ErrSyntax
-		}
-		f.scale = f.length
-		return f.ReadRune() // skip to next raracter
-	}
-	if ch == 'e' || ch == 'E' {
-		// Can simply UnreadByte here since we're not using small anymore.
-		if err := f.r.UnreadByte(); err != nil {
-			return 0, 0, err
-		}
-		return 0, 0, io.EOF // end of mantissa
-	}
-	return 0, 0, strconv.ErrSyntax
-}
-
-func (f *fakeState) UnreadRune() error {
-	if f.i < len(f.small) {
-		if f.i == 0 {
-			return errors.New("attempted to read before start of buffer")
-		}
-		f.i--
-		return nil
-	}
-	return f.r.UnreadByte()
-}
-
-func (f *fakeState) SkipSpace() {
-	for {
-		ch, err := f.r.ReadByte()
+func (z *Big) scanInfinity(r io.ByteScanner) (form, error) {
+	const (
+		s = "infinity"
+	)
+	for i := 1; i < len(s); i++ {
+		ch, err := r.ReadByte()
 		if err != nil {
-			return
-		}
-		if !unicode.IsSpace(rune(ch)) {
-			f.r.UnreadByte()
-			return
-		}
-	}
-}
-
-func (f *fakeState) Token(skipSpace bool, fn func(rune) bool) (token []byte, err error) {
-	if skipSpace {
-		f.SkipSpace()
-	}
-	if fn == nil {
-		fn = func(r rune) bool { return !unicode.IsSpace(r) }
-	}
-	for {
-		r, _, err := f.ReadRune()
-		if err != nil {
-			if err == io.EOF {
-				break
+			if err != io.EOF {
+				return 0, err
 			}
-			return nil, err
+			if i == len("inf") {
+				return inf, nil
+			}
+			return 0, io.ErrUnexpectedEOF
 		}
-		if fn(r) {
-			token = append(token, byte(r))
+		if ch != s[i] && ch != s[i]-('a'-'A') {
+			return 0, ConversionSyntax
 		}
 	}
-	return token, nil
-}
-
-func (f *fakeState) Width() (int, bool) { return 0, false }
-
-func (f *fakeState) Read(_ []byte) (int, error) {
-	return 0, errors.New("bad scanning routine")
+	return inf, nil
 }
 
 func (z *Big) scanMant(r io.ByteScanner) (err error) {
-	const noScale = -1
-
-	// Scan the first 21 or fewer bytes into a buffer. Should we hit io.EOF
-	// sooner, we know to try to parse it as a uint64. Otherwise, we read from
-	// small—followed by our io.ByteScanner—into z.uncaled.
-	var (
-		small  [20 + 1]byte
-		scale  = noScale
-		length int
-		i      int
-	)
+	buf := make([]byte, 0, 20)
+	seenDot := false
+	dot := 0
+	big := false
 
 Loop:
-	for ; i < len(small); i++ {
+	for {
 		ch, err := r.ReadByte()
 		if err != nil {
 			if err == io.EOF {
-				// Hit the end of our input: we're done here.
-				break
+				break Loop
 			}
 			return err
 		}
 
 		// Common case.
 		if ch >= '0' && ch <= '9' {
-			small[i] = ch
-			length++
+			buf = append(buf, ch)
+
+			if !big {
+				d := ch - '0'
+				if d >= 10 {
+					return ConversionSyntax
+				}
+				const cutoff = math.MaxUint64/10 + 1
+				if z.compact >= cutoff {
+					big = true
+					continue
+				}
+				z.compact *= 10
+
+				if z.compact+uint64(d) < z.compact {
+					big = true
+					continue
+				}
+				z.compact += uint64(d)
+			}
 			continue
 		}
 
 		switch ch {
 		case '.':
-			if scale != noScale { // found two '.'s
-				return strconv.ErrSyntax
+			if seenDot {
+				// Found two dots.
+				return ConversionSyntax
 			}
-			scale = i
-			i--
+			seenDot = true
+			dot = len(buf)
 		case 'e', 'E':
 			// Hit the exponent: we're done here.
 			if err := r.UnreadByte(); err != nil {
@@ -340,125 +261,96 @@ Loop:
 			}
 			break Loop
 		default:
-			return strconv.ErrSyntax
+			return ConversionSyntax
 		}
 	}
 
-	// We can't use length to determine the precision since it'd require we
-	// count (and subtract) any leading zeros, but that's too much overhead for
-	// the general case (i.e., no leading zeros).
-
-	// We can tentatively fit into a uint64 if we didn't fill the buffer.
-	if i < len(small) {
-		z.compact, err = strconv.ParseUint(string(small[:i]), 10, 64)
-		if err == nil {
-			if scale != noScale {
-				z.exp = -int(length - scale)
-			} else {
-				z.exp = 0
-			}
-			z.precision = arith.Length(z.compact)
-			if z.compact == c.Inflated {
-				z.unscaled.SetUint64(c.Inflated)
-			}
-			return nil
-		}
-		err = err.(*strconv.NumError).Err
-		if err == strconv.ErrSyntax {
-			return err
-		}
-		// else err == strconv.ErrRange
+	if big || z.compact == c.Inflated {
+		z.unscaled.SetString(string(buf), 10)
+		z.compact = c.Inflated
+		z.precision = arith.BigLength(&z.unscaled)
+	} else {
+		z.precision = arith.Length(z.compact)
 	}
 
-	// Either we filled the buffer or we hit the edge case where len(s) == 20
-	// but it's too large to fit into a uint64.
-	if i >= len(small) || (err == strconv.ErrRange && i == len(small)-1) {
-		err = nil
-		fs := fakeState{
-			small:  small[:i],
-			r:      r,
-			scale:  scale,
-			length: -1,
-		}
-		if err := z.unscaled.Scan(&fs, 'd'); err != nil {
-			return err
-		}
-
-		// Technically we could have all zeros...
-		if z.unscaled.Sign() != 0 {
-			if m := z.unscaled.Uint64(); z.unscaled.IsUint64() && m != c.Inflated {
-				z.compact = m
-				z.precision = arith.Length(m)
-			} else {
-				z.compact = c.Inflated
-				z.precision = arith.BigLength(&z.unscaled)
-			}
-		} else {
-			z.compact = 0
-			z.precision = 1
-		}
-
-		if scale == noScale {
-			scale = fs.scale
-		}
-		length = fs.length
+	if seenDot {
+		z.exp = -(len(buf) - dot)
 	}
-
-	if scale != noScale {
-		z.exp = -int(length - scale)
-	}
-	return err
+	return nil
 }
 
-func (z *Big) scanExponent(r io.ByteScanner) (err error) {
-	// TODO(eric): there's actually an issue here if somebody has leading zeros
-	// in their exponent. But, I don't really think I want to support that.
+func (z *Big) scanExponent(r io.ByteScanner) error {
+	ch, err := r.ReadByte()
+	if err != nil {
+		if err == io.EOF {
+			return nil
+		}
+		return err
+	}
 
-	// N is the max length of a signed N-bit int, including sign plus a leading
-	// 'e' or 'E'.
-	const N = ((((bits.UintSize + 1) * 1233) >> 12) + 1) + (64 / bits.UintSize)
+	switch ch {
+	case 'e', 'E':
+		// OK
+	default:
+		return ConversionSyntax
+	}
 
-	var buf [N]byte
-	var i int
-	for ; i < len(buf); i++ {
-		if buf[i], err = r.ReadByte(); err != nil {
+	ch, err = r.ReadByte()
+	if err != nil {
+		return err
+	}
+	var neg bool
+	switch ch {
+	case '+':
+		// OK
+	case '-':
+		neg = true
+	default:
+		r.UnreadByte()
+	}
+
+	max := uint64(math.MaxInt)
+	if neg {
+		max++ // -math.MinInt
+	}
+
+	var exp uint64
+	for {
+		ch, err := r.ReadByte()
+		if err != nil {
 			if err == io.EOF {
-				if i == 0 {
-					return nil
-				}
 				break
 			}
 			return err
 		}
-	}
-
-	if buf[0] != 'e' && buf[0] != 'E' {
-		return strconv.ErrSyntax
-	}
-
-	if ch, err := r.ReadByte(); err != io.EOF {
 		if ch < '0' || ch > '9' {
-			return err
+			return ConversionSyntax
 		}
-		if buf[0] == '-' {
-			return Underflow
+		d := ch - '0'
+		if d >= 10 {
+			return ConversionSyntax
 		}
-		return Overflow
+		const cutoff = math.MaxUint64/10 + 1
+		if exp >= cutoff {
+			return ConversionSyntax
+		}
+		exp *= 10
+
+		v := exp + uint64(d)
+		if v < exp || v > max {
+			if neg {
+				return Underflow
+			}
+			return Overflow
+		}
+		exp = v
 	}
 
-	exp, err := strconv.Atoi(string(buf[1:i]))
-	if err != nil {
-		if err = err.(*strconv.NumError).Err; err != strconv.ErrRange {
-			return err
-		}
-		// Atoi sets exp < 0 on underflow.
-		if exp < 0 {
-			return Underflow
-		}
-		return Overflow
+	if neg {
+		z.exp -= int(exp)
+	} else {
+		z.exp += int(exp)
 	}
-
-	z.exp += exp
 	return nil
 }
 
