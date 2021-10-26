@@ -769,7 +769,7 @@ func (c Context) prepCosine(z, x *Big) (*Big, int, bool) {
 		// 1+((v-1)/10) will be wildly incorrect for v == 0, but x/y = 0 iff
 		// x = 0 and y != 0. In this case, -2pi <= x >= 2pi, so we're fine.
 		prec, carry := bits.Add64(1+((uv-1)/10), uint64(c.Precision), 0)
-		if carry != 0 || prec > math.MaxInt {
+		if carry != 0 || prec > arith.MaxInt {
 			return nil, 0, false
 		}
 		pctx := Context{Precision: int(prec)}
@@ -3176,7 +3176,7 @@ func (c Context) prepTan(z, x *Big) (*Big, bool) {
 		// 1+((v-1)/10) will be widly incorrect for v == 0, but x/y = 0 iff
 		// x = 0 and y != 0. In this case, -2pi <= x >= 2pi, so we're fine.
 		prec, carry := bits.Add64(1+((uv-1)/10), uint64(c.Precision), 0)
-		if carry != 0 || prec > math.MaxInt {
+		if carry != 0 || prec > arith.MaxInt {
 			return nil, false
 		}
 		pctx := Context{Precision: int(prec)}
