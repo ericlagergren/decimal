@@ -3,13 +3,13 @@ package dectest
 import (
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"reflect"
 	"strconv"
 	"testing"
 
 	. "github.com/ericlagergren/decimal"
+	"github.com/ericlagergren/decimal/internal/arith"
 )
 
 func Test(t *testing.T, file string) {
@@ -182,7 +182,7 @@ func execute(t *testing.T, c *Case) {
 			check(t, z.Set(Min(x, y)), r, c, flags)
 		case OpQuantize:
 			v, _ := y.Int64()
-			if v > math.MaxInt {
+			if v > arith.MaxInt {
 				t.Logf("%s: int out of range: %d", c.ID, v)
 				return
 			}

@@ -7,6 +7,11 @@ import (
 	"math/bits"
 )
 
+const (
+	intSize = 32 << (^uint(0) >> 63) // 32 or 64
+	MaxInt  = 1<<(intSize-1) - 1
+)
+
 // Words returns a little-endian slice of big.Words representing
 // the uint64.
 func Words(x uint64) []big.Word {

@@ -309,7 +309,7 @@ func (z *Big) scanExponent(r io.ByteScanner) error {
 		r.UnreadByte()
 	}
 
-	max := uint64(math.MaxInt)
+	max := uint64(arith.MaxInt)
 	if neg {
 		max++ // -math.MinInt
 	}
