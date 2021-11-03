@@ -76,7 +76,7 @@ func mbrotGDA(x0, y0 *decimal.Big, ctx decimal.Context, prec int) *decimal.Big {
 func benchMbrotGo(b *testing.B, prec int) {
 	var (
 		r   *decimal.Big
-		ctx = decimal.Context{Precision: prec, OperatingMode: decimal.GDA}
+		ctx = decimal.Context{Precision: prec, OperatingMode: decimal.Go}
 		x0  = decimal.WithContext(ctx).SetMantScale(222, 3)
 		y0  = decimal.WithContext(ctx).SetMantScale(333, 3)
 	)
