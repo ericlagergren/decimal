@@ -66,4 +66,4 @@
 //    [7]: github.com/shopspring/decimal
 //    [8]: github.com/go-inf/inf
 //
-package benchmarks
+package decimal_benchmarks

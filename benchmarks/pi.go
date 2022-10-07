@@ -1,4 +1,4 @@
-package benchmarks
+package decimal_benchmarks
 
 import (
 	"math"
