@@ -44,9 +44,11 @@ fuzz/**/crashers
 fuzz/**/suppressions
 
 # Benchmark artifacts
+/decbench
 *.xml
 *.class
 .idea/
+/regen.go
 
 # Development
 internal/nat/
