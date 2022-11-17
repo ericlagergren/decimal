@@ -2,6 +2,6 @@
 
 set -xeuo pipefail
 
-curl -sS http://speleotrove.com/decimal/dectest.zip >dectest.zip
+curl -sSOL http://speleotrove.com/decimal/dectest.zip
 unzip -o dectest.zip
 rm dectest.zip
