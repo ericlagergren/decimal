@@ -51,3 +51,15 @@ func BenchmarkBig_SetString(b *testing.B) {
 	}
 	globOk = ok
 }
+
+
+
+func TestBig_UnmarshalTextTwice(t *testing.T) {
+  x := &Big{}
+
+  x.UnmarshalText([]byte(`1`))
+  x.UnmarshalText([]byte(`2`))
+  if x.String() != "2" {
+    t.Errorf("wanted: %q, got %q", "2", x.String())
+	}
+}
