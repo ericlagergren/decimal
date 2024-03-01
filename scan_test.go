@@ -55,12 +55,12 @@ func BenchmarkBig_SetString(b *testing.B) {
 
 
 func TestUnmarshalTextTwice(t *testing.T) {
-  x := &Big{}
+	x := &Big{}
 
-  x.UnmarshalText([]byte(`1`))
-  x.UnmarshalText([]byte(`2`))
-  if x.String() != "2" {
-    t.Errorf("wanted: %q, got %q", "2", x.String())
+	x.UnmarshalText([]byte(`1`))
+	x.UnmarshalText([]byte(`2`))
+	if x.String() != "2" {
+		t.Errorf("wanted: %q, got %q", "2", x.String())
 	}
 }
 
@@ -70,7 +70,7 @@ func TestSetStringTwice(t *testing.T) {
 
 	x.SetString("1")
 	x.SetString("2")
-  if x.String() != "2" {
-    t.Errorf("wanted: %q, got %q", "2", x.String())
-  }
+	if x.String() != "2" {
+		t.Errorf("wanted: %q, got %q", "2", x.String())
+	}
 }
