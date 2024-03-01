@@ -54,7 +54,7 @@ func BenchmarkBig_SetString(b *testing.B) {
 
 
 
-func TestBig_UnmarshalTextTwice(t *testing.T) {
+func TestUnmarshalTextTwice(t *testing.T) {
   x := &Big{}
 
   x.UnmarshalText([]byte(`1`))
@@ -62,4 +62,15 @@ func TestBig_UnmarshalTextTwice(t *testing.T) {
   if x.String() != "2" {
     t.Errorf("wanted: %q, got %q", "2", x.String())
 	}
+}
+
+
+func TestSetStringTwice(t *testing.T) {
+	x := &Big{}
+
+	x.SetString("1")
+	x.SetString("2")
+  if x.String() != "2" {
+    t.Errorf("wanted: %q, got %q", "2", x.String())
+  }
 }
