@@ -31,6 +31,9 @@ func (z *Big) scan(r io.ByteScanner) error {
 	// We deviate a little by being a tad bit more forgiving. For instance,
 	// we allow case-insensitive nan and infinity values.
 
+	// Before scanning, reset it to zero
+	z.SetUint64(0)
+
 	// Sign
 	neg, err := scanSign(r)
 	if err != nil {
