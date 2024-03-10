@@ -70,10 +70,10 @@
 //
 // Method naming is the same as math/big's, meaning:
 //
-//     func (z *T) SetV(v V) *T          // z = v
-//     func (z *T) Unary(x *T) *T        // z = unary x
-//     func (z *T) Binary(x, y *T) *T    // z = x binary y
-//     func (x *T) Pred() P              // p = pred(x)
+//     func (z *T) SetV(v V) *T          // z = v             v is unmodified
+//     func (z *T) Unary(x *T) *T        // z = unary x       x is unmodified
+//     func (z *T) Binary(x, y *T) *T    // z = x binary y    x and y are unmodified
+//     func (x *T) Pred() P              // p = pred(x)       x is unmodified
 //
 // In general, its conventions mirror math/big's. It is suggested to read the
 // math/big package comments to gain an understanding of this package's
