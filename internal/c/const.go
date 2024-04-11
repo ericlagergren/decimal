@@ -6,6 +6,20 @@ import (
 	"math/big"
 )
 
+const (
+	is64bit = 1 << (^uintptr(0) >> 63) / 2 // 0 or 1
+	is32bit = is64bit &^ 1                 // 0 or 1
+
+	maxScale32    = 425000000
+	maxScaleInf32 = 1000000001
+
+	maxScale64    = 999999999999999999
+	maxScaleInf64 = 2000000000000000001
+
+	MaxScale    = maxScale32*is32bit + maxScale64*is64bit
+	MaxScaleInf = maxScaleInf32*is32bit + maxScaleInf64*is64bit
+)
+
 const Inflated uint64 = math.MaxUint64
 
 var (
